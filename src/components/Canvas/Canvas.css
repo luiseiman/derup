@@ -1,0 +1,57 @@
+.canvas-wrapper {
+  width: 100%;
+  height: 100%;
+  background-color: #f7f8fb;
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-soft);
+  /* Layered background: soft gradient + dot grid */
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(15, 118, 110, 0.08), transparent 40%),
+    radial-gradient(circle at 90% 10%, rgba(14, 116, 144, 0.08), transparent 40%),
+    radial-gradient(var(--grid-color) 1px, transparent 1px);
+  background-size: auto, auto, 24px 24px;
+  background-position: center, center, 0 0;
+}
+
+.canvas-wrapper:active {
+  cursor: grabbing;
+}
+
+.canvas-content {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Ensure it doesn't block mouse events for the wrapper unless on an element */
+  pointer-events: none;
+}
+
+.er-node {
+  pointer-events: auto;
+  background: white;
+  border: 1px solid black;
+  padding: 10px 20px;
+  min-width: 80px;
+  text-align: center;
+  user-select: none;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.canvas-controls {
+  position: absolute;
+  bottom: 18px;
+  right: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  pointer-events: auto;
+  box-shadow: var(--shadow-tight);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
