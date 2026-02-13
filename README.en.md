@@ -99,6 +99,7 @@ For full scenarios:
 - [Architecture](docs/ARCHITECTURE.en.md)
 - [Contributing](docs/CONTRIBUTING.en.md)
 - [Publish to GitHub](docs/GITHUB_PUBLISH.en.md)
+- [Deploy to Google Cloud](docs/DEPLOY_GCP.en.md)
 
 ## License
 This project is open source and distributed under the [MIT License](LICENSE).

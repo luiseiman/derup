@@ -3,7 +3,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { URL } from 'node:url';
 
-const PORT = Number(process.env.GEMINI_PORT || 8787);
+const PORT = Number(process.env.PORT || process.env.GEMINI_PORT || 8787);
+const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
+const DIST_DIR = path.resolve(process.cwd(), 'dist');
+
+const CONTENT_TYPE_BY_EXT = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
+};
 
 const loadDotEnv = () => {
   const envPath = path.resolve(process.cwd(), '.env');
@@ -24,6 +39,54 @@ loadDotEnv();
 const sendJson = (res, status, payload) => {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(payload));
+};
+
+const sendFile = (res, filePath) => {
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = CONTENT_TYPE_BY_EXT[ext] || 'application/octet-stream';
+  const stream = fs.createReadStream(filePath);
+  stream.on('open', () => {
+    res.writeHead(200, { 'Content-Type': contentType });
+  });
+  stream.on('error', () => {
+    sendJson(res, 500, { error: 'Error serving static file.' });
+  });
+  stream.pipe(res);
+};
+
+const serveSpa = (req, res, pathname) => {
+  if (!fs.existsSync(DIST_DIR)) {
+    sendJson(res, 503, { error: 'Frontend dist no disponible. Ejecuta npm run build.' });
+    return true;
+  }
+
+  const safePath = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
+  let candidate = path.join(DIST_DIR, safePath);
+  if (!candidate.startsWith(DIST_DIR)) {
+    sendJson(res, 400, { error: 'Invalid path.' });
+    return true;
+  }
+
+  if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+    sendFile(res, candidate);
+    return true;
+  }
+
+  if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+    const indexInFolder = path.join(candidate, 'index.html');
+    if (fs.existsSync(indexInFolder)) {
+      sendFile(res, indexInFolder);
+      return true;
+    }
+  }
+
+  const indexPath = path.join(DIST_DIR, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    sendJson(res, 404, { error: 'Static index not found.' });
+    return true;
+  }
+  sendFile(res, indexPath);
+  return true;
 };
 
 const normalizeError = (error, fallback = 'Server error.') => {
@@ -312,9 +375,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if ((req.method === 'GET' || req.method === 'HEAD') && !url.pathname.startsWith('/api/')) {
+    serveSpa(req, res, url.pathname);
+    return;
+  }
+
   sendJson(res, 404, { error: 'Not found.' });
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`AI API proxy listening on http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`AI app server listening on http://${HOST}:${PORT}`);
 });

@@ -100,6 +100,7 @@ Para escenarios completos:
 - [Arquitectura](docs/ARCHITECTURE.es.md)
 - [Contribucion](docs/CONTRIBUTING.es.md)
 - [Publicar en GitHub](docs/GITHUB_PUBLISH.es.md)
+- [Deploy en Google Cloud](docs/DEPLOY_GCP.es.md)
 
 ## Licencia
 Este proyecto es open source y se distribuye bajo licencia [MIT](LICENSE).

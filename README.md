@@ -30,6 +30,8 @@ Open: `http://127.0.0.1:5173`
 - [Contributing (EN)](docs/CONTRIBUTING.en.md)
 - [Publish to GitHub (ES)](docs/GITHUB_PUBLISH.es.md)
 - [Publish to GitHub (EN)](docs/GITHUB_PUBLISH.en.md)
+- [Deploy in Google Cloud (ES)](docs/DEPLOY_GCP.es.md)
+- [Deploy in Google Cloud (EN)](docs/DEPLOY_GCP.en.md)
 
 ## Security Note
 Never commit real API keys. Use `.env` and rotate compromised keys immediately.

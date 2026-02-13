@@ -1,0 +1,11 @@
+.git
+.gitignore
+node_modules
+dist
+dist-ssr
+*.log
+.env
+.env.*
+!.env.example
+README*.md
+docs
