@@ -16,6 +16,7 @@ import { SQLView } from './components/Views/SQLView';
 import { erToRelationalSchema, buildSQLDDL } from './utils/relationalSchema';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { generateDiagramSVG, svgToPng, downloadDataUrl } from './utils/exportSVG';
 
 type AIProvider = 'gemini' | 'grok' | 'ollama' | 'openclaw';
 type AIConnectivityStatus = 'unknown' | 'checking' | 'connected' | 'disconnected' | 'missing-key';
@@ -182,33 +183,52 @@ function App() {
   const sqlDDL = useMemo(() => buildSQLDDL(relationalSchema), [relationalSchema]);
 
   const handleExportImage = async (format: 'png' | 'pdf') => {
-    const el = canvasAreaRef.current;
-    if (!el || isExporting) return;
+    if (isExporting) return;
     setIsExporting(true);
+    const filename = `derup-${canvasView}-${Date.now()}`;
     try {
-      const captureTarget = canvasView === 'er'
-        ? (el.querySelector('.canvas-wrapper') as HTMLElement | null) ?? el
-        : el;
-      const canvas = await html2canvas(captureTarget, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const filename = `derup-${canvasView}-${Date.now()}`;
-      if (format === 'png') {
-        const a = document.createElement('a');
-        a.href = imgData;
-        a.download = `${filename}.png`;
-        a.click();
+      if (canvasView === 'er') {
+        // ── ER view: generate pure SVG from model data (no DOM capture) ──────
+        const svgString = generateDiagramSVG(nodes, connections, aggregations);
+        const imgData   = await svgToPng(svgString, 2);
+        if (format === 'png') {
+          downloadDataUrl(imgData, `${filename}.png`);
+        } else {
+          const tmp = document.createElement('canvas');
+          const img = new Image();
+          await new Promise<void>((res, rej) => {
+            img.onload = () => res(); img.onerror = rej; img.src = imgData;
+          });
+          tmp.width = img.naturalWidth; tmp.height = img.naturalHeight;
+          tmp.getContext('2d')!.drawImage(img, 0, 0);
+          const w = tmp.width / 2, h = tmp.height / 2;
+          const pdf = new jsPDF({ orientation: w > h ? 'landscape' : 'portrait', unit: 'px', format: [w, h] });
+          pdf.addImage(imgData, 'PNG', 0, 0, w, h);
+          pdf.save(`${filename}.pdf`);
+        }
       } else {
-        const w = canvas.width / 2;
-        const h = canvas.height / 2;
-        const orientation = w > h ? 'landscape' : 'portrait';
-        const pdf = new jsPDF({ orientation, unit: 'px', format: [w, h] });
-        pdf.addImage(imgData, 'PNG', 0, 0, w, h);
-        pdf.save(`${filename}.pdf`);
+        // ── Schema / SQL views: capture the content div (no transforms) ──────
+        const el = canvasAreaRef.current;
+        const contentEl = el?.querySelector('.rs-root, .sql-root') as HTMLElement | null;
+        const target = contentEl ?? el;
+        if (!target) return;
+        const canvas = await html2canvas(target, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+        });
+        const imgData = canvas.toDataURL('image/png');
+        if (format === 'png') {
+          downloadDataUrl(imgData, `${filename}.png`);
+        } else {
+          const w = canvas.width / 2, h = canvas.height / 2;
+          const pdf = new jsPDF({ orientation: w > h ? 'landscape' : 'portrait', unit: 'px', format: [w, h] });
+          pdf.addImage(imgData, 'PNG', 0, 0, w, h);
+          pdf.save(`${filename}.pdf`);
+        }
       }
     } catch (err) {
       console.error('Export failed', err);
