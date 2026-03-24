@@ -2590,12 +2590,22 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `clear-diagram: {"type":"clear-diagram"}\n` +
     `chat: {"type":"chat","message":"Response in Spanish for the user"}\n\n` +
     `Rules:\n` +
-    `- Use "chat" for: greetings, general ER theory questions, questions about this diagram's decisions, and unmappable requests.\n` +
+    `- Use "chat" for: greetings, general ER theory questions, questions about this diagram's decisions, review/audit requests, and unmappable requests.\n` +
     `- Questions about diagram decisions (why weak entity, why aggregation, why ISA, what are the assumptions, etc.):\n` +
     `  Cross-reference the original scenario text with the current diagram state.\n` +
     `  Explain each decision citing the exact R&G concept applied (R&G Ch.2 rule) and the specific sentence/fact in the scenario that triggered it.\n` +
     `  If multiple design alternatives exist, mention them and justify why the chosen one is correct per R&G.\n` +
     `  Structure the answer clearly (one paragraph or bullet per decision). Answer in Spanish.\n` +
+    `- Review/audit requests (revisar modelo, buscar errores, verificar modelado, sugerir mejoras, etc.):\n` +
+    `  Perform a structured R&G audit of the current diagram. Check ALL of the following:\n` +
+    `  1. ENTITIES: every strong entity has a key attribute; every weak entity has a partial key and an identifying relationship.\n` +
+    `  2. ATTRIBUTES: no multivalued attribute is stored as simple; derived attributes are marked derived; composite attributes are decomposed.\n` +
+    `  3. RELATIONSHIPS: cardinality ratios match the scenario constraints; total participation is marked where "every instance must" participate.\n` +
+    `  4. ISA: overlap constraint (disjoint/overlapping) and covering constraint (total/partial) are correct per scenario text.\n` +
+    `  5. AGGREGATION vs TERNARY: aggregation is used only when a relationship itself participates in another relationship; not as a substitute for a ternary.\n` +
+    `  6. MISSING CONSTRUCTS: entities/relationships/attributes implied by the scenario but absent from the diagram.\n` +
+    `  7. REDUNDANCY: relationships or attributes that duplicate information already captured.\n` +
+    `  Format: numbered list, each item = [SEVERITY: ERROR|WARNING|SUGGESTION] — element name — description — R&G rule violated or improvement basis. Answer in Spanish.\n` +
     `- Entity/relationship names must match the diagram EXACTLY (case-insensitive).\n` +
     `- If user refers to an entity without naming it, infer from recent conversation.\n` +
     `- If user asks for typical/own attributes without listing them, use useDefaultAttributes:true and attributes:[].\n` +
