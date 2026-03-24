@@ -98,6 +98,10 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('properties');
 
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const isSyncingRef = useRef(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const presetFileInputRef = useRef<HTMLInputElement>(null);
   const snapshotTimerRef = useRef<number | null>(null);
@@ -2420,6 +2424,68 @@ function App() {
     chatInputRef.current?.focus();
   };
 
+  // Connect to room from URL on load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const rid = params.get('room');
+    if (rid) joinRoom(rid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const joinRoom = (rid: string) => {
+    if (wsRef.current) wsRef.current.close();
+    const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/?room=${rid}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+    setRoomId(rid);
+
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data) as { type: string; nodes?: ERNode[]; connections?: Connection[]; aggregations?: Aggregation[] };
+      if (msg.type === 'state' || msg.type === 'update') {
+        isSyncingRef.current = true;
+        if (Array.isArray(msg.nodes)) setNodes(msg.nodes);
+        if (Array.isArray(msg.connections)) setConnections(msg.connections);
+        if (Array.isArray(msg.aggregations)) setAggregations(msg.aggregations);
+        setTimeout(() => { isSyncingRef.current = false; }, 0);
+      }
+    };
+
+    ws.onclose = () => {
+      setRoomId(prev => (prev === rid ? null : prev));
+    };
+  };
+
+  const leaveRoom = () => {
+    wsRef.current?.close();
+    wsRef.current = null;
+    setRoomId(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('room');
+    window.history.replaceState({}, '', url.toString());
+  };
+
+  const createRoom = async () => {
+    const res = await fetch('/api/rooms', { method: 'POST' });
+    const data = await res.json() as { roomId: string };
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', data.roomId);
+    window.history.replaceState({}, '', url.toString());
+    joinRoom(data.roomId);
+  };
+
+  const sendUpdateDebounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!roomId || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (isSyncingRef.current) return;
+    if (sendUpdateDebounceRef.current) clearTimeout(sendUpdateDebounceRef.current);
+    sendUpdateDebounceRef.current = window.setTimeout(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'update', nodes, connections, aggregations }));
+      }
+    }, 150);
+  }, [nodes, connections, aggregations, roomId]);
+
   const handleChatSubmit = async () => {
     const text = chatInput.trim();
     if (!text) return;
@@ -3374,6 +3440,19 @@ function App() {
 
           {activeTab === 'chat' && (
           <div className="sidebar-tab-content chat-panel">
+            {roomId ? (
+              <div className="room-bar">
+                <span className="room-indicator">● Sala activa</span>
+                <button onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                }} className="room-copy-btn">Copiar link</button>
+                <button onClick={leaveRoom} className="room-leave-btn">Salir</button>
+              </div>
+            ) : (
+              <div className="room-bar">
+                <button onClick={createRoom} className="room-join-btn">Colaborar</button>
+              </div>
+            )}
             <div className="chat-messages">
               {chatMessages.map(message => (
                 <div key={message.id} className={`chat-message ${message.role}`}>

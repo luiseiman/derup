@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { URL } from 'node:url';
+import { WebSocketServer } from 'ws';
 
 const PORT = Number(process.env.PORT || process.env.GEMINI_PORT || 8787);
 const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
@@ -35,6 +36,22 @@ const loadDotEnv = () => {
 };
 
 loadDotEnv();
+
+const rooms = new Map(); // roomId -> { nodes, connections, aggregations, clients: Set }
+
+const getOrCreateRoom = (roomId) => {
+  if (!rooms.has(roomId)) {
+    rooms.set(roomId, { nodes: [], connections: [], aggregations: [], clients: new Set() });
+  }
+  return rooms.get(roomId);
+};
+
+// Clean up empty rooms every 10 minutes
+setInterval(() => {
+  for (const [id, room] of rooms.entries()) {
+    if (room.clients.size === 0) rooms.delete(id);
+  }
+}, 10 * 60 * 1000);
 
 const sendJson = (res, status, payload) => {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -465,6 +482,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/rooms') {
+    const roomId = Math.random().toString(36).slice(2, 10);
+    getOrCreateRoom(roomId);
+    sendJson(res, 200, { roomId });
+    return;
+  }
+
   if ((req.method === 'GET' || req.method === 'HEAD') && !url.pathname.startsWith('/api/')) {
     serveSpa(req, res, url.pathname);
     return;
@@ -475,4 +499,39 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`AI app server listening on http://${HOST}:${PORT}`);
+});
+
+const wss = new WebSocketServer({ server });
+
+wss.on('connection', (ws, req) => {
+  const url = new URL(req.url, 'http://localhost');
+  const roomId = url.searchParams.get('room');
+  if (!roomId) { ws.close(4000, 'Missing room'); return; }
+
+  const room = getOrCreateRoom(roomId);
+  room.clients.add(ws);
+
+  // Send current state to new client
+  ws.send(JSON.stringify({ type: 'state', nodes: room.nodes, connections: room.connections, aggregations: room.aggregations }));
+
+  ws.on('message', (data) => {
+    let msg;
+    try { msg = JSON.parse(data.toString()); } catch { return; }
+    if (msg.type === 'update') {
+      // Update room state
+      if (Array.isArray(msg.nodes)) room.nodes = msg.nodes;
+      if (Array.isArray(msg.connections)) room.connections = msg.connections;
+      if (Array.isArray(msg.aggregations)) room.aggregations = msg.aggregations;
+      // Broadcast to other clients
+      for (const client of room.clients) {
+        if (client !== ws && client.readyState === 1) {
+          client.send(JSON.stringify({ type: 'update', nodes: room.nodes, connections: room.connections, aggregations: room.aggregations }));
+        }
+      }
+    }
+  });
+
+  ws.on('close', () => {
+    room.clients.delete(ws);
+  });
 });

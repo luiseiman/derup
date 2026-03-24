@@ -593,3 +593,26 @@
     opacity: 0.7;
   }
 }
+
+/* ========== COLLABORATION ROOM BAR ========== */
+.room-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface-2, #f0f0f0);
+  border-bottom: 1px solid var(--border, #ddd);
+  flex-shrink: 0;
+}
+.room-indicator { color: #22c55e; font-size: 0.8rem; font-weight: 600; flex: 1; }
+.room-copy-btn, .room-leave-btn, .room-join-btn {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+.room-join-btn { background: var(--accent, #7c3aed); color: white; }
+.room-copy-btn { background: #e0e7ff; color: #3730a3; }
+.room-leave-btn { background: #fee2e2; color: #dc2626; }
