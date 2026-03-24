@@ -2475,7 +2475,7 @@ function App() {
     `replace-attributes: {"type":"replace-attributes","entityName":"X","attributes":["a"],"keyAttributes":["a"]}\n` +
     `rename-entity: {"type":"rename-entity","entityName":"Viejo","newName":"Nuevo"}\n` +
     `rename-relationship: {"type":"rename-relationship","relationshipName":"Viejo","newName":"Nuevo"}\n` +
-    `connect-entities: {"type":"connect-entities","entityA":"A","entityB":"B","relationshipName":"R","cardinalityA":"1","cardinalityB":"N","totalA":false,"totalB":true}\n` +
+    `connect-entities: {"type":"connect-entities","entityA":"A","entityB":"B","relationshipName":"R","cardinalityA":"1","cardinalityB":"N","totalA":false,"totalB":true} (autorrelación: entityA===entityB)\n` +
     `set-entity-weakness: {"type":"set-entity-weakness","entityName":"X","isWeak":true}\n` +
     `set-cardinality: {"type":"set-cardinality","entityA":"A","entityB":"B","cardinalityA":"1","cardinalityB":"N"}\n` +
     `set-participation: {"type":"set-participation","entityName":"A","relationshipName":"R","isTotal":true}\n` +
@@ -3493,21 +3493,15 @@ function App() {
         return;
       }
 
-      if (entityA.id === entityB.id) {
-        setChatMessages(prev => [
-          ...prev,
-          {
-            id: createId(),
-            role: 'assistant',
-            text: 'Selecciona dos entidades distintas para crear la relación.'
-          }
-        ]);
-        return;
-      }
-
+      const isSelfRelationship = entityA.id === entityB.id;
       const relId = createId();
-      const midX = (entityA.position.x + entityB.position.x) / 2;
-      const midY = (entityA.position.y + entityB.position.y) / 2;
+      // For self-relationships, offset the relationship node so it's visible
+      const midX = isSelfRelationship
+        ? entityA.position.x + 200
+        : (entityA.position.x + entityB.position.x) / 2;
+      const midY = isSelfRelationship
+        ? entityA.position.y - 80
+        : (entityA.position.y + entityB.position.y) / 2;
 
       const relationshipLabel = parsed.relationshipName ? normalizeEntityLabel(parsed.relationshipName) : 'Relación';
       const relationshipNode: ERNode = {
@@ -3539,14 +3533,10 @@ function App() {
       setSelectedConnectionIds(new Set());
       setSelectedAggregationIds(new Set());
 
-      setChatMessages(prev => [
-        ...prev,
-        {
-          id: createId(),
-          role: 'assistant',
-          text: `Listo. Creé la relación ${relationshipLabel} entre ${entityA.label} y ${entityB.label}.`
-        }
-      ]);
+      const relDesc = isSelfRelationship
+        ? `Listo. Creé la autorrelación ${relationshipLabel} sobre ${entityA.label}.`
+        : `Listo. Creé la relación ${relationshipLabel} entre ${entityA.label} y ${entityB.label}.`;
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: relDesc }]);
       return;
     }
 
