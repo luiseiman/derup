@@ -1,0 +1,230 @@
+.rs-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(248, 246, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--panel-border);
+}
+
+.rs-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+/* ── Card ── */
+.rs-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1.5px solid var(--panel-border);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(147, 51, 234, 0.07);
+  min-width: 200px;
+  max-width: 300px;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.rs-card:hover {
+  box-shadow: 0 6px 18px rgba(147, 51, 234, 0.14);
+  transform: translateY(-1px);
+}
+
+.rs-card--relationship {
+  border-color: var(--primary-200);
+}
+.rs-card--multivalued {
+  border-color: var(--primary-100);
+  opacity: 0.9;
+}
+.rs-card--isa-subtype {
+  border-color: rgba(6, 182, 212, 0.4);
+}
+
+/* ── Header ── */
+.rs-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px;
+  gap: 8px;
+}
+
+.rs-table-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-color);
+  letter-spacing: 0.01em;
+  word-break: break-all;
+}
+
+.rs-source-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.rs-source-badge--entity {
+  background: var(--primary-100);
+  color: var(--primary-700);
+}
+.rs-source-badge--relationship {
+  background: rgba(147, 51, 234, 0.1);
+  color: var(--primary-600);
+}
+.rs-source-badge--multivalued {
+  background: rgba(6, 182, 212, 0.1);
+  color: #0891b2;
+}
+.rs-source-badge--isa-subtype {
+  background: rgba(6, 182, 212, 0.12);
+  color: #0e7490;
+}
+
+.rs-divider {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 0 8px;
+}
+
+/* ── Column list ── */
+.rs-col-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.rs-col {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px;
+  font-size: 0.8rem;
+  transition: background 0.1s;
+}
+
+.rs-col:hover {
+  background: rgba(147, 51, 234, 0.04);
+}
+
+.rs-col--pk .rs-col-name {
+  font-weight: 700;
+  color: var(--primary-700);
+}
+
+.rs-col--nullable .rs-col-name {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.rs-col-icon {
+  font-size: 0.75rem;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.rs-col-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Tags ── */
+.rs-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.rs-tag--pk {
+  background: var(--primary-100);
+  color: var(--primary-700);
+}
+.rs-tag--fk {
+  background: rgba(6, 182, 212, 0.12);
+  color: #0e7490;
+}
+.rs-tag--null {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-secondary);
+}
+
+/* ── PK composite ── */
+.rs-pk-composite {
+  margin: 4px 12px 8px;
+  font-size: 0.72rem;
+  color: var(--primary-600);
+  background: var(--primary-50, rgba(147, 51, 234, 0.06));
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+
+/* ── Notes ── */
+.rs-notes {
+  padding: 4px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rs-note {
+  font-size: 0.71rem;
+  color: var(--text-secondary);
+}
+
+/* ── Warnings ── */
+.rs-warnings {
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+}
+.rs-warnings-title {
+  font-weight: 700;
+  color: #92400e;
+  display: block;
+  margin-bottom: 6px;
+}
+.rs-warnings ul {
+  margin: 0;
+  padding-left: 16px;
+  color: #78350f;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* ── Empty state ── */
+.rs-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 40px 20px;
+}
+.rs-empty-icon {
+  font-size: 2.5rem;
+  opacity: 0.5;
+}
+.rs-empty p {
+  margin: 0;
+  text-align: center;
+}
+.rs-empty-hint {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}

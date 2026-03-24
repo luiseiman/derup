@@ -479,6 +479,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/health') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
+    return;
+  }
+
   if ((req.method === 'GET' || req.method === 'HEAD') && !url.pathname.startsWith('/api/')) {
     serveSpa(req, res, url.pathname);
     return;

@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import type { WheelEvent } from 'react';
 import './Canvas.css';
 import type { ERNode, Connection, Aggregation } from '../../types/er';
 import { NodeDispatcher } from '../Shapes/NodeDispatcher';
+import { createId } from '../../utils/ids';
 import { ContextMenu } from '../ContextMenu/ContextMenu';
 import { useContextMenu, type MenuItem } from '../../hooks/useContextMenu';
 
@@ -192,7 +193,7 @@ const Canvas: React.FC<CanvasProps> = ({
         return () => canvas.removeEventListener('wheel', preventDefault);
     }, []);
 
-    const nodesById = new Map(nodes.map(node => [node.id, node]));
+    const nodesById = useMemo(() => new Map(nodes.map(node => [node.id, node])), [nodes]);
 
     const getNodeSize = (node: ERNode) => {
         switch (node.type) {
@@ -272,12 +273,14 @@ const Canvas: React.FC<CanvasProps> = ({
             case 'relationship': {
                 const halfW = 50;
                 const halfH = 30;
-                const t = 1 / ((ax / halfW) + (ay / halfH));
+                if (ax === 0 && ay === 0) return { x: node.position.x, y: node.position.y };
+                const t = ax === 0 ? halfH / ay : ay === 0 ? halfW / ax : 1 / (ax / halfW + ay / halfH);
                 return { x: node.position.x + ux * t, y: node.position.y + uy * t };
             }
             case 'attribute': {
                 const rx = 40;
                 const ry = 20;
+                if (ux === 0 && uy === 0) return { x: node.position.x, y: node.position.y };
                 const t = 1 / Math.sqrt((ux * ux) / (rx * rx) + (uy * uy) / (ry * ry));
                 return { x: node.position.x + ux * t, y: node.position.y + uy * t };
             }
@@ -650,7 +653,6 @@ const Canvas: React.FC<CanvasProps> = ({
     const createConnection = (sourceId: string, targetId: string) => {
         // Validate connection type
         if (!isValidConnection(sourceId, targetId)) {
-            console.warn(`Cannot connect ${nodes.find(n => n.id === sourceId)?.type} with ${nodes.find(n => n.id === targetId)?.type}`);
             return;
         }
 
@@ -662,7 +664,7 @@ const Canvas: React.FC<CanvasProps> = ({
         if (exists) return;
 
         const newConn: Connection = {
-            id: Math.random().toString(36).slice(2),
+            id: createId(),
             sourceId,
             targetId,
             cardinality: 'N',
@@ -739,7 +741,7 @@ const Canvas: React.FC<CanvasProps> = ({
                 action: () => {
                     // Creating a new attribute node
                     const newAttrNode: ERNode = {
-                        id: Math.random().toString(36).slice(2),
+                        id: createId(),
                         type: 'attribute',
                         label: 'New Attribute',
                         position: {
@@ -752,7 +754,7 @@ const Canvas: React.FC<CanvasProps> = ({
                         isDerived: false,
                     };
                     const newConn: Connection = {
-                        id: Math.random().toString(36).slice(2),
+                        id: createId(),
                         sourceId: nodeId,
                         targetId: newAttrNode.id,
                         cardinality: 'N',
@@ -775,7 +777,7 @@ const Canvas: React.FC<CanvasProps> = ({
                 action: () => {
                     const newNode: ERNode = {
                         ...node,
-                        id: Math.random().toString(36).slice(2),
+                        id: createId(),
                         position: {
                             x: node.position.x + 40,
                             y: node.position.y + 40,
@@ -869,7 +871,7 @@ const Canvas: React.FC<CanvasProps> = ({
                 label: '◻️ New Entity',
                 action: () => {
                     const newNode: ERNode = {
-                        id: Math.random().toString(36).slice(2),
+                        id: createId(),
                         type: 'entity',
                         label: 'Entity',
                         position: { x: 300, y: 300 },
@@ -884,7 +886,7 @@ const Canvas: React.FC<CanvasProps> = ({
                 label: '◇ New Relationship',
                 action: () => {
                     const newNode: ERNode = {
-                        id: Math.random().toString(36).slice(2),
+                        id: createId(),
                         type: 'relationship',
                         label: 'Relationship',
                         position: { x: 300, y: 300 },
@@ -899,7 +901,7 @@ const Canvas: React.FC<CanvasProps> = ({
                 label: '△ New ISA',
                 action: () => {
                     const newNode: ERNode = {
-                        id: Math.random().toString(36).slice(2),
+                        id: createId(),
                         type: 'isa',
                         label: 'ISA',
                         position: { x: 300, y: 300 },

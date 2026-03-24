@@ -11,6 +11,11 @@ import { useLocalStorage } from './hooks/useLocalStorage';
 import { safeCardinality } from './utils/schemas';
 import Toolbar from './components/Toolbar/Toolbar';
 import type { ToolbarItem } from './components/Toolbar/Toolbar';
+import { RelationalSchemaView } from './components/Views/RelationalSchemaView';
+import { SQLView } from './components/Views/SQLView';
+import { erToRelationalSchema, buildSQLDDL } from './utils/relationalSchema';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 type AIProvider = 'gemini' | 'grok' | 'ollama' | 'openclaw';
 type AIConnectivityStatus = 'unknown' | 'checking' | 'connected' | 'disconnected' | 'missing-key';
@@ -32,6 +37,52 @@ const DEFAULT_ATTRIBUTE_PRESETS: Record<string, { label: string; attributes: str
   vehiculo: { label: 'Vehículo', attributes: ['id', 'patente', 'marca', 'modelo', 'color'] },
   chofer: { label: 'Chofer', attributes: ['id', 'nombre', 'apellido', 'dni', 'licencia'] },
 };
+
+/**
+ * Scans the visible canvas area row-by-row (top-left → top-right → next row)
+ * and returns the first grid position that has no existing node within CLEAR radius.
+ * Falls back to the visible center if every candidate is occupied.
+ */
+function findFreePosition(
+  nodes: ERNode[],
+  scale: number,
+  offset: { x: number; y: number },
+  canvasAreaEl: HTMLDivElement | null
+): { x: number; y: number } {
+  const wrapperEl = canvasAreaEl?.querySelector('.canvas-wrapper') as HTMLElement | null;
+  const rect = wrapperEl?.getBoundingClientRect();
+  const canvasW = rect?.width ?? window.innerWidth * 0.6;
+  const canvasH = rect?.height ?? window.innerHeight * 0.8;
+
+  const PAD_PX = 60;           // screen-px padding from each edge
+  const STEP_PX = 200;         // grid step in screen px
+  const CLEAR_PX = 160;        // min distance between nodes in screen px
+
+  const toCanvas = (sx: number, sy: number) => ({
+    x: (sx - offset.x) / scale,
+    y: (sy - offset.y) / scale,
+  });
+
+  const topLeft     = toCanvas(PAD_PX, PAD_PX);
+  const bottomRight = toCanvas(canvasW - PAD_PX, canvasH - PAD_PX);
+  const step  = STEP_PX  / scale;
+  const clear = CLEAR_PX / scale;
+
+  for (let row = 0; topLeft.y + row * step < bottomRight.y; row++) {
+    for (let col = 0; topLeft.x + col * step < bottomRight.x; col++) {
+      const pos = { x: topLeft.x + col * step, y: topLeft.y + row * step };
+      const isFree = nodes.every((n) => {
+        const dx = n.position.x - pos.x;
+        const dy = n.position.y - pos.y;
+        return dx * dx + dy * dy > clear * clear;
+      });
+      if (isFree) return pos;
+    }
+  }
+
+  // All candidates occupied → visible center
+  return toCanvas(canvasW / 2, canvasH / 2);
+}
 
 function App() {
   const [nodes, setNodes] = useState<ERNode[]>([
@@ -96,9 +147,10 @@ function App() {
   const [presetName, setPresetName] = useState('');
   const [presetAttributesInput, setPresetAttributesInput] = useState('');
   const [modelingHints, setModelingHints] = useLocalStorage<string[]>('derup.modeling.hints.v1', []);
+  const [canvasView, setCanvasView] = useState<'er' | 'schema' | 'sql'>('er');
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('properties');
+  const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('chat');
   const [lastScenarioText, setLastScenarioText] = useState('');
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const batchQueueRef = useRef<AICommand[]>([]);
@@ -115,10 +167,56 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const presetFileInputRef = useRef<HTMLInputElement>(null);
   const snapshotTimerRef = useRef<number | null>(null);
+  const canvasAreaRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const SNAPSHOT_KEY = 'derup.snapshot.v1';
 
   const currentView: DiagramView = { scale, offset };
+
+  const relationalSchema = useMemo(
+    () => erToRelationalSchema(nodes, connections, aggregations,
+      selectedNodeIds.size > 0 ? selectedNodeIds : undefined),
+    [nodes, connections, aggregations, selectedNodeIds]
+  );
+  const sqlDDL = useMemo(() => buildSQLDDL(relationalSchema), [relationalSchema]);
+
+  const handleExportImage = async (format: 'png' | 'pdf') => {
+    const el = canvasAreaRef.current;
+    if (!el || isExporting) return;
+    setIsExporting(true);
+    try {
+      const captureTarget = canvasView === 'er'
+        ? (el.querySelector('.canvas-wrapper') as HTMLElement | null) ?? el
+        : el;
+      const canvas = await html2canvas(captureTarget, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const filename = `derup-${canvasView}-${Date.now()}`;
+      if (format === 'png') {
+        const a = document.createElement('a');
+        a.href = imgData;
+        a.download = `${filename}.png`;
+        a.click();
+      } else {
+        const w = canvas.width / 2;
+        const h = canvas.height / 2;
+        const orientation = w > h ? 'landscape' : 'portrait';
+        const pdf = new jsPDF({ orientation, unit: 'px', format: [w, h] });
+        pdf.addImage(imgData, 'PNG', 0, 0, w, h);
+        pdf.save(`${filename}.pdf`);
+      }
+    } catch (err) {
+      console.error('Export failed', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const canConnectSelection = useMemo(() => {
     const connectableIds = Array.from(new Set([...selectedNodeIds, ...selectedAggregationIds]));
     if (connectableIds.length !== 2) return false;
@@ -467,9 +565,6 @@ function App() {
 
   const clampScale = (value: number) => Math.min(Math.max(0.1, value), 5);
 
-  const setZoom = (value: number) => {
-    setScale(clampScale(value));
-  };
 
   const addNode = (type: NodeType) => {
     const id = createId();
@@ -483,13 +578,10 @@ function App() {
       if (parentNode) {
         position = { x: parentNode.position.x + 100, y: parentNode.position.y + 50 };
       } else {
-        const { x: centerX, y: centerY } = getCanvasCenter();
-        position = { x: (centerX - offset.x) / scale, y: (centerY - offset.y) / scale };
+        position = findFreePosition(nodes, scale, offset, canvasAreaRef.current);
       }
     } else {
-      const centerX = window.innerWidth / 2;
-      const centerY = window.innerHeight / 2 - 50;
-      position = { x: (centerX - offset.x) / scale, y: (centerY - offset.y) / scale };
+      position = findFreePosition(nodes, scale, offset, canvasAreaRef.current);
     }
 
     const label = `New ${type}`;
@@ -532,6 +624,7 @@ function App() {
         newSet.delete(id);
       } else {
         newSet.add(id);
+        setActiveTab('properties');
       }
       return newSet;
     });
@@ -549,6 +642,7 @@ function App() {
         newSet.delete(id);
       } else {
         newSet.add(id);
+        setActiveTab('properties');
       }
       return newSet;
     });
@@ -1987,8 +2081,8 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       attributes: string[];
     }> = [];
 
-    const entityRadiusX = Math.max(160, 80 + entityEntries.length * 38);
-    const entityRadiusY = Math.max(120, 60 + entityEntries.length * 28);
+    const entityRadiusX = Math.max(160, Math.min(480, 80 + entityEntries.length * 38));
+    const entityRadiusY = Math.max(120, Math.min(360, 60 + entityEntries.length * 28));
 
     entityEntries.forEach((entity, index) => {
       const angle = (Math.PI * 2 * index) / Math.max(entityEntries.length, 1) - Math.PI / 2;
@@ -2801,6 +2895,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- ISA? → create-isa with isDisjoint and isTotal determined by R&G overlap/covering rules above.\n` +
     `- Aggregation? → connect-entity-aggregation with the base relationship's two member entities.\n` +
     `- Cardinality ambiguous? → default M:N ("N","N"); adjust only when text clearly implies constraint.\n\n` +
+    (buildModelingHintsBlock() ? `LEARNED RULES (from past modeling errors — never repeat these):\n${buildModelingHintsBlock()}\n` : '') +
     `Current diagram state:\n${buildDiagramContext()}\n` +
     (lastScenarioText
       ? `\nOriginal scenario used to generate this diagram:\n"""\n${lastScenarioText}\n"""\n`
@@ -3237,6 +3332,21 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     // Respuesta conversacional
     if (aiCommand?.type === 'chat') {
       setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: aiCommand.message }]);
+      // Auto-learn from review findings: extract ERROR items as modeling rules
+      const errorMatches = [...aiCommand.message.matchAll(/\[SEVERITY:\s*ERROR\][^:\n]*[:\-–—]+([^\n]+)/gi)];
+      if (errorMatches.length > 0) {
+        const newLessons = errorMatches
+          .map(m => m[1].replace(/^[\s—–-]+/, '').trim())
+          .filter(l => l.length > 10)
+          .map(l => `Evitar: ${l.substring(0, 120)}`);
+        if (newLessons.length > 0) {
+          setModelingHints(prev => {
+            const existing = new Set(prev);
+            const added = newLessons.filter(l => !existing.has(l));
+            return added.length > 0 ? [...prev, ...added] : prev;
+          });
+        }
+      }
       return;
     }
 
@@ -4113,12 +4223,6 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           ];
           return items;
         })()}
-        zoomControls={{
-          scale,
-          onZoomIn: () => setZoom(scale + 0.1),
-          onZoomOut: () => setZoom(scale - 0.1),
-          onZoomChange: (v) => setZoom(v),
-        }}
       />
       <input
         ref={fileInputRef}
@@ -4128,6 +4232,41 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
         style={{ display: 'none' }}
       />
       <main className="main-content">
+        <div className="canvas-area" ref={canvasAreaRef}>
+          <div className="canvas-view-tabs">
+            <button
+              className={`canvas-view-tab ${canvasView === 'er' ? 'active' : ''}`}
+              onClick={() => setCanvasView('er')}
+            >ER Diagram</button>
+            <button
+              className={`canvas-view-tab ${canvasView === 'schema' ? 'active' : ''}`}
+              onClick={() => setCanvasView('schema')}
+            >Esquema Relacional</button>
+            <button
+              className={`canvas-view-tab ${canvasView === 'sql' ? 'active' : ''}`}
+              onClick={() => setCanvasView('sql')}
+            >SQL DDL</button>
+            {selectedNodeIds.size > 0 && canvasView !== 'er' && (
+              <span className="canvas-view-filter-badge">
+                {selectedNodeIds.size} seleccionado{selectedNodeIds.size !== 1 ? 's' : ''}
+              </span>
+            )}
+            <div className="canvas-export-btns">
+              <button
+                className="canvas-export-btn"
+                onClick={() => handleExportImage('png')}
+                disabled={isExporting}
+                title="Exportar como PNG"
+              >⬇ PNG</button>
+              <button
+                className="canvas-export-btn"
+                onClick={() => handleExportImage('pdf')}
+                disabled={isExporting}
+                title="Exportar como PDF"
+              >{isExporting ? '…' : '⬇ PDF'}</button>
+            </div>
+          </div>
+          {canvasView === 'er' && (
         <Canvas
           nodes={nodes.map(n => ({ ...n, selected: selectedNodeIds.has(n.id) }))}
           aggregations={aggregations}
@@ -4149,6 +4288,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
                 newSet.delete(id);
               } else {
                 newSet.add(id);
+                setActiveTab('properties');
               }
               return newSet;
             });
@@ -4161,6 +4301,10 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           onCanvasClick={handleCanvasClick}
           multiSelectMode={multiSelectMode}
         />
+          )}
+          {canvasView === 'schema' && <RelationalSchemaView schema={relationalSchema} />}
+          {canvasView === 'sql' && <SQLView sql={sqlDDL} />}
+        </div>
         {sidebarOpen && (
         <aside className="sidebar">
           <div className="sidebar-tabs">

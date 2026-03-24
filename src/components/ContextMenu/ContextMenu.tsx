@@ -65,8 +65,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   }
 
   // Adjust position to keep menu within viewport
-  let top = state.position.y;
-  let left = state.position.x;
+  const top = state.position.y;
+  const left = state.position.x;
 
   // Will be adjusted by CSS if needed
   // const menuWidth = 200;

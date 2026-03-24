@@ -1,0 +1,118 @@
+.sql-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: linear-gradient(135deg, rgba(248, 246, 255, 0.95) 0%, rgba(240, 249, 255, 0.95) 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--panel-border);
+  overflow: hidden;
+}
+
+/* ── Toolbar ── */
+.sql-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.8);
+  flex-shrink: 0;
+}
+
+.sql-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.sql-copy-btn {
+  padding: 5px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--primary-300);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--primary-600);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sql-copy-btn:hover {
+  background: var(--primary-600);
+  color: white;
+  border-color: var(--primary-600);
+}
+
+.sql-copy-btn--done {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #15803d;
+}
+
+/* ── Scroll area ── */
+.sql-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+/* ── Pre ── */
+.sql-pre {
+  margin: 0;
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 0.82rem;
+  line-height: 1.65;
+  color: #1e1b4b;
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* ── Syntax tokens ── */
+.sql-kw {
+  color: var(--primary-600);
+  font-weight: 700;
+}
+.sql-ident {
+  color: #0f172a;
+}
+.sql-comment {
+  color: #6b7280;
+  font-style: italic;
+}
+.sql-punc {
+  color: #7c3aed;
+}
+.sql-num {
+  color: #0891b2;
+}
+.sql-string {
+  color: #15803d;
+}
+
+/* ── Empty state ── */
+.sql-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 40px 20px;
+}
+.sql-empty-icon {
+  font-size: 2.5rem;
+  opacity: 0.5;
+}
+.sql-empty p {
+  margin: 0;
+  text-align: center;
+}
+.sql-empty-hint {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
