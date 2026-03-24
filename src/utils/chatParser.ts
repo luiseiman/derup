@@ -14,6 +14,21 @@ type ParsedAddAttributesCommand = {
   usesSelectedEntity?: boolean;
 };
 
+type ParsedReplaceAttributesCommand = {
+  type: 'replace-attributes';
+  entityName: string;
+  attributes: string[];
+  keyAttributes: string[];
+  usesSelectedEntity?: boolean;
+};
+
+type ParsedRenameEntityCommand = {
+  type: 'rename-entity';
+  entityName: string;
+  newName: string;
+  usesSelectedEntity?: boolean;
+};
+
 type ParsedRelationshipCommand = {
   type: 'connect-entities';
   entityA: string;
@@ -44,6 +59,8 @@ type ParsedClearCommand = {
 export type ParsedChatCommand =
   | ParsedEntityCommand
   | ParsedAddAttributesCommand
+  | ParsedReplaceAttributesCommand
+  | ParsedRenameEntityCommand
   | ParsedRelationshipCommand
   | ParsedEntityAggregationCommand
   | ParsedWeakEntityCommand
@@ -132,7 +149,7 @@ const extractAttributesPart = (text: string) => {
   const conIndex = normalized.indexOf(' con ');
   if (conIndex >= 0) {
     const afterCon = text.slice(conIndex + 4);
-    const stopIndex = afterCon.search(/\b(dond\w*|wher\w*|siend\w*|clav\w*)\b/i);
+    const stopIndex = afterCon.search(/\b(dond\w*|wher\w*|siend\w*|clav\w*|como)\b/i);
     const part = stopIndex >= 0 ? afterCon.slice(0, stopIndex) : afterCon;
     if (part.trim().length > 0) return normalizeSpaces(part);
   }
@@ -171,6 +188,7 @@ const inferKeyAttributes = (text: string, attributes: string[]) => {
     return (
       normalizedInput.includes(`${normalizedAttr} es clav`) ||
       normalizedInput.includes(`${normalizedAttr} son clav`) ||
+      normalizedInput.includes(`${normalizedAttr} como clav`) ||
       normalizedInput.includes(`clave ${normalizedAttr}`) ||
       normalizedInput.includes(`clav ${normalizedAttr}`)
     );
@@ -329,6 +347,49 @@ export const parseChatCommand = (input: string, entityLabels: string[] = []): Pa
         isWeak,
         usesSelectedEntity: true,
       };
+    }
+  }
+
+  const isModify = normalizedTokens.some(token =>
+    ['reemplazar', 'reemplaza', 'cambiar', 'cambia', 'modificar', 'modifica', 'actualizar', 'actualiza', 'sustituir', 'sustituye'].some(keyword =>
+      fuzzyMatch(token, keyword, 2)
+    )
+  );
+
+  if (isModify && hasAttributeIntent && (entityMentions.length >= 1 || includesSelectedEntity(text))) {
+    const entityName = entityMentions[0] ?? (includesSelectedEntity(text) ? '__selected__' : null);
+    if (entityName) {
+      const attributesPart = extractAttributesForExistingEntity(text);
+      const attributes = attributesPart ? splitList(attributesPart) : [];
+      const keyAttributes = inferKeyAttributes(text, attributes);
+      return {
+        type: 'replace-attributes',
+        entityName,
+        attributes,
+        keyAttributes,
+        usesSelectedEntity: includesSelectedEntity(text),
+      };
+    }
+  }
+
+  const isRenameIntent = normalizedTokens.some(token =>
+    ['renombrar', 'renombra', 'rebautizar', 'rebautiza'].some(keyword => fuzzyMatch(token, keyword, 2))
+  ) || (normalizedText.includes('cambia') && (normalizedText.includes('nombre') || normalizedText.includes('nombr')));
+
+  if (isRenameIntent && entityMentions.length >= 1) {
+    const aIndex = normalizedText.lastIndexOf(' a ');
+    if (aIndex >= 0) {
+      const afterA = text.slice(aIndex + 3).trim();
+      const newName = normalizeSpaces(afterA.split(/\s+/).slice(0, 3).join(' '));
+      const entityName = entityMentions[0];
+      if (newName && newName.toLowerCase() !== entityName.toLowerCase()) {
+        return {
+          type: 'rename-entity',
+          entityName,
+          newName,
+          usesSelectedEntity: includesSelectedEntity(text),
+        };
+      }
     }
   }
 
