@@ -2255,6 +2255,72 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       }
     });
 
+    // Force-directed pass on entity/relationship/isa nodes to minimize edge crossings
+    const structuralNodes = nodes.filter(n => n.type !== 'attribute');
+    if (structuralNodes.length >= 3) {
+      const nodeIdx = new Map(structuralNodes.map((n, i) => [n.id, i]));
+      const count = structuralNodes.length;
+      const vx = new Float32Array(count);
+      const vy = new Float32Array(count);
+      const iterations = 160;
+      const initialTemp = 28;
+
+      for (let iter = 0; iter < iterations; iter++) {
+        const temp = initialTemp * Math.pow(1 - iter / iterations, 1.5);
+        vx.fill(0); vy.fill(0);
+
+        // Repulsion between all structural nodes
+        for (let i = 0; i < count; i++) {
+          for (let j = i + 1; j < count; j++) {
+            const dx = structuralNodes[j].position.x - structuralNodes[i].position.x;
+            const dy = structuralNodes[j].position.y - structuralNodes[i].position.y;
+            const dist2 = Math.max(dx * dx + dy * dy, 1);
+            const dist = Math.sqrt(dist2);
+            const f = 10000 / dist2;
+            vx[i] -= dx / dist * f;  vy[i] -= dy / dist * f;
+            vx[j] += dx / dist * f;  vy[j] += dy / dist * f;
+          }
+        }
+
+        // Spring attraction along connections
+        connections.forEach(conn => {
+          const ai = nodeIdx.get(conn.sourceId);
+          const bi = nodeIdx.get(conn.targetId);
+          if (ai === undefined || bi === undefined) return;
+          const a = structuralNodes[ai];
+          const b = structuralNodes[bi];
+          const dx = b.position.x - a.position.x;
+          const dy = b.position.y - a.position.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+          const ideal = (a.type === 'entity' && b.type === 'entity') ? 320 : 170;
+          const spring = 0.045 * (dist - ideal);
+          const fx = dx / dist * spring;
+          const fy = dy / dist * spring;
+          vx[ai] += fx; vy[ai] += fy;
+          vx[bi] -= fx; vy[bi] -= fy;
+        });
+
+        // Apply displacement capped by temperature
+        structuralNodes.forEach((n, i) => {
+          const mass = n.type === 'entity' ? 2.5 : 1.2;
+          const len = Math.sqrt(vx[i] ** 2 + vy[i] ** 2) || 1;
+          const step = Math.min(temp, len);
+          n.position.x += (vx[i] / len) * step / mass;
+          n.position.y += (vy[i] / len) * step / mass;
+        });
+      }
+
+      // Sync updated positions back to pendingEntityAttributes / pendingRelationshipAttributes
+      pendingEntityAttributes.forEach(entry => {
+        const updated = structuralNodes.find(n => n.id === entry.parentId);
+        if (updated) entry.parentPosition = { ...updated.position };
+      });
+      pendingRelationshipAttributes.forEach(entry => {
+        const updated = structuralNodes.find(n => n.id === entry.parentId);
+        if (updated) entry.parentPosition = { ...updated.position };
+      });
+    }
+
     pendingEntityAttributes.forEach(entry => {
       const { attrNodes, attrConnections } = buildAttributeNodes(
         entry.parentId,
