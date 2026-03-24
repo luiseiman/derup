@@ -204,6 +204,34 @@
   gap: 3px;
 }
 
+/* ── Inline editing ── */
+.rs-navigable {
+  cursor: pointer;
+}
+.rs-navigable:hover {
+  text-decoration: underline;
+  color: var(--primary-600);
+}
+.rs-editable {
+  cursor: pointer;
+}
+.rs-editable:hover {
+  color: var(--primary-600);
+}
+.rs-inline-input {
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: var(--text-color);
+  border: none;
+  border-bottom: 1.5px solid var(--primary-400);
+  background: transparent;
+  outline: none;
+  padding: 0;
+  width: 100%;
+  min-width: 60px;
+}
+
 /* ── Empty state ── */
 .rs-empty {
   display: flex;

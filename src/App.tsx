@@ -12,7 +12,7 @@ import { safeCardinality } from './utils/schemas';
 import Toolbar from './components/Toolbar/Toolbar';
 import type { ToolbarItem } from './components/Toolbar/Toolbar';
 import { RelationalSchemaView } from './components/Views/RelationalSchemaView';
-import { SQLView } from './components/Views/SQLView';
+import { SQLView, registerSQLNavigate } from './components/Views/SQLView';
 import { erToRelationalSchema, buildSQLDDL } from './utils/relationalSchema';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -236,6 +236,27 @@ function App() {
       setIsExporting(false);
     }
   };
+
+  // ── Schema / SQL view navigation + rename ────────────────────────────────
+  const handleNavigateToNode = (sourceId: string) => {
+    setSelectedNodeIds(new Set([sourceId]));
+    setSelectedConnectionIds(new Set());
+    setSelectedAggregationIds(new Set());
+    setLastSelectedNodeId(sourceId);
+    setCanvasView('er');
+    setActiveTab('properties');
+  };
+
+  const handleRenameNode = (sourceId: string, newLabel: string) => {
+    setNodes((prev) =>
+      prev.map((n) => (n.id === sourceId ? { ...n, label: newLabel } : n))
+    );
+  };
+
+  // Register global navigate handler for SQL inline onclick
+  useEffect(() => {
+    registerSQLNavigate(handleNavigateToNode);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const canConnectSelection = useMemo(() => {
     const connectableIds = Array.from(new Set([...selectedNodeIds, ...selectedAggregationIds]));
@@ -4322,8 +4343,20 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           multiSelectMode={multiSelectMode}
         />
           )}
-          {canvasView === 'schema' && <RelationalSchemaView schema={relationalSchema} />}
-          {canvasView === 'sql' && <SQLView sql={sqlDDL} />}
+          {canvasView === 'schema' && (
+            <RelationalSchemaView
+              schema={relationalSchema}
+              onNavigateToNode={handleNavigateToNode}
+              onRenameNode={handleRenameNode}
+            />
+          )}
+          {canvasView === 'sql' && (
+            <SQLView
+              sql={sqlDDL}
+              tables={relationalSchema.tables}
+              onNavigateToNode={handleNavigateToNode}
+            />
+          )}
         </div>
         {sidebarOpen && (
         <aside className="sidebar">

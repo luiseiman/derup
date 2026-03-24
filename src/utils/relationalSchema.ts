@@ -4,6 +4,7 @@ import type { ERNode, Connection, Aggregation, EntityNode, AttributeNode, Relati
 
 export interface RelationalColumn {
   name: string;
+  sourceId?: string;   // ID of the originating AttributeNode (undefined for derived FK/PK cols)
   isPrimaryKey: boolean;
   isForeignKey: boolean;
   referencedTable?: string;
@@ -20,6 +21,7 @@ export interface ForeignKeyDef {
 
 export interface RelationalTable {
   name: string;
+  sourceId: string;    // ID of the originating ERNode
   columns: RelationalColumn[];
   primaryKey: string[];
   foreignKeys: ForeignKeyDef[];
@@ -101,14 +103,22 @@ export function erToRelationalSchema(
       keyAttrs.length > 0 ? keyAttrs.map((a) => snake(a.label)) : [`id_${tName}`];
 
     const columns: RelationalColumn[] = [
-      ...pkCols.map((col) => ({
-        name: col,
+      ...keyAttrs.map((a) => ({
+        name: snake(a.label),
+        sourceId: a.id,
         isPrimaryKey: true,
         isForeignKey: false,
         isNullable: false,
       })),
+      ...(keyAttrs.length === 0 ? pkCols.map((col) => ({
+        name: col,
+        isPrimaryKey: true,
+        isForeignKey: false,
+        isNullable: false,
+      })) : []),
       ...otherAttrs.map((a) => ({
         name: snake(a.label),
+        sourceId: a.id,
         isPrimaryKey: false,
         isForeignKey: false,
         isNullable: true,
@@ -182,6 +192,7 @@ export function erToRelationalSchema(
 
     tables.push({
       name: tName,
+      sourceId: entity.id,
       columns,
       primaryKey: [...new Set(pkCols)],
       foreignKeys: fks,
@@ -220,6 +231,7 @@ export function erToRelationalSchema(
           const colB = pkCols.map((c) => `${c}_b`);
           tables.push({
             name: relTName,
+            sourceId: rel.id,
             columns: [
               ...colA.map((col, i) => ({
                 name: col,
@@ -239,6 +251,7 @@ export function erToRelationalSchema(
               })),
               ...relAttrs.map((a) => ({
                 name: snake(a.label),
+                sourceId: a.id,
                 isPrimaryKey: false,
                 isForeignKey: false,
                 isNullable: true,
@@ -298,6 +311,7 @@ export function erToRelationalSchema(
 
       tables.push({
         name: junctionName,
+        sourceId: rel.id,
         columns: [
           ...finalColsA.map((col) => ({
             name: col,
@@ -478,6 +492,7 @@ export function erToRelationalSchema(
         // Subtype entity was filtered out — create a minimal table
         tables.push({
           name: subTName,
+          sourceId: subtypeId,
           columns: [
             ...fkCols.map((col) => ({
               name: col,
@@ -488,6 +503,7 @@ export function erToRelationalSchema(
             })),
             ...subtypeAttrs.map((a) => ({
               name: snake(a.label),
+              sourceId: a.id,
               isPrimaryKey: a.isKey,
               isForeignKey: false,
               isNullable: !a.isKey,
@@ -525,6 +541,7 @@ export function erToRelationalSchema(
 
       tables.push({
         name: mvTName,
+        sourceId: attr.id,
         columns: [
           ...fkCols.map((col) => ({
             name: col,
@@ -535,6 +552,7 @@ export function erToRelationalSchema(
           })),
           {
             name: attrName,
+            sourceId: attr.id,
             isPrimaryKey: true,
             isForeignKey: false,
             isNullable: false,
