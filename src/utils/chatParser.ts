@@ -393,7 +393,18 @@ export const parseChatCommand = (input: string, entityLabels: string[] = []): Pa
     }
   }
 
-  if (isAdd && hasAttributeIntent && (entityMentions.length >= 1 || includesSelectedEntity(text) || hasEntity)) {
+  // When no known entity is mentioned and not targeting "this entity", only treat as add-attributes
+  // if the attribute keyword appears BEFORE the "entidad" keyword (otherwise it's a create-entity command).
+  const entityTokenIndex = normalizedTokens.findIndex(token => fuzzyMatch(token, 'entidad', 2));
+  const attrTokenIndex = normalizedTokens.findIndex(token =>
+    ['atributo', 'atributos', 'campo', 'campos', 'propiedad', 'propiedades'].some(keyword => fuzzyMatch(token, keyword, 2))
+  );
+  const isAddToExistingIntent =
+    entityMentions.length >= 1 ||
+    includesSelectedEntity(text) ||
+    (hasEntity && attrTokenIndex >= 0 && entityTokenIndex >= 0 && attrTokenIndex < entityTokenIndex);
+
+  if (isAdd && hasAttributeIntent && isAddToExistingIntent) {
     const entityName = entityMentions[0] ?? extractEntityName(text) ?? (includesSelectedEntity(text) ? '__selected__' : null);
     if (!entityName) return null;
     const attributesPart = extractAttributesForExistingEntity(text);
