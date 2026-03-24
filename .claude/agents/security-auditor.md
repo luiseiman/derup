@@ -1,0 +1,1 @@
+/Users/luiseiman/Documents/GitHub/claude-kit/agents/security-auditor.md

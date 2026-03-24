@@ -8,9 +8,20 @@ import { ISAShape } from './ISAShape';
 interface NodeDispatcherProps {
     node: ERNode;
     onMouseDown: (e: React.MouseEvent) => void;
+    onContextMenu?: (e: React.MouseEvent) => void;
+    onTouchStart?: (e: React.TouchEvent) => void;
+    onTouchEnd?: (e: React.TouchEvent) => void;
+    onTouchMove?: (e: React.TouchEvent) => void;
 }
 
-export const NodeDispatcher: React.FC<NodeDispatcherProps> = ({ node, onMouseDown }) => {
+export const NodeDispatcher: React.FC<NodeDispatcherProps> = ({ 
+    node, 
+    onMouseDown,
+    onContextMenu,
+    onTouchStart,
+    onTouchEnd,
+    onTouchMove,
+}) => {
     const selected = !!node.selected;
 
     const style: React.CSSProperties = {
@@ -41,7 +52,14 @@ export const NodeDispatcher: React.FC<NodeDispatcherProps> = ({ node, onMouseDow
     }
 
     return (
-        <div style={style} onMouseDown={onMouseDown}>
+        <div 
+            style={style} 
+            onMouseDown={onMouseDown}
+            onContextMenu={onContextMenu}
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+            onTouchMove={onTouchMove}
+        >
             {content}
         </div>
     );

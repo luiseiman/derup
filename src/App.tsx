@@ -5,9 +5,31 @@ import type { ERNode, Connection, NodeType, Cardinality, DiagramView, Aggregatio
 import { createId } from './utils/ids';
 import { parseDiagramSnapshot, serializeDiagram } from './utils/diagram';
 import { parseChatCommand } from './utils/chatParser';
+import { useLocalStorage } from './hooks/useLocalStorage';
+import { safeCardinality } from './utils/schemas';
+import Toolbar from './components/Toolbar/Toolbar';
+import type { ToolbarItem } from './components/Toolbar/Toolbar';
 
-type AIProvider = 'gemini' | 'grok' | 'ollama';
+type AIProvider = 'gemini' | 'grok' | 'ollama' | 'openclaw';
 type AIConnectivityStatus = 'unknown' | 'checking' | 'connected' | 'disconnected' | 'missing-key';
+
+/**
+ * Presets de atributos por defecto para entidades comunes en educación.
+ */
+const DEFAULT_ATTRIBUTE_PRESETS: Record<string, { label: string; attributes: string[] }> = {
+  alumno: { label: 'Alumno', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono', 'fecha_nacimiento'] },
+  estudiante: { label: 'Estudiante', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono', 'fecha_nacimiento'] },
+  profesor: { label: 'Profesor', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono', 'especialidad'] },
+  empleado: { label: 'Empleado', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono', 'puesto'] },
+  curso: { label: 'Curso', attributes: ['id', 'nombre', 'descripcion', 'creditos'] },
+  departamento: { label: 'Departamento', attributes: ['id', 'nombre', 'ubicacion', 'telefono'] },
+  proyecto: { label: 'Proyecto', attributes: ['id', 'nombre', 'fecha_inicio', 'fecha_fin', 'presupuesto'] },
+  farmacia: { label: 'Farmacia', attributes: ['id', 'nombre', 'localidad', 'direccion', 'telefono'] },
+  cliente: { label: 'Cliente', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono'] },
+  auto: { label: 'Auto', attributes: ['id', 'patente', 'marca', 'modelo', 'color'] },
+  vehiculo: { label: 'Vehículo', attributes: ['id', 'patente', 'marca', 'modelo', 'color'] },
+  chofer: { label: 'Chofer', attributes: ['id', 'nombre', 'apellido', 'dni', 'licencia'] },
+};
 
 function App() {
   const [nodes, setNodes] = useState<ERNode[]>([
@@ -33,6 +55,9 @@ function App() {
   const [lastSelectedNodeId, setLastSelectedNodeId] = useState<string | null>(null);
   const [hasSnapshot, setHasSnapshot] = useState(false);
   const [chatInput, setChatInput] = useState('');
+  const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
+  const [chatSuggestionIndex, setChatSuggestionIndex] = useState(-1);
+  const chatInputRef = useRef<HTMLInputElement>(null);
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string }>>([]);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiProvider, setAiProvider] = useState<AIProvider>('gemini');
@@ -40,32 +65,38 @@ function App() {
   const [geminiModels, setGeminiModels] = useState<string[]>([]);
   const [grokModels, setGrokModels] = useState<string[]>([]);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [openclawModels, setOpenclawModels] = useState<string[]>([]);
   const [aiStatus, setAiStatus] = useState<'idle' | 'thinking'>('idle');
   const [aiThinkingSeconds, setAiThinkingSeconds] = useState(0);
-  const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [grokApiKey, setGrokApiKey] = useState('');
+  const [geminiApiKey, setGeminiApiKey] = useLocalStorage('gemini_api_key', '');
+  const [grokApiKey, setGrokApiKey] = useLocalStorage('grok_api_key', '');
   const [aiConnectivity, setAiConnectivity] = useState<{
     gemini: AIConnectivityStatus;
     grok: AIConnectivityStatus;
     ollama: AIConnectivityStatus;
+    openclaw: AIConnectivityStatus;
   }>({
     gemini: 'unknown',
     grok: 'unknown',
     ollama: 'unknown',
+    openclaw: 'unknown',
   });
-  const [aiConnectivityReason, setAiConnectivityReason] = useState<{ gemini: string; grok: string; ollama: string }>({
+  const [aiConnectivityReason, setAiConnectivityReason] = useState<{ gemini: string; grok: string; ollama: string; openclaw: string }>({
     gemini: '',
     grok: '',
     ollama: '',
+    openclaw: '',
   });
   const [lastAIProviderUsed, setLastAIProviderUsed] = useState<AIProvider | null>(null);
   const [lastAIFallbackFrom, setLastAIFallbackFrom] = useState<AIProvider | null>(null);
-  const [attributePresets, setAttributePresets] = useState<Record<string, { label: string; attributes: string[] }>>({});
+  const [attributePresets, setAttributePresets] = useLocalStorage('derup.presets.v1', DEFAULT_ATTRIBUTE_PRESETS);
   const [presetSelection, setPresetSelection] = useState('');
   const [presetName, setPresetName] = useState('');
   const [presetAttributesInput, setPresetAttributesInput] = useState('');
-  const [showPresets, setShowPresets] = useState(false);
-  const [modelingHints, setModelingHints] = useState<string[]>([]);
+  const [modelingHints, setModelingHints] = useLocalStorage<string[]>('derup.modeling.hints.v1', []);
+
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'menu'>('properties');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const presetFileInputRef = useRef<HTMLInputElement>(null);
@@ -99,90 +130,8 @@ function App() {
     }
   }, []);
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('gemini_api_key');
-      if (stored) setGeminiApiKey(stored);
-    } catch {
-      // Ignore storage errors
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('grok_api_key');
-      if (stored) setGrokApiKey(stored);
-    } catch {
-      // Ignore storage errors
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('derup.presets.v1');
-      if (stored) {
-        const parsed = JSON.parse(stored) as Record<string, { label: string; attributes: string[] }>;
-        setAttributePresets(parsed);
-        return;
-      }
-    } catch {
-      // Ignore storage errors
-    }
-    setAttributePresets(defaultAttributePresets);
-  }, []);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('derup.modeling.hints.v1');
-      if (!stored) return;
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        setModelingHints(parsed.filter((item): item is string => typeof item === 'string').slice(0, 20));
-      }
-    } catch {
-      // Ignore storage errors
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      if (geminiApiKey) {
-        localStorage.setItem('gemini_api_key', geminiApiKey);
-      } else {
-        localStorage.removeItem('gemini_api_key');
-      }
-    } catch {
-      // Ignore storage errors
-    }
-  }, [geminiApiKey]);
-
-  useEffect(() => {
-    try {
-      if (grokApiKey) {
-        localStorage.setItem('grok_api_key', grokApiKey);
-      } else {
-        localStorage.removeItem('grok_api_key');
-      }
-    } catch {
-      // Ignore storage errors
-    }
-  }, [grokApiKey]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('derup.presets.v1', JSON.stringify(attributePresets));
-    } catch {
-      // Ignore storage errors
-    }
-  }, [attributePresets]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('derup.modeling.hints.v1', JSON.stringify(modelingHints.slice(0, 20)));
-    } catch {
-      // Ignore storage errors
-    }
-  }, [modelingHints]);
+  // useLocalStorage hook handles all localStorage persisting automatically
+  // for: geminiApiKey, grokApiKey, attributePresets, modelingHints
 
   useEffect(() => {
     if (aiStatus !== 'thinking') {
@@ -270,7 +219,7 @@ function App() {
         return;
       }
       applySnapshot(parsed);
-    } catch (error) {
+    } catch {
       alert('No se pudo importar el archivo. Verifica que sea un JSON válido.');
     }
   };
@@ -429,7 +378,7 @@ function App() {
     let updatedNodes = nodes.map(n => n.id === id ? { ...n, ...updates } as ERNode : n);
 
     // Automation for Weak Entity
-    if ('isWeak' in updates && (updates as any).isWeak === true) {
+    if ('isWeak' in updates && typeof updates.isWeak === 'boolean' && updates.isWeak === true) {
       // Find connected relationships
       const connectedItems = connections
         .filter(c => c.sourceId === id || c.targetId === id)
@@ -529,20 +478,6 @@ function App() {
     return trimmed;
   };
 
-  const defaultAttributePresets: Record<string, { label: string; attributes: string[] }> = {
-    alumno: { label: 'Alumno', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono', 'fecha_nacimiento'] },
-    estudiante: { label: 'Estudiante', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono', 'fecha_nacimiento'] },
-    profesor: { label: 'Profesor', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono', 'especialidad'] },
-    empleado: { label: 'Empleado', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono', 'puesto'] },
-    curso: { label: 'Curso', attributes: ['id', 'nombre', 'descripcion', 'creditos'] },
-    departamento: { label: 'Departamento', attributes: ['id', 'nombre', 'ubicacion', 'telefono'] },
-    proyecto: { label: 'Proyecto', attributes: ['id', 'nombre', 'fecha_inicio', 'fecha_fin', 'presupuesto'] },
-    farmacia: { label: 'Farmacia', attributes: ['id', 'nombre', 'localidad', 'direccion', 'telefono'] },
-    cliente: { label: 'Cliente', attributes: ['id', 'nombre', 'apellido', 'email', 'telefono'] },
-    auto: { label: 'Auto', attributes: ['id', 'patente', 'marca', 'modelo', 'color'] },
-    vehiculo: { label: 'Vehículo', attributes: ['id', 'patente', 'marca', 'modelo', 'color'] },
-    chofer: { label: 'Chofer', attributes: ['id', 'nombre', 'apellido', 'dni', 'licencia'] },
-  };
 
   const normalizeLabelForPreset = (value: string) =>
     value
@@ -880,6 +815,41 @@ function App() {
     }
   };
 
+  const checkOpenclawHealth = async () => {
+    setAiConnectivity(prev => ({ ...prev, openclaw: 'checking' }));
+    setAiConnectivityReason(prev => ({ ...prev, openclaw: 'Verificando conexión con OpenClaw...' }));
+    try {
+      const response = await fetchWithTimeout('/api/openclaw/models', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }, 3000);
+      if (response.ok) {
+        const data = await response.json() as { models?: string[] };
+        const models = Array.isArray(data?.models) ? data.models.filter((m): m is string => typeof m === 'string' && m.trim().length > 0) : [];
+        setOpenclawModels(models);
+        setAiConnectivityReason(prev => ({
+          ...prev,
+          openclaw: models.length > 0 ? `Modelos: ${models.join(', ')}` : 'OpenClaw conectado.',
+        }));
+        setAiConnectivity(prev => ({ ...prev, openclaw: 'connected' }));
+        return;
+      }
+      const reason = await readApiErrorMessage(response, `OpenClaw devolvió HTTP ${response.status}.`);
+      setOpenclawModels([]);
+      setAiConnectivity(prev => ({ ...prev, openclaw: 'disconnected' }));
+      setAiConnectivityReason(prev => ({ ...prev, openclaw: reason }));
+    } catch {
+      setOpenclawModels([]);
+      setAiConnectivity(prev => ({ ...prev, openclaw: 'disconnected' }));
+      setAiConnectivityReason(prev => ({ ...prev, openclaw: 'No se pudo conectar a OpenClaw Gateway.' }));
+    }
+  };
+
+  useEffect(() => {
+    if (aiProvider !== 'openclaw') return;
+    if (openclawModels.length === 0) return;
+    if (!openclawModels.includes(aiModel)) {
+      setAiModel(openclawModels[0]);
+    }
+  }, [aiProvider, aiModel, openclawModels]);
+
   useEffect(() => {
     if (aiProvider !== 'ollama') return;
     if (ollamaModels.length === 0) return;
@@ -910,7 +880,7 @@ function App() {
     let active = true;
     const runChecks = async () => {
       if (!active) return;
-      await Promise.all([checkGeminiHealth(), checkGrokHealth(), checkOllamaHealth()]);
+      await Promise.all([checkGeminiHealth(), checkGrokHealth(), checkOllamaHealth(), checkOpenclawHealth()]);
     };
 
     runChecks();
@@ -922,12 +892,12 @@ function App() {
   }, [geminiApiKey, grokApiKey]);
 
   const getProviderLabel = (provider: AIProvider) =>
-    provider === 'gemini' ? 'Gemini' : provider === 'grok' ? 'Grok' : 'Ollama';
+    provider === 'gemini' ? 'Gemini' : provider === 'grok' ? 'Grok' : provider === 'ollama' ? 'Ollama' : 'OpenClaw';
 
   const getStatusLabel = (provider: AIProvider, status: AIConnectivityStatus) => {
     if (status === 'checking') return 'Comprobando';
     if (status === 'connected') return 'Conectada';
-    if (status === 'missing-key') return provider === 'ollama' ? 'Desconectada' : 'Sin API Key';
+    if (status === 'missing-key') return (provider === 'ollama' || provider === 'openclaw') ? 'Desconectada' : 'Sin API Key';
     if (status === 'disconnected') return 'Desconectada';
     return 'Desconocida';
   };
@@ -959,6 +929,10 @@ function App() {
       const preferred = ['grok-4-fast', 'grok-3-mini', 'grok-2-latest'];
       return preferred.find(model => grokModels.includes(model)) ?? grokModels[0] ?? 'grok-3-mini';
     }
+    if (provider === 'openclaw') {
+      if (provider === aiProvider && aiModel.trim()) return aiModel.trim();
+      return openclawModels[0] ?? 'openai-codex/gpt-5.4';
+    }
     if (provider === aiProvider && aiModel.trim()) return aiModel.trim();
     return ollamaModels[0] ?? 'gemma3';
   };
@@ -973,7 +947,9 @@ function App() {
         ? '/api/gemini'
         : provider === 'grok'
           ? '/api/grok'
-          : '/api/ollama/generate';
+          : provider === 'openclaw'
+            ? '/api/openclaw'
+            : '/api/ollama/generate';
     const requestInit: RequestInit = {
       method: 'POST',
       headers: {
@@ -984,7 +960,9 @@ function App() {
           ? { prompt, model: getProviderModel(provider), apiKey: getProviderApiKey(provider) }
           : provider === 'grok'
             ? { prompt, model: getProviderModel(provider), apiKey: getProviderApiKey(provider) }
-            : { prompt, model: getProviderModel(provider), stream: false }
+            : provider === 'openclaw'
+              ? { prompt, model: getProviderModel(provider) }
+              : { prompt, model: getProviderModel(provider), stream: false }
       ),
     };
 
@@ -1006,7 +984,7 @@ function App() {
     }
 
     const data = await response.json();
-    return provider === 'gemini' || provider === 'grok'
+    return provider === 'gemini' || provider === 'grok' || provider === 'openclaw'
       ? (typeof data.text === 'string' ? data.text.trim() : '')
       : (typeof data.response === 'string' ? data.response.trim() : '');
   };
@@ -1014,7 +992,7 @@ function App() {
   const requestAIText = async (prompt: string, timeoutMs?: number) => {
     setLastAIFallbackFrom(null);
     const primary = aiProvider;
-    const providerOrder: AIProvider[] = [primary, ...(['gemini', 'grok', 'ollama'] as AIProvider[]).filter(p => p !== primary)];
+    const providerOrder: AIProvider[] = [primary, ...(['gemini', 'grok', 'ollama', 'openclaw'] as AIProvider[]).filter(p => p !== primary)];
 
     const isProviderConfigured = (provider: AIProvider) => {
       if (providerNeedsApiKey(provider)) return !!getProviderApiKey(provider);
@@ -1158,6 +1136,16 @@ function App() {
     aggregations: ScenarioAggregationNormalized[];
   };
 
+  /**
+   * Construye un bloque de texto con reglas de modelado aprendidas del usuario.
+   * Estas reglas se incluyen en los prompts de IA para mantener consistencia.
+   * 
+   * @returns String con formato de hints para incluir en prompts, o string vacío si no hay hints
+   * 
+   * @example
+   * const hints = buildModelingHintsBlock();
+   * const prompt = `${GUIDE}\n${hints}Escenario: ${text}`;
+   */
   const buildModelingHintsBlock = () => {
     if (modelingHints.length === 0) return '';
     return `Reglas aprendidas del usuario:\n${modelingHints.map(hint => `- ${hint}`).join('\n')}\n`;
@@ -1193,6 +1181,17 @@ function App() {
       .filter(Boolean);
   };
 
+  /**
+   * Normaliza un modelo de escenario desde JSON, validando tipos y estructura.
+   * Limpia y estandariza datos como nombres de entidades, atributos y relaciones.
+   * 
+   * @param json - Modelo JSON bruto del escenario
+   * @returns Modelo normalizado o null si es inválido
+   * 
+   * @example
+   * const normalized = normalizeScenarioModelFromJson(jsonData);
+   * if (!normalized) alert('Modelo inválido');
+   */
   const normalizeScenarioModelFromJson = (json: ScenarioModel | null): ScenarioModelNormalized | null => {
     if (!json || typeof json !== 'object') return null;
     const entitiesRaw = Array.isArray(json.entities) ? json.entities : [];
@@ -1303,6 +1302,19 @@ function App() {
     return { entities, relationships, isas, aggregations };
   };
 
+  /**
+   * Valida y sanitiza un modelo de escenario normalizado.
+   * Verifica: entidades duplicadas, atributos válidos, relaciones válidas,
+   * ISA correctas, y agregaciones con ambos extremos definidos.
+   * 
+   * @param model - Modelo de escenario normalizado
+   * @returns Objeto con modelo sanitizado y lista errores encontrados
+   * @throws Nunca lanza, retorna errores en el objeto
+   * 
+   * @example
+   * const result = sanitizeScenarioModel(normalized);
+   * if (result.errors.length > 0) console.warn(result.errors);
+   */
   const sanitizeScenarioModel = (model: ScenarioModelNormalized) => {
     const errors: string[] = [];
     const entitiesByKey = new Map<string, ScenarioEntityNormalized>();
@@ -1512,6 +1524,20 @@ function App() {
     };
   };
 
+  /**
+   * Intenta reparar un modelo de escenario usando IA.
+   * Usa la guía SCENARIO_MASTER_GUIDE y hints acumulados para mejorar la validez del modelo.
+   * 
+   * @param scenarioText - Descripción original del escenario
+   * @param rawModelText - JSON bruto que falló la validación
+   * @param validationErrors - Lista de errores encontrados durante validación
+   * @returns Modelo normalizado reparado, o null si AI falla o retorna JSON inválido
+   * @throws No lanza, retorna null si hay error
+   * 
+   * @example
+   * const repaired = await repairScenarioModelWithAI(text, badJson, errors);
+   * if (repaired) applyRepairScenario(repaired);
+   */
   const repairScenarioModelWithAI = async (
     scenarioText: string,
     rawModelText: string,
@@ -2367,9 +2393,38 @@ function App() {
     return { added: attrsToAdd, skipped: normalized.filter(attr => existingNames.has(attr.toLowerCase())) };
   };
 
+  const entityNames = useMemo(() => nodes.filter(n => n.type === 'entity').map(n => n.label), [nodes]);
+
+  const updateChatSuggestions = (value: string) => {
+    setChatInput(value);
+    setChatSuggestionIndex(-1);
+    // Extract the last word being typed
+    const words = value.split(/\s+/);
+    const lastWord = words[words.length - 1]?.toLowerCase() || '';
+    if (lastWord.length < 1) {
+      setChatSuggestions([]);
+      return;
+    }
+    const matches = entityNames.filter(name =>
+      name.toLowerCase().startsWith(lastWord) && name.toLowerCase() !== lastWord
+    );
+    setChatSuggestions(matches.slice(0, 5));
+  };
+
+  const applySuggestion = (suggestion: string) => {
+    const words = chatInput.split(/\s+/);
+    words[words.length - 1] = suggestion;
+    setChatInput(words.join(' ') + ' ');
+    setChatSuggestions([]);
+    setChatSuggestionIndex(-1);
+    chatInputRef.current?.focus();
+  };
+
   const handleChatSubmit = async () => {
     const text = chatInput.trim();
     if (!text) return;
+    setChatSuggestions([]);
+    setChatSuggestionIndex(-1);
 
     const userMessage = { id: createId(), role: 'user' as const, text };
     setChatMessages(prev => [...prev, userMessage]);
@@ -2390,7 +2445,7 @@ function App() {
       return;
     }
 
-    const hintMatch = text.match(/^(?:regla|correcci[oó]n|hint)\s*[:\-]\s*(.+)$/i);
+    const hintMatch = text.match(/^(?:regla|correcci[oó]n|hint)\s*[:−-]\s*(.+)$/i);
     if (hintMatch) {
       const hint = hintMatch[1].trim().replace(/\s+/g, ' ');
       if (!hint) {
@@ -3095,92 +3150,93 @@ function App() {
 
   return (
     <div className="app-container">
-      <header className="app-header">
-        <h1>Derup ER Modeler</h1>
-        <div className="toolbar-buttons">
-          <button
-            onClick={() => setMultiSelectMode(prev => !prev)}
-            data-active={multiSelectMode}
-          >
-            Multi-select
-          </button>
-          <button onClick={() => addNode('entity')}>Entity</button>
-          <button onClick={() => addNode('relationship')}>Relationship</button>
-          <button onClick={() => addNode('attribute')}>Attribute</button>
-          <button onClick={() => addNode('isa')}>ISA</button>
-          <div className="separator" />
-          <button onClick={connectSelected} disabled={!canConnectSelection}>Connect</button>
-          <button onClick={deleteSelected} disabled={selectedNodeIds.size === 0 && selectedConnectionIds.size === 0 && selectedAggregationIds.size === 0}>Delete</button>
-          <button
-            onClick={() => {
-              const memberIds = Array.from(selectedNodeIds);
-              if (memberIds.length < 2) {
-                alert('Selecciona al menos dos elementos para agregar.');
-                return;
-              }
-              const hasRelationship = nodes.some(n => memberIds.includes(n.id) && n.type === 'relationship');
-              if (!hasRelationship) {
-                alert('La agregación debe incluir al menos una relación.');
-                return;
-              }
-              const newAggregation: Aggregation = {
-                id: createId(),
-                memberIds,
-                padding: 16
-              };
-              setAggregations(prev => [...prev, newAggregation]);
-              setSelectedAggregationIds(new Set([newAggregation.id]));
-              setSelectedNodeIds(new Set());
-              setSelectedConnectionIds(new Set());
-            }}
-            disabled={selectedNodeIds.size < 2}
-          >
-            Aggregate
-          </button>
-          <button
-            onClick={createHierarchy}
-            disabled={nodes.filter(n => selectedNodeIds.has(n.id) && n.type === 'entity').length < 2}
-          >
-            Hierarchy
-          </button>
-          <button
-            onClick={() => {
-              if (selectedAggregationIds.size === 0) return;
-              setAggregations(prev => prev.filter(agg => !selectedAggregationIds.has(agg.id)));
-              setSelectedAggregationIds(new Set());
-            }}
-            disabled={selectedAggregationIds.size === 0}
-          >
-            Ungroup
-          </button>
-          <div className="separator" />
-          <button onClick={handleResetView}>Reset View</button>
-          <div className="zoom-controls">
-            <span>Zoom</span>
-            <button onClick={() => setZoom(scale - 0.1)} aria-label="Zoom out">-</button>
-            <input
-              type="range"
-              min={0.1}
-              max={5}
-              step={0.1}
-              value={scale}
-              onChange={e => setZoom(Number(e.target.value))}
-            />
-            <button onClick={() => setZoom(scale + 0.1)} aria-label="Zoom in">+</button>
-            <span className="zoom-label">{Math.round(scale * 100)}%</span>
-          </div>
-          <button onClick={handleImportClick}>Import JSON</button>
-          <button onClick={handleExport}>Export JSON</button>
-          <button onClick={handleRestoreSnapshot} disabled={!hasSnapshot}>Restore Snapshot</button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            onChange={handleImportFile}
-            style={{ display: 'none' }}
-          />
-        </div>
-      </header>
+      <Toolbar
+        items={(() => {
+          const selectionCount = selectedNodeIds.size + selectedConnectionIds.size + selectedAggregationIds.size;
+          const items: ToolbarItem[] = [
+            {
+              id: 'multi-select',
+              label: multiSelectMode ? 'Multi-select ON' : 'Multi-select',
+              icon: multiSelectMode ? '✓' : '☐',
+              action: () => setMultiSelectMode(prev => !prev),
+              active: multiSelectMode,
+              badge: selectionCount || undefined,
+            },
+            ...(selectionCount > 0 ? [{
+              id: 'clear-selection',
+              label: `Clear (${selectionCount})`,
+              icon: '✕',
+              action: () => {
+                setSelectedNodeIds(new Set());
+                setSelectedConnectionIds(new Set());
+                setSelectedAggregationIds(new Set());
+              },
+            }] : []),
+            // --- Add nodes ---
+            { id: 'add-entity', label: 'Entity', icon: '▭', action: () => addNode('entity'), separator: true },
+            { id: 'add-relationship', label: 'Relationship', icon: '◇', action: () => addNode('relationship') },
+            { id: 'add-attribute', label: 'Attribute', icon: '○', action: () => addNode('attribute') },
+            { id: 'add-isa', label: 'ISA', icon: '△', action: () => addNode('isa') },
+            // --- Operations ---
+            { id: 'connect', label: 'Connect', icon: '↗', action: connectSelected, disabled: !canConnectSelection, separator: true },
+            { id: 'delete', label: 'Delete', icon: '🗑', action: deleteSelected, disabled: selectionCount === 0 },
+            {
+              id: 'aggregate',
+              label: 'Aggregate',
+              icon: '▣',
+              action: () => {
+                const memberIds = Array.from(selectedNodeIds);
+                if (memberIds.length < 2) { alert('Selecciona al menos dos elementos para agregar.'); return; }
+                const hasRelationship = nodes.some(n => memberIds.includes(n.id) && n.type === 'relationship');
+                if (!hasRelationship) { alert('La agregación debe incluir al menos una relación.'); return; }
+                const newAggregation: Aggregation = { id: createId(), memberIds, padding: 16 };
+                setAggregations(prev => [...prev, newAggregation]);
+                setSelectedAggregationIds(new Set([newAggregation.id]));
+                setSelectedNodeIds(new Set());
+                setSelectedConnectionIds(new Set());
+              },
+              disabled: selectedNodeIds.size < 2,
+            },
+            {
+              id: 'hierarchy',
+              label: 'Hierarchy',
+              icon: '⊿',
+              action: createHierarchy,
+              disabled: nodes.filter(n => selectedNodeIds.has(n.id) && n.type === 'entity').length < 2,
+            },
+            {
+              id: 'ungroup',
+              label: 'Ungroup',
+              icon: '⊟',
+              action: () => {
+                if (selectedAggregationIds.size === 0) return;
+                setAggregations(prev => prev.filter(agg => !selectedAggregationIds.has(agg.id)));
+                setSelectedAggregationIds(new Set());
+              },
+              disabled: selectedAggregationIds.size === 0,
+            },
+            // --- View & File ---
+            { id: 'reset-view', label: 'Reset View', icon: '⟳', action: handleResetView, separator: true },
+            { id: 'import', label: 'Import', icon: '📂', action: handleImportClick, separator: true },
+            { id: 'export', label: 'Export', icon: '💾', action: handleExport },
+            { id: 'restore', label: 'Restore', icon: '⏮', action: handleRestoreSnapshot, disabled: !hasSnapshot },
+          ];
+          return items;
+        })()}
+        zoomControls={{
+          scale,
+          onZoomIn: () => setZoom(scale + 0.1),
+          onZoomOut: () => setZoom(scale - 0.1),
+          onZoomChange: (v) => setZoom(v),
+        }}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json"
+        onChange={handleImportFile}
+        style={{ display: 'none' }}
+      />
       <main className="main-content">
         <Canvas
           nodes={nodes.map(n => ({ ...n, selected: selectedNodeIds.has(n.id) }))}
@@ -3215,9 +3271,17 @@ function App() {
           onCanvasClick={handleCanvasClick}
           multiSelectMode={multiSelectMode}
         />
+        {sidebarOpen && (
         <aside className="sidebar">
-          <div className="sidebar-section">
-            <h3>Properties</h3>
+          <div className="sidebar-tabs">
+            <button className={`sidebar-tab ${activeTab === 'properties' ? 'active' : ''}`} onClick={() => setActiveTab('properties')}>Properties</button>
+            <button className={`sidebar-tab ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>Chat</button>
+            <button className={`sidebar-tab ${activeTab === 'menu' ? 'active' : ''}`} onClick={() => setActiveTab('menu')}>Menu</button>
+            <button className="sidebar-tab sidebar-close" onClick={() => setSidebarOpen(false)} title="Ocultar panel" aria-label="Ocultar panel">✕</button>
+          </div>
+
+          {activeTab === 'properties' && (
+          <div className="sidebar-tab-content">
             {selectedNodeIds.size === 1 && (
               <div>
                 <p>Selected Node: {Array.from(selectedNodeIds)[0]}</p>
@@ -3261,7 +3325,12 @@ function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <label><input type="checkbox" checked={conn.isTotalParticipation} onChange={e => updateConnection(conn.id, { isTotalParticipation: e.target.checked })} /> Total Participation</label>
                       <label>Cardinality:
-                        <select value={conn.cardinality || ''} onChange={e => updateConnection(conn.id, { cardinality: e.target.value as any })}>
+                        <select value={conn.cardinality || ''} onChange={e => {
+                          const cardValue = safeCardinality(e.target.value);
+                          if (cardValue) {
+                            updateConnection(conn.id, { cardinality: cardValue });
+                          }
+                        }}>
                           <option value="">None</option>
                           <option value="1">1</option>
                           <option value="N">N</option>
@@ -3288,9 +3357,14 @@ function App() {
                 })()}
               </div>
             )}
+            {selectedNodeIds.size === 0 && selectedConnectionIds.size === 0 && selectedAggregationIds.size === 0 && (
+              <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Selecciona un elemento para ver sus propiedades.</p>
+            )}
           </div>
-          <div className="sidebar-section chat-panel">
-            <h3>Chat</h3>
+          )}
+
+          {activeTab === 'chat' && (
+          <div className="sidebar-tab-content chat-panel">
             <div className="chat-messages">
               {chatMessages.map(message => (
                 <div key={message.id} className={`chat-message ${message.role}`}>
@@ -3299,15 +3373,56 @@ function App() {
               ))}
             </div>
             <div className="chat-input">
-              <input
-                type="text"
-                placeholder="Ej: agregar una entidad Empleado con los siguientes atributos: id, nombre, email donde id es clave"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleChatSubmit();
-                }}
-              />
+              <div className="chat-input-wrapper">
+                <input
+                  ref={chatInputRef}
+                  type="text"
+                  placeholder="Ej: agregar relacion entre Alumno y Curso"
+                  value={chatInput}
+                  onChange={e => updateChatSuggestions(e.target.value)}
+                  onKeyDown={e => {
+                    if (chatSuggestions.length > 0) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setChatSuggestionIndex(prev => Math.min(prev + 1, chatSuggestions.length - 1));
+                        return;
+                      }
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setChatSuggestionIndex(prev => Math.max(prev - 1, -1));
+                        return;
+                      }
+                      if (e.key === 'Tab' || (e.key === 'Enter' && chatSuggestionIndex >= 0)) {
+                        e.preventDefault();
+                        const idx = chatSuggestionIndex >= 0 ? chatSuggestionIndex : 0;
+                        applySuggestion(chatSuggestions[idx]);
+                        return;
+                      }
+                      if (e.key === 'Escape') {
+                        setChatSuggestions([]);
+                        setChatSuggestionIndex(-1);
+                        return;
+                      }
+                    }
+                    if (e.key === 'Enter') handleChatSubmit();
+                  }}
+                  onBlur={() => { setTimeout(() => setChatSuggestions([]), 150); }}
+                  autoComplete="off"
+                />
+                {chatSuggestions.length > 0 && (
+                  <ul className="chat-suggestions">
+                    {chatSuggestions.map((s, i) => (
+                      <li
+                        key={s}
+                        className={`chat-suggestion-item ${i === chatSuggestionIndex ? 'active' : ''}`}
+                        onMouseDown={(e) => { e.preventDefault(); applySuggestion(s); }}
+                      >
+                        <span className="suggestion-icon">▭</span> {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <button onClick={handleChatSubmit} className="primary-button">Enviar</button>
             </div>
             <div className="chat-controls">
@@ -3330,6 +3445,8 @@ function App() {
                   } else if (provider === 'grok') {
                     const preferred = ['grok-4-fast', 'grok-3-mini', 'grok-2-latest'];
                     setAiModel(preferred.find(model => grokModels.includes(model)) ?? grokModels[0] ?? 'grok-3-mini');
+                  } else if (provider === 'openclaw') {
+                    setAiModel(openclawModels[0] || 'openai-codex/gpt-5.4');
                   } else {
                     setAiModel(ollamaModels[0] || 'gemma3');
                   }
@@ -3339,6 +3456,7 @@ function App() {
                 <option value="gemini">Gemini</option>
                 <option value="grok">Grok</option>
                 <option value="ollama">Ollama</option>
+                <option value="openclaw">OpenClaw</option>
               </select>
               {(aiProvider === 'gemini' || aiProvider === 'grok') && (
                 <input
@@ -3385,6 +3503,16 @@ function App() {
                     <option key={model} value={model}>{model}</option>
                   ))}
                 </select>
+              ) : aiProvider === 'openclaw' && openclawModels.length > 0 ? (
+                <select
+                  value={aiModel}
+                  onChange={e => setAiModel(e.target.value)}
+                  disabled={!aiEnabled}
+                >
+                  {openclawModels.map(model => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
+                </select>
               ) : (
                 <input
                   type="text"
@@ -3395,7 +3523,9 @@ function App() {
                       ? 'Modelo (ej: gemini-2.5-pro)'
                       : aiProvider === 'grok'
                         ? 'Modelo (ej: grok-3-mini)'
-                        : 'Modelo (ej: gemma3)'
+                        : aiProvider === 'openclaw'
+                          ? 'Modelo (ej: openai-codex/gpt-5.4)'
+                          : 'Modelo (ej: gemma3)'
                   }
                   disabled={!aiEnabled}
                 />
@@ -3428,6 +3558,14 @@ function App() {
                     <span className="status-reason">{aiConnectivityReason.ollama}</span>
                   )}
                 </div>
+                <div className="status-group">
+                  <span className={getStatusClass(aiConnectivity.openclaw)}>
+                    OpenClaw: {getStatusLabel('openclaw', aiConnectivity.openclaw)}
+                  </span>
+                  {aiConnectivityReason.openclaw && (
+                    <span className="status-reason">{aiConnectivityReason.openclaw}</span>
+                  )}
+                </div>
                 {lastAIProviderUsed && (
                   <span className="status-note">
                     {lastAIFallbackFrom
@@ -3438,19 +3576,11 @@ function App() {
               </div>
             </div>
           </div>
-          <div className="sidebar-section menu-panel">
-            <h3>Menú</h3>
-            <div className="menu-actions">
-              <button
-                className={showPresets ? 'active' : ''}
-                onClick={() => setShowPresets(prev => !prev)}
-              >
-                Presets
-              </button>
-            </div>
-          </div>
-          {showPresets && (
-            <div className="sidebar-section preset-panel">
+          )}
+
+          {activeTab === 'menu' && (
+          <div className="sidebar-tab-content">
+            <div className="sidebar-section">
               <h3>Presets</h3>
               <label>
                 Preset:
@@ -3489,7 +3619,7 @@ function App() {
                 />
               </label>
               <label>
-                Atributos (máx 5):
+                Atributos (max 5):
                 <input
                   type="text"
                   value={presetAttributesInput}
@@ -3548,8 +3678,15 @@ function App() {
                 Se guardan en este navegador.
               </div>
             </div>
+          </div>
           )}
         </aside>
+        )}
+        {!sidebarOpen && (
+          <button className="sidebar-toggle-btn" onClick={() => setSidebarOpen(true)} title="Mostrar panel" aria-label="Mostrar panel">
+            Panel
+          </button>
+        )}
       </main>
     </div>
   );

@@ -1,0 +1,50 @@
+{
+  "claude_kit_version": "1.2.0",
+  "synced_at": "2026-03-19",
+  "files": {
+    ".claude/settings.json": {
+      "hash": "sha256:78a0904545d221529086f6cbefe168f650d0891f8e50810b0905e9b9c33d3434",
+      "source": "template + stack/react-vite-ts + local"
+    },
+    ".claude/rules/_common.md": {
+      "hash": "sha256:0513899e7eab679c396c3950d811f80920b7da57668c23cea04b8bc9a839d646",
+      "source": "template/rules/_common.md"
+    },
+    ".claude/rules/agents.md": {
+      "hash": "sha256:16867ec6149350739ae9f7f28981c763f413b21b27317cc87150cbd426e77e77",
+      "source": "template/rules/agents.md"
+    },
+    ".claude/rules/frontend.md": {
+      "hash": "sha256:a3fae6c33e79f196fab8fe057461fdd8ff13525ca5afa33f4583f31eca00b2d4",
+      "source": "local (no gestionado)"
+    },
+    ".claude/hooks/block-destructive.sh": {
+      "hash": "sha256:742850c463ebe9045ef50049ecae53581354761762a51ed6c9a3f2b6a44fd179",
+      "source": "local (preservado)"
+    },
+    ".claude/hooks/lint-on-save.sh": {
+      "hash": "sha256:c157b4e09117954b803461ad75c2b044cb787499db20711c0242b5702f012d6d",
+      "source": "local (preservado)"
+    },
+    ".claude/commands/audit.md": {
+      "hash": "sha256:56339ba8e4c261779cdf4415922c5431ff1d1525d97f4c602a5b2bdb4b756cd3",
+      "source": "template/commands/audit.md"
+    },
+    ".claude/commands/debug.md": {
+      "hash": "sha256:ee8fcab326afda438692b3a8f9c25e2d623484a3f8a0a838fdf2957133f14193",
+      "source": "template/commands/debug.md"
+    },
+    ".claude/commands/health.md": {
+      "hash": "sha256:15a9a15fc2b2e4077eb87f221ee6ed4f2603316d3334c6649084132118099507",
+      "source": "template/commands/health.md"
+    },
+    ".claude/commands/review.md": {
+      "hash": "sha256:3a9cdec48b214798fffb61f933be268e2d749d47716a259032545db724665f04",
+      "source": "template/commands/review.md"
+    },
+    "CLAUDE.md": {
+      "hash": "sha256:01cb250cddaacc68ece3d73682e15207193226e728d64dfebd5b379b7a876689",
+      "source": "local (no gestionado)"
+    }
+  }
+}

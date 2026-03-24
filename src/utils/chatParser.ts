@@ -118,7 +118,7 @@ const extractEntityName = (text: string) => {
 };
 
 const extractAttributesPart = (text: string) => {
-  const match = text.match(/atribut\w*\s*[:\-]?\s*(.+)/i);
+  const match = text.match(/atribut\w*\s*[:−-]?\s*(.+)/i);
   if (match) {
     let part = match[1];
     const stopIndex = part.search(/\b(dond\w*|wher\w*|siend\w*|clav\w*)\b/i);
@@ -141,7 +141,7 @@ const extractAttributesPart = (text: string) => {
 };
 
 const extractAttributesForExistingEntity = (text: string) => {
-  const betweenMatch = text.match(/atribut\w*\s*[:\-]?\s*(.+?)\s+(?:a\s+(?:la\s+)?entidad|a\s+esta\s+entidad|en\s+la\s+entidad|para\s+la\s+entidad)\b/i);
+  const betweenMatch = text.match(/atribut\w*\s*[:−-]?\s*(.+?)\s+(?:a\s+(?:la\s+)?entidad|a\s+esta\s+entidad|en\s+la\s+entidad|para\s+la\s+entidad)\b/i);
   if (betweenMatch) {
     return normalizeSpaces(betweenMatch[1]);
   }

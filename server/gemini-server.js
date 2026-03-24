@@ -127,6 +127,11 @@ const server = http.createServer(async (req, res) => {
     const envGrok = typeof process.env.GROK_API_KEY === 'string' ? process.env.GROK_API_KEY.trim() : '';
     return requestKey || envXAI || envGrok;
   };
+  const resolveOpenclawToken = body => {
+    const requestKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
+    const envToken = typeof process.env.OPENCLAW_TOKEN === 'string' ? process.env.OPENCLAW_TOKEN.trim() : '';
+    return requestKey || envToken;
+  };
 
   const parseJsonResponse = async (response, fallbackMessage) => {
     const rawText = await response.text();
@@ -371,6 +376,91 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, { text });
     } catch (error) {
       sendJson(res, 500, { error: `Server error in /api/grok: ${normalizeError(error)}` });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/openclaw/health') {
+    try {
+      const body = await getBody(req);
+      const token = resolveOpenclawToken(body);
+      if (!token) {
+        sendJson(res, 401, { error: 'Missing OpenClaw token.' });
+        return;
+      }
+      const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : 'openai-codex/gpt-5.4';
+      const response = await fetch('http://localhost:18789/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'hi' }],
+          max_tokens: 5,
+        }),
+      });
+      const data = await parseJsonResponse(response, 'Respuesta no JSON desde OpenClaw.');
+      if (!response.ok) {
+        sendJson(res, response.status, { error: data?.error?.message || data?.message || 'OpenClaw API error.' });
+        return;
+      }
+      sendJson(res, 200, { status: 'ok', model });
+    } catch (error) {
+      sendJson(res, 500, { error: `Server error in /api/openclaw/health: ${normalizeError(error)}` });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/openclaw/models') {
+    sendJson(res, 200, { models: ['openai-codex/gpt-5.4'] });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/openclaw') {
+    try {
+      const body = await getBody(req);
+      const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+      const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : 'openai-codex/gpt-5.4';
+      const token = resolveOpenclawToken(body);
+      if (!token) {
+        sendJson(res, 401, { error: 'Missing OpenClaw token.' });
+        return;
+      }
+      if (!prompt) {
+        sendJson(res, 400, { error: 'Missing prompt.' });
+        return;
+      }
+
+      const response = await fetch('http://localhost:18789/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+
+      const data = await parseJsonResponse(response, 'Respuesta no JSON desde OpenClaw.');
+      if (!response.ok) {
+        sendJson(res, response.status, {
+          error: data?.error?.message || data?.message || 'OpenClaw API error.',
+        });
+        return;
+      }
+
+      const text =
+        typeof data?.choices?.[0]?.message?.content === 'string'
+          ? data.choices[0].message.content.trim()
+          : '';
+
+      sendJson(res, 200, { text });
+    } catch (error) {
+      sendJson(res, 500, { error: `Server error in /api/openclaw: ${normalizeError(error)}` });
     }
     return;
   }

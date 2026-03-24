@@ -3,6 +3,8 @@ import type { WheelEvent } from 'react';
 import './Canvas.css';
 import type { ERNode, Connection, Aggregation } from '../../types/er';
 import { NodeDispatcher } from '../Shapes/NodeDispatcher';
+import { ContextMenu } from '../ContextMenu/ContextMenu';
+import { useContextMenu, type MenuItem } from '../../hooks/useContextMenu';
 
 interface CanvasProps {
     nodes: ERNode[];
@@ -29,6 +31,7 @@ const Canvas: React.FC<CanvasProps> = ({
     scale,
     offset,
     onNodesChange,
+    onConnectionsChange,
     onViewChange,
     onNodeClick,
     onAggregationClick,
@@ -43,6 +46,7 @@ const Canvas: React.FC<CanvasProps> = ({
     const [isDrag, setIsDrag] = useState(false); // Distinction between click and drag
 
     const canvasRef = useRef<HTMLDivElement>(null);
+    const contextMenu = useContextMenu();
 
     const handleWheel = (e: WheelEvent) => {
         e.preventDefault();
@@ -403,7 +407,7 @@ const Canvas: React.FC<CanvasProps> = ({
             if (!sourceNode && !sourceAgg) return null;
             if (!targetNode && !targetAgg) return null;
 
-            const isSelected = (conn as any).selected;
+            const isSelected = (conn as Connection & { selected?: boolean }).selected;
             const key = pairKey(conn.sourceId, conn.targetId);
             const isDuplicate = pairCounts[key] > 1;
 
@@ -477,6 +481,13 @@ const Canvas: React.FC<CanvasProps> = ({
                             e.stopPropagation();
                             onConnectionClick(conn.id, multiSelectMode || e.shiftKey || e.metaKey || e.ctrlKey);
                         }}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onConnectionClick(conn.id, false);
+                            const items = getConnectionContextMenuItems(conn.id);
+                            contextMenu.show(e.clientX, e.clientY, items, 'connection', conn.id);
+                        }}
                         style={{ cursor: 'pointer' }}
                     >
                         {/* Invisible thick path for hit testing */}
@@ -526,6 +537,13 @@ const Canvas: React.FC<CanvasProps> = ({
                         e.stopPropagation();
                         onConnectionClick(conn.id, multiSelectMode || e.shiftKey || e.metaKey || e.ctrlKey);
                     }}
+                    onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onConnectionClick(conn.id, false);
+                        const items = getConnectionContextMenuItems(conn.id);
+                        contextMenu.show(e.clientX, e.clientY, items, 'connection', conn.id);
+                    }}
                     style={{ cursor: 'pointer' }}
                 >
                     {/* Invisible thick line for hit testing */}
@@ -574,6 +592,349 @@ const Canvas: React.FC<CanvasProps> = ({
         });
     };
 
+    /**
+     * Helper: Validate if a connection is allowed between two node types
+     * ER Model Rules:
+     * - Entity ↔ Relationship: Allowed
+     * - Entity ↔ Attribute: Allowed
+     * - Relationship ↔ Attribute: Allowed
+     * - Entity ↔ ISA: Allowed (for specialization)
+     * - Entity ↔ Entity: NOT allowed (must use Relationship)
+     * - Relationship ↔ Relationship: NOT allowed
+     * - Attribute ↔ Attribute: NOT allowed
+     * - Others: NOT allowed
+     */
+    const isValidConnection = (sourceId: string, targetId: string): boolean => {
+        const sourceNode = nodes.find(n => n.id === sourceId);
+        const targetNode = nodes.find(n => n.id === targetId);
+        
+        if (!sourceNode || !targetNode) return false;
+        
+        const sourceType = sourceNode.type;
+        const targetType = targetNode.type;
+        
+        // Cannot connect same type
+        if (sourceType === targetType) return false;
+        
+        // Valid combinations
+        const validPairs = new Set([
+            'entity-relationship',
+            'relationship-entity',
+            'entity-attribute',
+            'attribute-entity',
+            'relationship-attribute',
+            'attribute-relationship',
+            'entity-isa',
+            'isa-entity',
+        ]);
+        
+        const pair = `${sourceType}-${targetType}`;
+        return validPairs.has(pair);
+    };
+
+    /**
+     * Helper: Create a connection between two nodes
+     */
+    const createConnection = (sourceId: string, targetId: string) => {
+        // Validate connection type
+        if (!isValidConnection(sourceId, targetId)) {
+            console.warn(`Cannot connect ${nodes.find(n => n.id === sourceId)?.type} with ${nodes.find(n => n.id === targetId)?.type}`);
+            return;
+        }
+
+        // Check if connection already exists
+        const exists = connections.some(
+            c => (c.sourceId === sourceId && c.targetId === targetId) ||
+                 (c.sourceId === targetId && c.targetId === sourceId)
+        );
+        if (exists) return;
+
+        const newConn: Connection = {
+            id: Math.random().toString(36).slice(2),
+            sourceId,
+            targetId,
+            cardinality: 'N',
+            isTotalParticipation: false,
+        };
+        onConnectionsChange([...connections, newConn]);
+    };
+
+    /**
+     * Generate context menu items for a node
+     */
+    const getNodeContextMenuItems = (nodeId: string): MenuItem[] => {
+        const node = nodes.find(n => n.id === nodeId);
+        if (!node) return [];
+
+        const items: MenuItem[] = [
+            {
+                id: 'edit-label',
+                label: '✏️ Edit Label',
+                action: () => {
+                    // This will be handled by focusing the properties panel
+                    // For now, we'll just select the node
+                    onNodeClick(nodeId, false);
+                },
+            },
+        ];
+
+        // Add connect options with other selected nodes (only valid connections)
+        const otherSelectedNodes = nodes.filter(
+            n => n.selected && n.id !== nodeId && isValidConnection(nodeId, n.id)
+        );
+        if (otherSelectedNodes.length > 0) {
+            items.push({ id: 'divider-connect', label: '', divider: true });
+            otherSelectedNodes.forEach(selectedNode => {
+                items.push({
+                    id: `connect-${selectedNode.id}`,
+                    label: `🔗 Connect with ${selectedNode.label}`,
+                    action: () => {
+                        createConnection(nodeId, selectedNode.id);
+                    },
+                });
+            });
+        }
+
+        // Add option to connect with any node (only valid connections)
+        const otherNodes = nodes.filter(
+            n => n.id !== nodeId && !n.selected && isValidConnection(nodeId, n.id)
+        );
+        if (otherNodes.length > 0) {
+            if (otherSelectedNodes.length === 0) {
+                items.push({ id: 'divider-connect', label: '', divider: true });
+            }
+            items.push({
+                id: 'connect-submenu',
+                label: '🔗 Connect with...',
+                action: undefined, // This is just a placeholder; real submenu functionality can be added
+            });
+            otherNodes.forEach(otherNode => {
+                items.push({
+                    id: `connect-any-${otherNode.id}`,
+                    label: `    • ${otherNode.label}`,
+                    action: () => {
+                        createConnection(nodeId, otherNode.id);
+                    },
+                });
+            });
+        }
+
+        // Add type-specific options
+        if (node.type === 'entity' || node.type === 'relationship') {
+            items.push({
+                id: 'add-attribute',
+                label: '➕ Add Attribute',
+                action: () => {
+                    // Creating a new attribute node
+                    const newAttrNode: ERNode = {
+                        id: Math.random().toString(36).slice(2),
+                        type: 'attribute',
+                        label: 'New Attribute',
+                        position: {
+                            x: node.position.x + 80,
+                            y: node.position.y + 80,
+                        },
+                        selected: false,
+                        isKey: false,
+                        isMultivalued: false,
+                        isDerived: false,
+                    };
+                    const newConn: Connection = {
+                        id: Math.random().toString(36).slice(2),
+                        sourceId: nodeId,
+                        targetId: newAttrNode.id,
+                        cardinality: 'N',
+                        isTotalParticipation: false,
+                    };
+                    onNodesChange([...nodes, newAttrNode]);
+                    setTimeout(
+                        () => onConnectionsChange([...connections, newConn]),
+                        0
+                    );
+                },
+            });
+        }
+
+        items.push(
+            { id: 'divider-1', label: '', divider: true },
+            {
+                id: 'duplicate',
+                label: '📋 Duplicate',
+                action: () => {
+                    const newNode: ERNode = {
+                        ...node,
+                        id: Math.random().toString(36).slice(2),
+                        position: {
+                            x: node.position.x + 40,
+                            y: node.position.y + 40,
+                        },
+                        selected: false,
+                    };
+                    onNodesChange([...nodes, newNode]);
+                },
+            },
+            { id: 'divider-2', label: '', divider: true },
+            {
+                id: 'delete',
+                label: '🗑️ Delete',
+                action: () => {
+                    onNodeClick(nodeId, false);
+                    // Simulate delete button click - the app's delete logic will handle it
+                    // We'll filter out the node here
+                    const filtered = nodes.filter(n => n.id !== nodeId);
+                    // Also remove connected connections
+                    const filteredConns = connections.filter(
+                        c => c.sourceId !== nodeId && c.targetId !== nodeId
+                    );
+                    onNodesChange(filtered);
+                    onConnectionsChange(filteredConns);
+                },
+            }
+        );
+
+        return items;
+    };
+
+    /**
+     * Generate context menu items for a connection
+     */
+    const getConnectionContextMenuItems = (connectionId: string): MenuItem[] => {
+        const conn = connections.find(c => c.id === connectionId);
+        if (!conn) return [];
+
+        const items: MenuItem[] = [
+            {
+                id: 'toggle-participation',
+                label: `${conn.isTotalParticipation ? '○' : '●'} Total Participation`,
+                action: () => {
+                    const updated = connections.map(c =>
+                        c.id === connectionId
+                            ? { ...c, isTotalParticipation: !c.isTotalParticipation }
+                            : c
+                    );
+                    onConnectionsChange(updated);
+                },
+            },
+            {
+                id: 'set-cardinality',
+                label: '⊕ Cardinality',
+                action: () => {
+                    // For now, we'll cycle through cardinalities
+                    const cardinalityMap: Record<string, 'N' | '1' | 'M'> = { 
+                        'N': '1', 
+                        '1': 'M', 
+                        'M': 'N' 
+                    };
+                    const currentCard = String(conn.cardinality) as keyof typeof cardinalityMap;
+                    const next = cardinalityMap[currentCard] || '1';
+                    const updated = connections.map(c =>
+                        c.id === connectionId ? { ...c, cardinality: next } : c
+                    );
+                    onConnectionsChange(updated);
+                },
+            },
+            { id: 'divider-delete', label: '', divider: true },
+            {
+                id: 'delete',
+                label: '🗑️ Delete Connection',
+                action: () => {
+                    const filtered = connections.filter(c => c.id !== connectionId);
+                    onConnectionsChange(filtered);
+                },
+            },
+        ];
+
+        return items;
+    };
+
+    /**
+     * Generate context menu items for canvas background
+     */
+    const getCanvasContextMenuItems = (): MenuItem[] => {
+        return [
+            {
+                id: 'new-entity',
+                label: '◻️ New Entity',
+                action: () => {
+                    const newNode: ERNode = {
+                        id: Math.random().toString(36).slice(2),
+                        type: 'entity',
+                        label: 'Entity',
+                        position: { x: 300, y: 300 },
+                        selected: false,
+                        isWeak: false,
+                    };
+                    onNodesChange([...nodes, newNode]);
+                },
+            },
+            {
+                id: 'new-relationship',
+                label: '◇ New Relationship',
+                action: () => {
+                    const newNode: ERNode = {
+                        id: Math.random().toString(36).slice(2),
+                        type: 'relationship',
+                        label: 'Relationship',
+                        position: { x: 300, y: 300 },
+                        selected: false,
+                        isIdentifying: false,
+                    };
+                    onNodesChange([...nodes, newNode]);
+                },
+            },
+            {
+                id: 'new-isa',
+                label: '△ New ISA',
+                action: () => {
+                    const newNode: ERNode = {
+                        id: Math.random().toString(36).slice(2),
+                        type: 'isa',
+                        label: 'ISA',
+                        position: { x: 300, y: 300 },
+                        selected: false,
+                        isDisjoint: false,
+                        isTotal: false,
+                    };
+                    onNodesChange([...nodes, newNode]);
+                },
+            },
+        ];
+    };
+
+    /**
+     * Handle context menu on node (right-click or long-press)
+     */
+    const handleNodeContextMenu = (e: React.MouseEvent, nodeId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onNodeClick(nodeId, false);
+        const items = getNodeContextMenuItems(nodeId);
+        contextMenu.show(e.clientX, e.clientY, items, 'node', nodeId);
+    };
+
+    /**
+     * Handle touch start on node for long-press
+     */
+    const handleNodeTouchStart = (e: React.TouchEvent, nodeId: string) => {
+        const items = getNodeContextMenuItems(nodeId);
+        contextMenu.handleTouchStart(
+            e,
+            items,
+            'node',
+            nodeId
+        );
+    };
+
+    /**
+     * Handle context menu on canvas
+     */
+    const handleCanvasContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const items = getCanvasContextMenuItems();
+        contextMenu.show(e.clientX, e.clientY, items, 'canvas');
+    };
+
     const transformStyle = {
         transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
         transformOrigin: '0 0'
@@ -588,6 +949,7 @@ const Canvas: React.FC<CanvasProps> = ({
             onMouseUp={handleMouseUp}
             onMouseLeave={() => { setIsPanning(false); setDraggedNodeId(null); setDraggedAggregationId(null); setIsDrag(false); }}
             onWheel={handleWheel}
+            onContextMenu={handleCanvasContextMenu}
         >
             <div className="canvas-content" style={transformStyle}>
                 <svg
@@ -661,9 +1023,19 @@ const Canvas: React.FC<CanvasProps> = ({
                         key={node.id}
                         node={node}
                         onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                        onContextMenu={(e) => handleNodeContextMenu(e, node.id)}
+                        onTouchStart={(e) => handleNodeTouchStart(e, node.id)}
+                        onTouchEnd={contextMenu.handleTouchEnd}
+                        onTouchMove={contextMenu.handleTouchMove}
                     />
                 ))}
             </div>
+
+            <ContextMenu
+                state={contextMenu.state}
+                onClose={contextMenu.hide}
+                onAction={contextMenu.executeAction}
+            />
 
             <div className="canvas-controls">
                 Zoom: {(scale * 100).toFixed(0)}%

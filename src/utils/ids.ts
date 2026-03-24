@@ -1,9 +1,14 @@
-export const createId = () => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
+import { nanoid } from 'nanoid';
 
-  const randomPart = Math.random().toString(36).slice(2, 10);
-  const timePart = Date.now().toString(36);
-  return `id_${timePart}_${randomPart}`;
+/**
+ * Crea un identificador único para nodos y otros elementos.
+ * Utiliza nanoid para garantizar unicidad con alto rendimiento.
+ * 
+ * @returns Identificador único de 21 caracteres (default de nanoid)
+ * 
+ * @example
+ * const nodeId = createId(); // "V1StGXR_Z5j3eK4m2n9p0"
+ */
+export const createId = (): string => {
+  return nanoid();
 };

@@ -1,0 +1,192 @@
+/* ContextMenu Styling */
+
+.context-menu {
+  position: fixed;
+  background: linear-gradient(
+    135deg,
+    var(--color-gray-900) 0%,
+    var(--color-gray-800) 100%
+  );
+  border: 1px solid var(--color-primary-500);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  min-width: 160px;
+  max-width: 220px;
+  z-index: 10000;
+  overflow: hidden;
+  animation: fadeSlide 150ms ease-out;
+  backdrop-filter: blur(4px);
+}
+
+@keyframes fadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-gray-100);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 100ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  /* Minimum touch target size (WCAG guideline) */
+  min-height: 44px;
+  justify-content: flex-start;
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-primary-600);
+    color: white;
+    transform: translateX(2px);
+  }
+
+  &:active:not(:disabled) {
+    background-color: var(--color-primary-700);
+    transform: translateX(1px);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Focus ring for keyboard navigation */
+  &:focus-visible {
+    outline: 2px solid var(--color-secondary-400);
+    outline-offset: -2px;
+  }
+}
+
+.context-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.context-menu-label {
+  flex: 1;
+  min-width: 0;
+  user-select: none;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-primary-500),
+    transparent
+  );
+  margin: 4px 0;
+}
+
+/* Mobile/Tablet optimizations */
+@media (max-width: 768px) {
+  .context-menu {
+    min-width: 140px;
+    max-width: 200px;
+    border-radius: 6px;
+  }
+
+  .context-menu-item {
+    padding: 12px 10px;
+    min-height: 48px;
+    font-size: 14px;
+    gap: 12px;
+  }
+
+  .context-menu-icon {
+    width: 20px;
+    height: 20px;
+    font-size: 16px;
+  }
+
+  /* Larger touch targets on mobile */
+  .context-menu-item:active:not(:disabled) {
+    background-color: var(--color-primary-600);
+  }
+}
+
+/* Very small devices (phones) */
+@media (max-width: 480px) {
+  .context-menu {
+    max-width: 180px;
+  }
+
+  .context-menu-item {
+    padding: 14px 12px;
+    min-height: 52px;
+    font-size: 15px;
+  }
+}
+
+/* Positioning constraints to avoid viewport edges */
+@supports selector(:has(~ :last-child)) {
+  .context-menu {
+    /* CSS containment for performance */
+    contain: layout style paint;
+  }
+}
+
+/* Dark mode (always dark since app is dark) */
+@media (prefers-color-scheme: dark) {
+  .context-menu {
+    background: linear-gradient(
+      135deg,
+      var(--color-gray-950) 0%,
+      var(--color-gray-900) 100%
+    );
+    border-color: var(--color-primary-600);
+  }
+
+  .context-menu-item {
+    color: var(--color-gray-50);
+  }
+
+  .context-menu-item:hover:not(:disabled) {
+    background-color: rgba(147, 51, 234, 0.2);
+    color: var(--color-primary-300);
+  }
+
+  .context-menu-divider {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-primary-600),
+      transparent
+    );
+  }
+}
+
+/* Accessibility: reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .context-menu,
+  .context-menu-item {
+    animation: none;
+    transition: none;
+  }
+}
