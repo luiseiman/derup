@@ -2436,16 +2436,23 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const joinRoom = (rid: string) => {
+  const joinRoom = (rid: string, asOwner = false) => {
     if (wsRef.current) wsRef.current.close();
     const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/?room=${rid}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     setRoomId(rid);
 
+    ws.onopen = () => {
+      if (asOwner) {
+        // Push current diagram to the new room instead of receiving empty state
+        ws.send(JSON.stringify({ type: 'update', nodes, connections, aggregations }));
+      }
+    };
+
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data) as { type: string; nodes?: ERNode[]; connections?: Connection[]; aggregations?: Aggregation[] };
-      if (msg.type === 'state' || msg.type === 'update') {
+      if (msg.type === 'update' || (msg.type === 'state' && !asOwner)) {
         isSyncingRef.current = true;
         if (Array.isArray(msg.nodes)) setNodes(msg.nodes);
         if (Array.isArray(msg.connections)) setConnections(msg.connections);
@@ -2474,7 +2481,7 @@ function App() {
     const url = new URL(window.location.href);
     url.searchParams.set('room', data.roomId);
     window.history.replaceState({}, '', url.toString());
-    joinRoom(data.roomId);
+    joinRoom(data.roomId, true);
   };
 
   const sendUpdateDebounceRef = useRef<number | null>(null);
