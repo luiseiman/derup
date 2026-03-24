@@ -34,6 +34,12 @@
   transform: translateY(-1px);
 }
 
+.rs-card--selected {
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.18), 0 4px 14px rgba(147, 51, 234, 0.14);
+  background: rgba(245, 240, 255, 0.98);
+}
+
 .rs-card--relationship {
   border-color: var(--primary-200);
 }

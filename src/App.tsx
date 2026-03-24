@@ -245,6 +245,18 @@ function App() {
     setLastSelectedNodeId(sourceId);
     setCanvasView('er');
     setActiveTab('properties');
+    // Center canvas on the target node
+    const node = nodes.find(n => n.id === sourceId);
+    if (node && canvasAreaRef.current) {
+      const rect = canvasAreaRef.current.getBoundingClientRect();
+      const TAB_H = 48;
+      const vw = rect.width;
+      const vh = rect.height - TAB_H;
+      setOffset({
+        x: vw / 2 - node.position.x * scale,
+        y: vh / 2 - node.position.y * scale,
+      });
+    }
   };
 
   const handleRenameNode = (sourceId: string, newLabel: string) => {
@@ -4346,6 +4358,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           {canvasView === 'schema' && (
             <RelationalSchemaView
               schema={relationalSchema}
+              selectedNodeIds={selectedNodeIds}
               onNavigateToNode={handleNavigateToNode}
               onRenameNode={handleRenameNode}
             />

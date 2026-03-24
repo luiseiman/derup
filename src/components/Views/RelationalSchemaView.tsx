@@ -4,6 +4,7 @@ import type { RelationalSchema, RelationalTable } from '../../utils/relationalSc
 
 interface RelationalSchemaViewProps {
   schema: RelationalSchema;
+  selectedNodeIds?: Set<string>;
   onNavigateToNode?: (sourceId: string) => void;
   onRenameNode?: (sourceId: string, newLabel: string) => void;
 }
@@ -95,6 +96,7 @@ const EditableLabel: React.FC<EditableLabelProps> = ({
 
 export const RelationalSchemaView: React.FC<RelationalSchemaViewProps> = ({
   schema,
+  selectedNodeIds,
   onNavigateToNode,
   onRenameNode,
 }) => {
@@ -112,7 +114,7 @@ export const RelationalSchemaView: React.FC<RelationalSchemaViewProps> = ({
     <div className="rs-root">
       <div className="rs-grid">
         {schema.tables.map((table) => (
-          <div key={table.name} className={`rs-card rs-card--${table.source}`}>
+          <div key={table.name} className={`rs-card rs-card--${table.source}${selectedNodeIds?.has(table.sourceId) ? ' rs-card--selected' : ''}`}>
             <div className="rs-card-header">
               <EditableLabel
                 value={table.name}
