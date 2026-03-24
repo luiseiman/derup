@@ -2364,11 +2364,39 @@ function App() {
     return (node && node.type === 'attribute') ? node : undefined;
   };
 
-  const buildAICommandPrompt = (userText: string, entityLabelList: string[], relLabelList: string[]): string =>
+  const buildEntityDetails = (): string => {
+    const entityNodes = nodes.filter(n => n.type === 'entity');
+    if (entityNodes.length === 0) return 'ninguna';
+    return entityNodes.map(entity => {
+      const connectedIds = connections
+        .filter(c => c.sourceId === entity.id || c.targetId === entity.id)
+        .map(c => c.sourceId === entity.id ? c.targetId : c.sourceId);
+      const attrs = nodes
+        .filter(n => n.type === 'attribute' && connectedIds.includes(n.id))
+        .map(n => {
+          if (n.type !== 'attribute') return n.label;
+          const tags: string[] = [];
+          if (n.isKey) tags.push('clave');
+          if (n.isMultivalued) tags.push('multivaluado');
+          if (n.isDerived) tags.push('derivado');
+          return tags.length > 0 ? `${n.label}(${tags.join(',')})` : n.label;
+        });
+      return `${entity.label}: [${attrs.join(', ') || 'sin atributos'}]`;
+    }).join('\n');
+  };
+
+  const buildRecentHistory = (recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string => {
+    if (recentMessages.length === 0) return '';
+    const lines = recentMessages.map(m => `${m.role === 'user' ? 'Usuario' : 'Asistente'}: ${m.text}`).join('\n');
+    return `\nConversación reciente:\n${lines}\n`;
+  };
+
+  const buildAICommandPrompt = (userText: string, relLabelList: string[], recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
     `Eres el asistente de modelado ER de derup. Responde SOLO con un JSON válido sin markdown.\n` +
-    `Entidades en el diagrama: ${entityLabelList.join(', ') || 'ninguna'}\n` +
-    `Relaciones en el diagrama: ${relLabelList.join(', ') || 'ninguna'}\n\n` +
-    `El JSON debe tener "type" con uno de estos valores:\n` +
+    `Entidades en el diagrama:\n${buildEntityDetails()}\n` +
+    `Relaciones en el diagrama: ${relLabelList.join(', ') || 'ninguna'}\n` +
+    buildRecentHistory(recentMessages) +
+    `\nEl JSON debe tener "type" con uno de estos valores:\n` +
     `add-entity: {"type":"add-entity","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
     `add-attributes (atributos específicos): {"type":"add-attributes","entityName":"X","attributes":["c","d"],"keyAttributes":[]}\n` +
     `add-attributes (atributos típicos/propios/habituales sin lista): {"type":"add-attributes","entityName":"X","attributes":[],"useDefaultAttributes":true}\n` +
@@ -2388,9 +2416,11 @@ function App() {
     `chat: {"type":"chat","message":"Texto en español para el usuario"}\n\n` +
     `Reglas importantes:\n` +
     `- Usa "chat" para saludos, preguntas y pedidos no mapeables.\n` +
-    `- Los nombres de entidad/relación deben coincidir con los del diagrama (case-insensitive).\n` +
+    `- Los nombres de entidad/relación deben coincidir EXACTAMENTE con los del diagrama (case-insensitive).\n` +
+    `- Si el usuario menciona una entidad sin nombrarla (ej: "esa entidad", "la misma", responde en contexto a un mensaje previo), infiere el nombre de la conversación reciente.\n` +
     `- Si el usuario pide atributos típicos/propios/habituales/comunes SIN especificar cuáles, usa useDefaultAttributes:true y attributes:[].\n` +
     `- Si el usuario especifica atributos concretos, ponlos en snake_case en el array attributes.\n` +
+    `- Para set-attribute-type, el attributeName debe coincidir con un atributo existente del diagrama.\n` +
     `- NUNCA pongas frases descriptivas como "propios de X" como nombre de atributo.\n\n` +
     `Usuario: ${userText}`;
 
@@ -2745,7 +2775,8 @@ function App() {
       setAiStatus('thinking');
       try {
         const relationshipLabels = nodes.filter(n => n.type === 'relationship').map(n => n.label);
-        const prompt = buildAICommandPrompt(text, entityLabels, relationshipLabels);
+        const recentHistory = chatMessages.slice(-4).map(m => ({ role: m.role, text: m.text }));
+        const prompt = buildAICommandPrompt(text, relationshipLabels, recentHistory);
         const aiText = await requestAIText(prompt);
         aiResponseText = aiText ?? '';
         if (aiResponseText) {
