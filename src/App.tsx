@@ -6,7 +6,7 @@ import type { ERNode, Connection, NodeType, Cardinality, DiagramView, Aggregatio
 import { createId } from './utils/ids';
 import { parseDiagramSnapshot, serializeDiagram } from './utils/diagram';
 import { parseChatCommand } from './utils/chatParser';
-import { type AICommand, parseAICommandJson, isLegacyAICommand } from './utils/aiCommands';
+import { type AICommand, parseAICommandJson, parseAICommandBatch, isLegacyAICommand } from './utils/aiCommands';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { safeCardinality } from './utils/schemas';
 import Toolbar from './components/Toolbar/Toolbar';
@@ -100,6 +100,13 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('properties');
   const [lastScenarioText, setLastScenarioText] = useState('');
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const batchQueueRef = useRef<AICommand[]>([]);
+  const [batchTick, setBatchTick] = useState(0);
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const connectionsRef = useRef(connections);
+  connectionsRef.current = connections;
 
   const [roomId, setRoomId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -156,6 +163,36 @@ function App() {
       window.clearInterval(timer);
     };
   }, [aiStatus]);
+
+  useEffect(() => {
+    if (batchQueueRef.current.length === 0) return;
+    const cmd = batchQueueRef.current[0];
+    batchQueueRef.current = batchQueueRef.current.slice(1);
+
+    const remaining = batchQueueRef.current.length;
+    const total = batchProgress?.total ?? 0;
+    setBatchProgress({ current: total - remaining, total });
+
+    if (cmd.type === 'chat') {
+      // treat chat commands in batch as final summary
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: cmd.message }]);
+    } else {
+      const { nodes: nextNodes, connections: nextConns, ok, message } = applyCommandToState(cmd, nodesRef.current, connectionsRef.current);
+      setNodes(nextNodes);
+      setConnections(nextConns);
+      if (!ok) {
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `⚠ ${message}` }]);
+      }
+    }
+
+    if (batchQueueRef.current.length > 0) {
+      setTimeout(() => setBatchTick(t => t + 1), 120);
+    } else {
+      setBatchProgress(null);
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: 'Correcciones aplicadas.' }]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batchTick]);
 
   useEffect(() => {
     if (snapshotTimerRef.current !== null) {
@@ -286,6 +323,113 @@ function App() {
     };
     setScale(newScale);
     setOffset(newOffset);
+  };
+
+  const applyCommandToState = (
+    cmd: AICommand,
+    curNodes: ERNode[],
+    curConns: Connection[],
+  ): { nodes: ERNode[]; connections: Connection[]; ok: boolean; message: string } => {
+    const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const findNode = (label: string, type: NodeType) =>
+      curNodes.find(n => n.type === type && norm(n.label) === norm(label)) ?? null;
+    const findAny = (label: string) =>
+      findNode(label, 'entity') ?? findNode(label, 'relationship');
+    const fail = (msg: string) => ({ nodes: curNodes, connections: curConns, ok: false, message: msg });
+
+    if (cmd.type === 'set-entity-weakness') {
+      const e = findNode(cmd.entityName, 'entity');
+      if (!e) return fail(`Entidad "${cmd.entityName}" no encontrada.`);
+      return { nodes: curNodes.map(n => n.id === e.id && n.type === 'entity' ? { ...n, isWeak: cmd.isWeak } : n), connections: curConns, ok: true, message: `${e.label}: ${cmd.isWeak ? 'débil' : 'fuerte'}.` };
+    }
+
+    if (cmd.type === 'set-cardinality') {
+      const eA = findNode(cmd.entityA, 'entity');
+      const eB = findNode(cmd.entityB, 'entity');
+      if (!eA || !eB) return fail(`Entidades "${cmd.entityA}" / "${cmd.entityB}" no encontradas.`);
+      const rel = curNodes.find(n => {
+        if (n.type !== 'relationship') return false;
+        const hA = curConns.some(c => (c.sourceId === n.id && c.targetId === eA.id) || (c.sourceId === eA.id && c.targetId === n.id));
+        const hB = curConns.some(c => (c.sourceId === n.id && c.targetId === eB.id) || (c.sourceId === eB.id && c.targetId === n.id));
+        return hA && hB;
+      });
+      if (!rel) return fail(`No hay relación entre "${cmd.entityA}" y "${cmd.entityB}".`);
+      return {
+        nodes: curNodes,
+        connections: curConns.map(c => {
+          const isA = (c.sourceId === rel.id && c.targetId === eA.id) || (c.sourceId === eA.id && c.targetId === rel.id);
+          const isB = (c.sourceId === rel.id && c.targetId === eB.id) || (c.sourceId === eB.id && c.targetId === rel.id);
+          if (isA && cmd.cardinalityA) return { ...c, cardinality: cmd.cardinalityA as Connection['cardinality'] };
+          if (isB && cmd.cardinalityB) return { ...c, cardinality: cmd.cardinalityB as Connection['cardinality'] };
+          return c;
+        }),
+        ok: true,
+        message: `${rel.label}: ${cmd.cardinalityA ?? '?'}:${cmd.cardinalityB ?? '?'}.`,
+      };
+    }
+
+    if (cmd.type === 'set-participation') {
+      const e = findNode(cmd.entityName, 'entity');
+      const r = findNode(cmd.relationshipName, 'relationship');
+      if (!e || !r) return fail(`No encontré "${cmd.entityName}" o "${cmd.relationshipName}".`);
+      return {
+        nodes: curNodes,
+        connections: curConns.map(c => {
+          const match = (c.sourceId === r.id && c.targetId === e.id) || (c.sourceId === e.id && c.targetId === r.id);
+          return match ? { ...c, isTotalParticipation: cmd.isTotal } : c;
+        }),
+        ok: true,
+        message: `Participación ${e.label} en ${r.label}: ${cmd.isTotal ? 'total' : 'parcial'}.`,
+      };
+    }
+
+    if (cmd.type === 'set-attribute-type') {
+      const parent = findAny(cmd.entityName);
+      if (!parent) return fail(`"${cmd.entityName}" no encontrado.`);
+      const attrIds = new Set(curConns.filter(c => c.sourceId === parent.id || c.targetId === parent.id).map(c => c.sourceId === parent.id ? c.targetId : c.sourceId));
+      const attr = curNodes.find(n => n.type === 'attribute' && attrIds.has(n.id) && norm(n.label) === norm(cmd.attributeName));
+      if (!attr || attr.type !== 'attribute') return fail(`Atributo "${cmd.attributeName}" no encontrado en ${parent.label}.`);
+      const updated: typeof attr = {
+        ...attr,
+        isKey: cmd.isKey ?? attr.isKey,
+        isMultivalued: cmd.isMultivalued ?? attr.isMultivalued,
+        isDerived: cmd.isDerived ?? attr.isDerived,
+      };
+      return { nodes: curNodes.map(n => n.id === attr.id ? updated : n), connections: curConns, ok: true, message: `Atributo ${attr.label} de ${parent.label} actualizado.` };
+    }
+
+    if (cmd.type === 'add-attributes') {
+      const parent = findAny(cmd.entityName);
+      if (!parent) return fail(`"${cmd.entityName}" no encontrado.`);
+      const existingIds = new Set(curConns.filter(c => c.sourceId === parent.id || c.targetId === parent.id).map(c => c.sourceId === parent.id ? c.targetId : c.sourceId));
+      const existingLabels = new Set(curNodes.filter(n => n.type === 'attribute' && existingIds.has(n.id)).map(n => norm(n.label)));
+      const newAttrs = cmd.attributes.filter(a => !existingLabels.has(norm(a)));
+      if (newAttrs.length === 0) return { nodes: curNodes, connections: curConns, ok: true, message: `${parent.label} ya tiene esos atributos.` };
+      const keySet = new Set((cmd.keyAttributes ?? []).map(k => norm(k)));
+      const occupied = curNodes.map(n => ({ type: n.type, position: n.position }));
+      const positions = placeAttributePositions(newAttrs, parent.position, occupied);
+      const newAttrNodes: import('./types/er').AttributeNode[] = newAttrs.map((attr, i) => ({
+        id: createId(), type: 'attribute' as const,
+        position: positions[i] ?? { x: parent.position.x + 100 + i * 20, y: parent.position.y + 60 + i * 15 },
+        label: attr, isKey: keySet.has(norm(attr)), isMultivalued: false, isDerived: false,
+      }));
+      const newConns: Connection[] = newAttrNodes.map(n => ({ id: createId(), sourceId: parent.id, targetId: n.id, isTotalParticipation: false }));
+      return { nodes: [...curNodes, ...newAttrNodes], connections: [...curConns, ...newConns], ok: true, message: `Atributos agregados a ${parent.label}: ${newAttrs.join(', ')}.` };
+    }
+
+    if (cmd.type === 'rename-entity') {
+      const e = findNode(cmd.entityName, 'entity');
+      if (!e) return fail(`Entidad "${cmd.entityName}" no encontrada.`);
+      return { nodes: curNodes.map(n => n.id === e.id ? { ...n, label: cmd.newName } : n), connections: curConns, ok: true, message: `${e.label} → ${cmd.newName}.` };
+    }
+
+    if (cmd.type === 'rename-relationship') {
+      const r = findNode(cmd.relationshipName, 'relationship');
+      if (!r) return fail(`Relación "${cmd.relationshipName}" no encontrada.`);
+      return { nodes: curNodes.map(n => n.id === r.id ? { ...n, label: cmd.newName } : n), connections: curConns, ok: true, message: `${r.label} → ${cmd.newName}.` };
+    }
+
+    return fail(`Comando "${cmd.type}" no soportado en modo batch — ejecutalo individualmente.`);
   };
 
   const getCanvasCenter = () => {
@@ -2554,7 +2698,9 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
 
   const buildAICommandPrompt = (userText: string, recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
     `You are the ER modeling assistant of derup. Apply Ramakrishnan & Gehrke theory strictly.\n` +
-    `Respond ONLY with valid JSON, no markdown.\n\n` +
+    `Respond with valid JSON only, no markdown.\n` +
+    `Single operation → one JSON object: {"type":"..."}.\n` +
+    `Multiple corrections (fix errors, apply review findings, batch changes) → JSON array: [{"type":"..."},{"type":"..."},...]. Max 20 commands. Last element may be {"type":"chat","message":"summary in Spanish"}.\n\n` +
     `${ER_RAMAKRISHNAN_THEORY}\n\n` +
     `DECISION HEURISTICS (apply before choosing command type):\n` +
     `- Weak entity? → set-entity-weakness isWeak:true. NOTE: identifying relationship ≠ recursive relationship.\n` +
@@ -2970,6 +3116,13 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
         const aiText = await requestAIText(prompt);
         aiResponseText = aiText ?? '';
         if (aiResponseText) {
+          const batch = parseAICommandBatch(aiResponseText);
+          if (batch && batch.length > 1) {
+            batchQueueRef.current = batch;
+            setBatchProgress({ current: 0, total: batch.length });
+            setTimeout(() => setBatchTick(t => t + 1), 80);
+            return;
+          }
           aiCommand = parseAICommandJson(aiResponseText);
         }
       } catch (error) {
@@ -4030,10 +4183,13 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
                 </div>
               ))}
             </div>
-            {aiStatus === 'thinking' && (
+            {(aiStatus === 'thinking' || batchProgress !== null) && (
               <div className="ai-thinking-bar">
                 <span className="ai-thinking-spinner" />
-                <span className="ai-thinking-label">Procesando… {formatThinkingTime(aiThinkingSeconds)}</span>
+                {batchProgress !== null
+                  ? <span className="ai-thinking-label">Aplicando {batchProgress.current}/{batchProgress.total}…</span>
+                  : <span className="ai-thinking-label">Procesando… {formatThinkingTime(aiThinkingSeconds)}</span>
+                }
               </div>
             )}
             <div className="chat-input">

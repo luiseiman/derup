@@ -86,3 +86,16 @@ export const extractJsonObject = (text: string): Record<string, unknown> | null 
   }
   return null;
 };
+
+export const extractJsonArray = (text: string): unknown[] | null => {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  if (fenced) {
+    try { const r = JSON.parse(fenced[1].trim()) as unknown; if (isArray(r)) return r; } catch { /* continue */ }
+  }
+  const s = text.indexOf('[');
+  const e = text.lastIndexOf(']');
+  if (s !== -1 && e > s) {
+    try { const r = JSON.parse(text.slice(s, e + 1)) as unknown; if (isArray(r)) return r; } catch { /* continue */ }
+  }
+  return null;
+};

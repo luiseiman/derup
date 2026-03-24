@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { extractJsonObject } from './json';
+import { extractJsonObject, extractJsonArray } from './json';
 
 const Cardinality = z.enum(['1', 'N', 'M']);
 
@@ -106,6 +106,17 @@ export function parseAICommandJson(text: string): AICommand | null {
   if (!raw) return null;
   const result = AICommandSchema.safeParse(raw);
   return result.success ? result.data : null;
+}
+
+export function parseAICommandBatch(text: string): AICommand[] | null {
+  const raw = extractJsonArray(text);
+  if (!raw || raw.length === 0) return null;
+  const commands: AICommand[] = [];
+  for (const item of raw) {
+    const result = AICommandSchema.safeParse(item);
+    if (result.success) commands.push(result.data);
+  }
+  return commands.length > 0 ? commands : null;
 }
 
 const LEGACY_TYPES = new Set([
