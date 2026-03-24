@@ -14,8 +14,9 @@ export const AICommandSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('add-attributes'),
     entityName: z.string(),
-    attributes: z.array(z.string()),
+    attributes: z.array(z.string()).default([]),
     keyAttributes: z.array(z.string()).default([]),
+    useDefaultAttributes: z.boolean().optional(),
   }),
   z.object({
     type: z.literal('replace-attributes'),

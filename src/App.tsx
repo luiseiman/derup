@@ -2370,7 +2370,8 @@ function App() {
     `Relaciones en el diagrama: ${relLabelList.join(', ') || 'ninguna'}\n\n` +
     `El JSON debe tener "type" con uno de estos valores:\n` +
     `add-entity: {"type":"add-entity","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
-    `add-attributes: {"type":"add-attributes","entityName":"X","attributes":["c"],"keyAttributes":[]}\n` +
+    `add-attributes (atributos específicos): {"type":"add-attributes","entityName":"X","attributes":["c","d"],"keyAttributes":[]}\n` +
+    `add-attributes (atributos típicos/propios/habituales sin lista): {"type":"add-attributes","entityName":"X","attributes":[],"useDefaultAttributes":true}\n` +
     `replace-attributes: {"type":"replace-attributes","entityName":"X","attributes":["a"],"keyAttributes":["a"]}\n` +
     `rename-entity: {"type":"rename-entity","entityName":"Viejo","newName":"Nuevo"}\n` +
     `rename-relationship: {"type":"rename-relationship","relationshipName":"Viejo","newName":"Nuevo"}\n` +
@@ -2388,11 +2389,9 @@ function App() {
     `Reglas importantes:\n` +
     `- Usa "chat" para saludos, preguntas y pedidos no mapeables.\n` +
     `- Los nombres de entidad/relación deben coincidir con los del diagrama (case-insensitive).\n` +
-    `- Si el usuario pide "atributos propios/típicos/habituales/comunes" de una entidad, ` +
-    `genera los nombres de atributo reales y específicos en español snake_case ` +
-    `(ej: para Persona → ["nombre","apellido","email","telefono","fecha_nacimiento"]).\n` +
-    `- NUNCA pongas frases como "propios de X" o "atributos de X" como nombre de atributo.\n` +
-    `- Siempre genera snake_case sin espacios para los atributos.\n\n` +
+    `- Si el usuario pide atributos típicos/propios/habituales/comunes SIN especificar cuáles, usa useDefaultAttributes:true y attributes:[].\n` +
+    `- Si el usuario especifica atributos concretos, ponlos en snake_case en el array attributes.\n` +
+    `- NUNCA pongas frases descriptivas como "propios de X" como nombre de atributo.\n\n` +
     `Usuario: ${userText}`;
 
   const getSelectedEntity = () => {
@@ -3053,7 +3052,23 @@ function App() {
         return;
       }
 
-      const cleanedInput = cleanParsedAttributeInputs(parsed.attributes);
+      let rawAttributes = parsed.attributes;
+      let rawKeyAttributes = parsed.keyAttributes;
+
+      if ((parsed as { useDefaultAttributes?: boolean }).useDefaultAttributes || rawAttributes.length === 0) {
+        setAiStatus('thinking');
+        try {
+          const aiResult = await inferAttributesWithAI(targetEntity.label);
+          if (aiResult) {
+            rawAttributes = aiResult.attributes;
+            rawKeyAttributes = [aiResult.key];
+          }
+        } catch { /* ignore, fallback to empty */ } finally {
+          setAiStatus('idle');
+        }
+      }
+
+      const cleanedInput = cleanParsedAttributeInputs(rawAttributes);
       if (cleanedInput.length === 0) {
         setChatMessages(prev => [
           ...prev,
@@ -3066,7 +3081,7 @@ function App() {
         return;
       }
 
-      const { added, skipped } = addAttributesToExistingEntity(targetEntity, cleanedInput, parsed.keyAttributes);
+      const { added, skipped } = addAttributesToExistingEntity(targetEntity, cleanedInput, rawKeyAttributes);
       if (added.length === 0) {
         setChatMessages(prev => [
           ...prev,
