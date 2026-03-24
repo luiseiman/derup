@@ -2567,7 +2567,9 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- Aggregation? → connect-entity-aggregation with the base relationship's two member entities.\n` +
     `- Cardinality ambiguous? → default M:N ("N","N"); adjust only when text clearly implies constraint.\n\n` +
     `Current diagram state:\n${buildDiagramContext()}\n` +
-    (lastScenarioText ? `\nOriginal scenario used to generate this diagram:\n"""\n${lastScenarioText}\n"""\n` : '') +
+    (lastScenarioText
+      ? `\nOriginal scenario used to generate this diagram:\n"""\n${lastScenarioText}\n"""\n`
+      : `\nNo original scenario text available. When answering questions about diagram decisions, infer the implied domain from entity names, relationship names, attributes, cardinalities, and structural patterns (weak entities, ISA hierarchies, aggregations) visible in the current diagram. Use that inferred domain as context to explain each decision with R&G theory.\n`) +
     buildRecentHistory(recentMessages) +
     `\nJSON "type" values (use exactly one per response):\n` +
     `add-entity: {"type":"add-entity","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
