@@ -56,6 +56,11 @@ type ParsedClearCommand = {
   type: 'clear-diagram';
 };
 
+type ParsedDeleteEntityCommand = {
+  type: 'delete-entity';
+  entityName: string;
+};
+
 export type ParsedChatCommand =
   | ParsedEntityCommand
   | ParsedAddAttributesCommand
@@ -64,7 +69,8 @@ export type ParsedChatCommand =
   | ParsedRelationshipCommand
   | ParsedEntityAggregationCommand
   | ParsedWeakEntityCommand
-  | ParsedClearCommand;
+  | ParsedClearCommand
+  | ParsedDeleteEntityCommand;
 
 const normalizeSpaces = (value: string) => value.trim().replace(/\s+/g, ' ');
 
@@ -149,9 +155,15 @@ const extractAttributesPart = (text: string) => {
   const conIndex = normalized.indexOf(' con ');
   if (conIndex >= 0) {
     const afterCon = text.slice(conIndex + 4);
-    const stopIndex = afterCon.search(/\b(dond\w*|wher\w*|siend\w*|clav\w*|como)\b/i);
-    const part = stopIndex >= 0 ? afterCon.slice(0, stopIndex) : afterCon;
-    if (part.trim().length > 0) return normalizeSpaces(part);
+    // Stop at sentence boundary (.) or explicit stop words
+    const dotStop = afterCon.indexOf('.');
+    const afterConTrimmed = dotStop >= 0 ? afterCon.slice(0, dotStop) : afterCon;
+    const stopIndex = afterConTrimmed.search(/\b(dond\w*|wher\w*|siend\w*|clav\w*|como)\b/i);
+    const part = stopIndex >= 0 ? afterConTrimmed.slice(0, stopIndex) : afterConTrimmed;
+    const trimmed = part.trim();
+    // If what follows "con" is just a generic phrase like "sus atributos", return null
+    if (/^(sus|los|las|propios?)\s+atribut\w*/i.test(trimmed)) return null;
+    if (trimmed.length > 0) return normalizeSpaces(trimmed);
   }
 
   return null;
@@ -170,6 +182,9 @@ const detectsDefaultAttributes = (text: string) => {
   return (
     normalized.includes('todos sus atributos') ||
     normalized.includes('todas sus atributos') ||
+    normalized.includes('sus atributos') ||
+    normalized.includes('sus propios atributos') ||
+    normalized.includes('propios atributos') ||
     normalized.includes('atributos habituales') ||
     normalized.includes('atributos comunes') ||
     normalized.includes('atributos basicos') ||
@@ -285,6 +300,10 @@ export const parseChatCommand = (input: string, entityLabels: string[] = []): Pa
   const entityMentions = entityLabels.length > 0 ? findEntityMentions(text, entityLabels) : [];
   const hasWeakKeyword = normalizedTokens.some(token => fuzzyMatch(token, 'debil', 1) || fuzzyMatch(token, 'debilidad', 2));
   const hasStrongKeyword = normalizedTokens.some(token => fuzzyMatch(token, 'fuerte', 1));
+
+  if (deleteIntent && !includesAll && !normalizedText.includes('todo') && hasEntity && entityMentions.length >= 1) {
+    return { type: 'delete-entity', entityName: entityMentions[0] };
+  }
 
   if (isLinkIntent && hasAggregationKeyword) {
     const relationshipName = extractRelationshipName(text);

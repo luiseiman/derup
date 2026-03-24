@@ -3013,6 +3013,27 @@ function App() {
       return;
     }
 
+    if (parsed.type === 'delete-entity') {
+      const entity = findEntityByLabel(parsed.entityName);
+      if (!entity) {
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la entidad "${parsed.entityName}".` }]);
+        return;
+      }
+      const attrIds = connections
+        .filter(c => c.sourceId === entity.id || c.targetId === entity.id)
+        .map(c => c.sourceId === entity.id ? c.targetId : c.sourceId)
+        .filter(id => nodes.find(n => n.id === id)?.type === 'attribute');
+      const toRemove = new Set([entity.id, ...attrIds]);
+      setNodes(prev => prev.filter(n => !toRemove.has(n.id)));
+      setConnections(prev => prev.filter(c => !toRemove.has(c.sourceId) && !toRemove.has(c.targetId)));
+      setAggregations(prev =>
+        prev.map(a => ({ ...a, memberIds: a.memberIds.filter(id => !toRemove.has(id)) })).filter(a => a.memberIds.length >= 2)
+      );
+      setSelectedNodeIds(prev => { const next = new Set(prev); next.delete(entity.id); return next; });
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Listo. Eliminé la entidad ${entity.label} y sus atributos.` }]);
+      return;
+    }
+
     if (parsed.type === 'replace-attributes') {
       const targetEntity = parsed.entityName === '__selected__'
         ? nodes.find(n => n.type === 'entity' && selectedNodeIds.has(n.id))
