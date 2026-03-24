@@ -29,6 +29,10 @@
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
+.rs-card {
+  cursor: pointer;
+}
+
 .rs-card:hover {
   box-shadow: 0 6px 18px rgba(147, 51, 234, 0.14);
   transform: translateY(-1px);
@@ -51,6 +55,37 @@
   border-color: rgba(6, 182, 212, 0.4);
 }
 
+/* ── Selection bar ── */
+.rs-selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--primary-100, rgba(147,51,234,0.1));
+  border: 1px solid var(--primary-200, rgba(147,51,234,0.2));
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--primary-700);
+  flex-shrink: 0;
+}
+
+.rs-sel-clear {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: none;
+  border: 1px solid var(--primary-300);
+  border-radius: 5px;
+  color: var(--primary-600);
+  cursor: pointer;
+  padding: 2px 8px;
+  transition: all 0.1s;
+}
+.rs-sel-clear:hover {
+  background: var(--primary-600);
+  color: white;
+}
+
 /* ── Header ── */
 .rs-card-header {
   display: flex;
@@ -58,6 +93,13 @@
   justify-content: space-between;
   padding: 10px 12px 8px;
   gap: 8px;
+}
+
+.rs-card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .rs-table-name {
@@ -211,6 +253,31 @@
 }
 
 /* ── Inline editing ── */
+.rs-navigate-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--primary-300);
+  border-radius: 5px;
+  background: rgba(255,255,255,0.9);
+  color: var(--primary-600);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.1s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.rs-card:hover .rs-navigate-btn {
+  display: flex;
+}
+.rs-navigate-btn:hover {
+  background: var(--primary-600);
+  color: white;
+  border-color: var(--primary-600);
+}
+
 .rs-navigable {
   cursor: pointer;
 }

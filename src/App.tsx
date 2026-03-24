@@ -259,6 +259,21 @@ function App() {
     }
   };
 
+  const handleSelectNode = (sourceId: string, multi: boolean) => {
+    setSelectedNodeIds(prev => {
+      const next = new Set(multi ? prev : []);
+      if (multi && prev.has(sourceId)) {
+        next.delete(sourceId);
+      } else {
+        next.add(sourceId);
+      }
+      return next;
+    });
+    setSelectedConnectionIds(new Set());
+    setSelectedAggregationIds(new Set());
+    setLastSelectedNodeId(sourceId);
+  };
+
   const handleRenameNode = (sourceId: string, newLabel: string) => {
     setNodes((prev) =>
       prev.map((n) => (n.id === sourceId ? { ...n, label: newLabel } : n))
@@ -4359,6 +4374,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
             <RelationalSchemaView
               schema={relationalSchema}
               selectedNodeIds={selectedNodeIds}
+              onSelectNode={handleSelectNode}
               onNavigateToNode={handleNavigateToNode}
               onRenameNode={handleRenameNode}
             />
