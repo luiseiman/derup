@@ -374,18 +374,20 @@ const Canvas: React.FC<CanvasProps> = ({
                         y={bounds.y}
                         width={bounds.width}
                         height={bounds.height}
-                        fill="none"
-                        stroke={isSelected ? "blue" : "#666"}
-                        strokeWidth={isSelected ? 2 : 1.5}
+                        fill={isSelected ? "rgba(147,51,234,0.06)" : "none"}
+                        stroke={isSelected ? "#9333ea" : "#666"}
+                        strokeWidth={isSelected ? 3 : 1.5}
                         strokeDasharray="6 4"
+                        filter={isSelected ? "url(#sel-glow)" : undefined}
                         pointerEvents="stroke"
                     />
                     {agg.label && (
                         <text
                             x={bounds.x + 6}
                             y={bounds.y - 6}
-                            fill={isSelected ? "blue" : "#666"}
+                            fill={isSelected ? "#9333ea" : "#666"}
                             fontSize="12"
+                            fontWeight={isSelected ? "700" : "400"}
                         >
                             {agg.label}
                         </text>
@@ -511,8 +513,9 @@ const Canvas: React.FC<CanvasProps> = ({
                         <path
                             d={pathD}
                             stroke={isSelected ? "var(--accent)" : "#0f172a"}
-                            strokeWidth={conn.isTotalParticipation ? 4 : 2}
+                            strokeWidth={isSelected ? (conn.isTotalParticipation ? 6 : 4) : (conn.isTotalParticipation ? 4 : 2)}
                             fill="none"
+                            filter={isSelected ? "url(#sel-glow)" : undefined}
                             markerStart={markerStart}
                             markerEnd={markerEnd}
                         />
@@ -573,7 +576,8 @@ const Canvas: React.FC<CanvasProps> = ({
                         x1={sx} y1={sy}
                         x2={tx} y2={ty}
                         stroke={isSelected ? "var(--accent)" : "#0f172a"}
-                        strokeWidth={conn.isTotalParticipation ? 4 : 2}
+                        strokeWidth={isSelected ? (conn.isTotalParticipation ? 6 : 4) : (conn.isTotalParticipation ? 4 : 2)}
+                        filter={isSelected ? "url(#sel-glow)" : undefined}
                         markerStart={markerStart}
                         markerEnd={markerEnd}
                     />
@@ -979,6 +983,16 @@ const Canvas: React.FC<CanvasProps> = ({
                     }}
                 >
                     <defs>
+                        {/* Glow filter for selected connections */}
+                        <filter id="sel-glow" x="-60%" y="-60%" width="220%" height="220%">
+                            <feGaussianBlur stdDeviation="3.5" result="blur"/>
+                            <feFlood floodColor="#9333ea" floodOpacity="0.7" result="color"/>
+                            <feComposite in="color" in2="blur" operator="in" result="shadow"/>
+                            <feMerge>
+                                <feMergeNode in="shadow"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
                         {/* Markers for straight lines */}
                         <marker
                             id="arrow-head"
@@ -1000,7 +1014,7 @@ const Canvas: React.FC<CanvasProps> = ({
                             orient="auto-start-reverse"
                             markerUnits="userSpaceOnUse"
                         >
-                            <polygon points="0 0, 16 5, 0 10" fill="#0f766e" />
+                            <polygon points="0 0, 16 5, 0 10" fill="#9333ea" />
                         </marker>
                         {/* Markers for curved paths */}
                         <marker
@@ -1023,7 +1037,7 @@ const Canvas: React.FC<CanvasProps> = ({
                             orient="auto-start-reverse"
                             markerUnits="userSpaceOnUse"
                         >
-                            <polygon points="0 0, 16 5, 0 10" fill="#0f766e" />
+                            <polygon points="0 0, 16 5, 0 10" fill="#9333ea" />
                         </marker>
                     </defs>
                     <g style={{ pointerEvents: 'visiblePainted' }}>

@@ -26,16 +26,17 @@ export const ISAShape: React.FC<ISAShapeProps> = ({ node, selected, onMouseDown 
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'grab',
-                zIndex: 10
+                zIndex: selected ? 10 : undefined,
+                filter: selected ? 'drop-shadow(0 0 6px #9333ea) drop-shadow(0 0 14px rgba(147,51,234,0.45))' : undefined,
             }}
             onMouseDown={onMouseDown}
         >
             <svg width={width} height={height} style={{ overflow: 'visible' }}>
                 <polygon
                     points={`${width / 2},2 ${width - 2},${height - 2} 2,${height - 2}`}
-                    fill="white"
+                    fill={selected ? "#f3e8ff" : "white"}
                     stroke={selected ? "var(--accent)" : "#0f172a"}
-                    strokeWidth="2"
+                    strokeWidth={selected ? 3.5 : 2}
                 />
                 <text
                     x="50%"

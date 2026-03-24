@@ -16,16 +16,20 @@ export const AttributeShape: React.FC<AttributeProps> = memo(({ node, selected, 
 
     return (
         <div
-            style={{ width, height, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab' }}
+            style={{
+                width, height, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab',
+                filter: selected ? 'drop-shadow(0 0 5px #9333ea) drop-shadow(0 0 12px rgba(147,51,234,0.45))' : undefined,
+                zIndex: selected ? 10 : undefined,
+            }}
             onMouseDown={onMouseDown}
         >
             <svg width={width} height={height} style={{ position: 'absolute', top: 0, left: 0 }}>
                 <ellipse
                     cx={width / 2} cy={height / 2}
                     rx={width / 2 - 2} ry={height / 2 - 2}
-                    fill="white"
+                    fill={selected ? "#f3e8ff" : "white"}
                     stroke={selected ? "var(--accent)" : "#0f172a"}
-                    strokeWidth={selected ? 2 : 1}
+                    strokeWidth={selected ? 3 : 1}
                     strokeDasharray={isDerived ? "4" : "none"}
                 />
                 {isMultivalued && (
@@ -34,7 +38,7 @@ export const AttributeShape: React.FC<AttributeProps> = memo(({ node, selected, 
                         rx={width / 2 - 6} ry={height / 2 - 6}
                         fill="none"
                         stroke={selected ? "var(--accent)" : "#0f172a"}
-                        strokeWidth={1}
+                        strokeWidth={selected ? 2 : 1}
                         strokeDasharray={isDerived ? "4" : "none"}
                     />
                 )}
