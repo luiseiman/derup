@@ -155,12 +155,14 @@ const extractAttributesPart = (text: string) => {
   const conIndex = normalized.indexOf(' con ');
   if (conIndex >= 0) {
     const afterCon = text.slice(conIndex + 4);
-    // Stop at sentence boundary (.) or explicit stop words
+    // Stop at sentence boundary (.) or explicit stop words (not "clave" — handled via inline annotation)
     const dotStop = afterCon.indexOf('.');
     const afterConTrimmed = dotStop >= 0 ? afterCon.slice(0, dotStop) : afterCon;
-    const stopIndex = afterConTrimmed.search(/\b(dond\w*|wher\w*|siend\w*|clav\w*|como)\b/i);
+    const stopIndex = afterConTrimmed.search(/\b(dond\w*|wher\w*|siend\w*|como)\b/i);
     const part = stopIndex >= 0 ? afterConTrimmed.slice(0, stopIndex) : afterConTrimmed;
-    const trimmed = part.trim();
+    let trimmed = part.trim();
+    // Strip leading field-list preamble: "los siguientes campos:", "campos:", "los campos:", etc.
+    trimmed = trimmed.replace(/^(?:(?:los|las)\s+)?(?:siguiente[s]?\s+)?(?:campo[s]?|atributo[s]?|propiedad(?:es)?)\s*:\s*/i, '');
     // If what follows "con" is just a generic phrase like "sus atributos", return null
     if (/^(sus|los|las|propios?)\s+atribut\w*/i.test(trimmed)) return null;
     if (trimmed.length > 0) return normalizeSpaces(trimmed);
@@ -193,6 +195,25 @@ const detectsDefaultAttributes = (text: string) => {
     normalized.includes('atributos típicos') ||
     normalized.includes('atributos por defecto')
   );
+};
+
+// Process "attr: clave/key/pk" inline type annotations.
+// Returns cleaned attribute names and extracted key attributes.
+const processInlineAnnotations = (rawAttrs: string[]): { attrs: string[]; extraKeys: string[] } => {
+  const keyPattern = /^(.+?)\s*:\s*(clav\w*|key|llave|pk|primary)\s*$/i;
+  const attrs: string[] = [];
+  const extraKeys: string[] = [];
+  for (const raw of rawAttrs) {
+    const m = keyPattern.exec(raw);
+    if (m) {
+      const name = normalizeSpaces(m[1]);
+      attrs.push(name);
+      extraKeys.push(name);
+    } else {
+      attrs.push(raw);
+    }
+  }
+  return { attrs, extraKeys };
 };
 
 const inferKeyAttributes = (text: string, attributes: string[]) => {
@@ -427,8 +448,9 @@ export const parseChatCommand = (input: string, entityLabels: string[] = []): Pa
     const entityName = entityMentions[0] ?? extractEntityName(text) ?? (includesSelectedEntity(text) ? '__selected__' : null);
     if (!entityName) return null;
     const attributesPart = extractAttributesForExistingEntity(text);
-    const attributes = attributesPart ? splitList(attributesPart) : [];
-    const keyAttributes = inferKeyAttributes(text, attributes);
+    const rawList = attributesPart ? splitList(attributesPart) : [];
+    const { attrs: attributes, extraKeys } = processInlineAnnotations(rawList);
+    const keyAttributes = [...new Set([...inferKeyAttributes(text, attributes), ...extraKeys])];
     return {
       type: 'add-attributes',
       entityName,
@@ -444,8 +466,9 @@ export const parseChatCommand = (input: string, entityLabels: string[] = []): Pa
   if (!entityName) return null;
 
   const attributesPart = extractAttributesPart(text);
-  const attributes = attributesPart ? splitList(attributesPart) : [];
-  const keyAttributes = inferKeyAttributes(text, attributes);
+  const rawList = attributesPart ? splitList(attributesPart) : [];
+  const { attrs: attributes, extraKeys } = processInlineAnnotations(rawList);
+  const keyAttributes = [...new Set([...inferKeyAttributes(text, attributes), ...extraKeys])];
 
   return {
     type: 'add-entity',
