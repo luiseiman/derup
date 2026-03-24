@@ -99,6 +99,7 @@ function App() {
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('properties');
+  const [lastScenarioText, setLastScenarioText] = useState('');
 
   const [roomId, setRoomId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -2566,6 +2567,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- Aggregation? → connect-entity-aggregation with the base relationship's two member entities.\n` +
     `- Cardinality ambiguous? → default M:N ("N","N"); adjust only when text clearly implies constraint.\n\n` +
     `Current diagram state:\n${buildDiagramContext()}\n` +
+    (lastScenarioText ? `\nOriginal scenario used to generate this diagram:\n"""\n${lastScenarioText}\n"""\n` : '') +
     buildRecentHistory(recentMessages) +
     `\nJSON "type" values (use exactly one per response):\n` +
     `add-entity: {"type":"add-entity","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
@@ -2586,7 +2588,12 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `clear-diagram: {"type":"clear-diagram"}\n` +
     `chat: {"type":"chat","message":"Response in Spanish for the user"}\n\n` +
     `Rules:\n` +
-    `- Use "chat" for greetings, ER theory questions, and unmappable requests. Answer theory questions in Spanish.\n` +
+    `- Use "chat" for: greetings, general ER theory questions, questions about this diagram's decisions, and unmappable requests.\n` +
+    `- Questions about diagram decisions (why weak entity, why aggregation, why ISA, what are the assumptions, etc.):\n` +
+    `  Cross-reference the original scenario text with the current diagram state.\n` +
+    `  Explain each decision citing the exact R&G concept applied (R&G Ch.2 rule) and the specific sentence/fact in the scenario that triggered it.\n` +
+    `  If multiple design alternatives exist, mention them and justify why the chosen one is correct per R&G.\n` +
+    `  Structure the answer clearly (one paragraph or bullet per decision). Answer in Spanish.\n` +
     `- Entity/relationship names must match the diagram EXACTLY (case-insensitive).\n` +
     `- If user refers to an entity without naming it, infer from recent conversation.\n` +
     `- If user asks for typical/own attributes without listing them, use useDefaultAttributes:true and attributes:[].\n` +
@@ -2895,6 +2902,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           };
         });
         setAttributePresets(nextPresets);
+        setLastScenarioText(text);
 
         setChatMessages(prev => [
           ...prev,
@@ -2946,7 +2954,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
 
       setAiStatus('thinking');
       try {
-        const recentHistory = chatMessages.slice(-4).map(m => ({ role: m.role, text: m.text }));
+        const recentHistory = chatMessages.slice(-8).map(m => ({ role: m.role, text: m.text }));
         const prompt = buildAICommandPrompt(text, recentHistory);
         const aiText = await requestAIText(prompt);
         aiResponseText = aiText ?? '';
