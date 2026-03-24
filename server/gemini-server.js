@@ -401,17 +401,12 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await getBody(req);
       const token = resolveOpenclawToken(body);
-      if (!token) {
-        sendJson(res, 401, { error: 'Missing OpenClaw token.' });
-        return;
-      }
       const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : 'openai-codex/gpt-5.4';
+      const healthHeaders = { 'Content-Type': 'application/json' };
+      if (token) healthHeaders['Authorization'] = `Bearer ${token}`;
       const response = await fetch('http://localhost:18789/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: healthHeaders,
         body: JSON.stringify({
           model,
           messages: [{ role: 'user', content: 'hi' }],
@@ -441,21 +436,16 @@ const server = http.createServer(async (req, res) => {
       const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
       const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : 'openai-codex/gpt-5.4';
       const token = resolveOpenclawToken(body);
-      if (!token) {
-        sendJson(res, 401, { error: 'Missing OpenClaw token.' });
-        return;
-      }
       if (!prompt) {
         sendJson(res, 400, { error: 'Missing prompt.' });
         return;
       }
+      const clawHeaders = { 'Content-Type': 'application/json' };
+      if (token) clawHeaders['Authorization'] = `Bearer ${token}`;
 
       const response = await fetch('http://localhost:18789/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: clawHeaders,
         body: JSON.stringify({
           model,
           messages: [{ role: 'user', content: prompt }],

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import './App.css';
 import Canvas from './components/Canvas/Canvas';
 import type { ERNode, Connection, NodeType, Cardinality, DiagramView, Aggregation, ISANode, EntityNode } from './types/er';
@@ -654,6 +655,18 @@ function App() {
         return `Error de Grok: ${message}`;
       }
       return 'No pude conectar con la API de Grok. Verifica que el proxy local esté corriendo y tu API Key sea válida.';
+    }
+    if (provider === 'openclaw') {
+      if (isTimeout) {
+        return 'OpenClaw tardó demasiado en responder. Verifica que el servicio esté activo en el servidor.';
+      }
+      if (normalizedMessage.includes('failed to fetch') || normalizedMessage.includes('connection refused')) {
+        return 'No pude conectar con OpenClaw. Verifica que el servicio esté corriendo en el servidor.';
+      }
+      if (message && message !== 'ai_request_failed') {
+        return `Error de OpenClaw: ${message}`;
+      }
+      return 'No pude conectar con OpenClaw. Verifica que el servicio esté activo.';
     }
     const ollamaModel = provider === aiProvider
       ? (aiModel.trim() || 'gemma3')
@@ -2683,6 +2696,8 @@ function App() {
           `Si el mensaje del usuario es un comando de modelado ER, respondé SOLO con una línea en este formato exacto (sin comillas, sin explicación):\n` +
           `- Crear entidad: "agregar una entidad <Nombre> con atributos: a, b, c donde <clave> es clave"\n` +
           `- Agregar atributos: "agrega atributos: a, b, c a la entidad <Nombre>"\n` +
+          `- Reemplazar atributos: "reemplaza atributos de la entidad <Nombre> con: a, b, c donde <clave> es clave"\n` +
+          `- Renombrar entidad: "renombra la entidad <Nombre> a <NuevoNombre>"\n` +
           `- Conectar entidades: "vincula la entidad <A> con la entidad <B> relacion <Nombre>"\n` +
           `- Agregar agregación: "la relacion <R> debe relacionar <Entidad> con una agregacion entre <A> y <B>"\n` +
           `\n` +
@@ -2721,6 +2736,59 @@ function App() {
           text: aiResponseText || 'Podés pedirme: crear entidades, agregar atributos, vincular entidades o crear relaciones. ¿Qué querés modelar?'
         }
       ]);
+      return;
+    }
+
+    if (parsed.type === 'replace-attributes') {
+      const targetEntity = parsed.entityName === '__selected__'
+        ? nodes.find(n => n.type === 'entity' && selectedNodeIds.has(n.id))
+        : nodes.find(n => n.type === 'entity' && n.label.toLowerCase() === parsed.entityName.toLowerCase());
+      if (!targetEntity) {
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la entidad "${parsed.entityName}".` }]);
+        return;
+      }
+      const attrNodeIds = new Set(
+        connections
+          .filter(c => c.sourceId === targetEntity.id || c.targetId === targetEntity.id)
+          .map(c => c.sourceId === targetEntity.id ? c.targetId : c.sourceId)
+          .filter(id => nodes.find(n => n.id === id && n.type === 'attribute'))
+      );
+      const filteredNodes = nodes.filter(n => !attrNodeIds.has(n.id));
+      const filteredConnections = connections.filter(c => !attrNodeIds.has(c.sourceId) && !attrNodeIds.has(c.targetId));
+      const newAttrNodes: ERNode[] = [];
+      const newConns: Connection[] = [];
+      const keys = new Set(parsed.keyAttributes.map(k => k.toLowerCase()));
+      const occupied = filteredNodes.map(n => ({ type: n.type, position: n.position }));
+      const positions = placeAttributePositions(parsed.attributes, targetEntity.position, occupied);
+      parsed.attributes.forEach((attr, i) => {
+        const attrId = createId();
+        newAttrNodes.push({
+          id: attrId,
+          type: 'attribute',
+          position: positions[i] ?? { x: targetEntity.position.x + 100 + i * 20, y: targetEntity.position.y + 50 + i * 20 },
+          label: attr,
+          isKey: keys.has(attr.toLowerCase()),
+          isMultivalued: false,
+          isDerived: false,
+        });
+        newConns.push({ id: createId(), sourceId: targetEntity.id, targetId: attrId, isTotalParticipation: false });
+      });
+      setNodes([...filteredNodes, ...newAttrNodes]);
+      setConnections([...filteredConnections, ...newConns]);
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Atributos de **${targetEntity.label}** reemplazados: ${parsed.attributes.join(', ')}.` }]);
+      return;
+    }
+
+    if (parsed.type === 'rename-entity') {
+      const targetEntity = parsed.entityName === '__selected__'
+        ? nodes.find(n => n.type === 'entity' && selectedNodeIds.has(n.id))
+        : nodes.find(n => n.type === 'entity' && n.label.toLowerCase() === parsed.entityName.toLowerCase());
+      if (!targetEntity) {
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la entidad "${parsed.entityName}".` }]);
+        return;
+      }
+      setNodes(prev => prev.map(n => n.id === targetEntity.id ? { ...n, label: parsed.newName } : n));
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Entidad renombrada: **${targetEntity.label}** → **${parsed.newName}**.` }]);
       return;
     }
 
@@ -3467,7 +3535,7 @@ function App() {
             <div className="chat-messages">
               {chatMessages.map(message => (
                 <div key={message.id} className={`chat-message ${message.role}`}>
-                  {message.text}
+                  <ReactMarkdown>{message.text}</ReactMarkdown>
                 </div>
               ))}
             </div>
