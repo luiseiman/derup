@@ -59,9 +59,9 @@ function App() {
   const [chatSuggestionIndex, setChatSuggestionIndex] = useState(-1);
   const chatInputRef = useRef<HTMLInputElement>(null);
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string }>>([]);
-  const [aiEnabled, setAiEnabled] = useState(false);
-  const [aiProvider, setAiProvider] = useState<AIProvider>('gemini');
-  const [aiModel, setAiModel] = useState('gemini-2.5-pro');
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiProvider, setAiProvider] = useState<AIProvider>('openclaw');
+  const [aiModel, setAiModel] = useState('openai-codex/gpt-5.4');
   const [geminiModels, setGeminiModels] = useState<string[]>([]);
   const [grokModels, setGrokModels] = useState<string[]>([]);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
