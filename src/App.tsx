@@ -96,7 +96,7 @@ function App() {
   const [modelingHints, setModelingHints] = useLocalStorage<string[]>('derup.modeling.hints.v1', []);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'menu'>('properties');
+  const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('properties');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const presetFileInputRef = useRef<HTMLInputElement>(null);
@@ -3276,6 +3276,7 @@ function App() {
           <div className="sidebar-tabs">
             <button className={`sidebar-tab ${activeTab === 'properties' ? 'active' : ''}`} onClick={() => setActiveTab('properties')}>Properties</button>
             <button className={`sidebar-tab ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>Chat</button>
+            <button className={`sidebar-tab ${activeTab === 'ai' ? 'active' : ''}`} onClick={() => setActiveTab('ai')}>IA</button>
             <button className={`sidebar-tab ${activeTab === 'menu' ? 'active' : ''}`} onClick={() => setActiveTab('menu')}>Menu</button>
             <button className="sidebar-tab sidebar-close" onClick={() => setSidebarOpen(false)} title="Ocultar panel" aria-label="Ocultar panel">✕</button>
           </div>
@@ -3425,118 +3426,129 @@ function App() {
               </div>
               <button onClick={handleChatSubmit} className="primary-button">Enviar</button>
             </div>
-            <div className="chat-controls">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={aiEnabled}
-                  onChange={e => setAiEnabled(e.target.checked)}
-                />
-                IA
-              </label>
-              <select
-                value={aiProvider}
-                onChange={e => {
-                  const provider = e.target.value as AIProvider;
-                  setAiProvider(provider);
-                  if (provider === 'gemini') {
-                    const preferred = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-                    setAiModel(preferred.find(model => geminiModels.includes(model)) ?? geminiModels[0] ?? 'gemini-2.5-pro');
-                  } else if (provider === 'grok') {
-                    const preferred = ['grok-4-fast', 'grok-3-mini', 'grok-2-latest'];
-                    setAiModel(preferred.find(model => grokModels.includes(model)) ?? grokModels[0] ?? 'grok-3-mini');
-                  } else if (provider === 'openclaw') {
-                    setAiModel(openclawModels[0] || 'openai-codex/gpt-5.4');
-                  } else {
-                    setAiModel(ollamaModels[0] || 'gemma3');
-                  }
-                }}
-                disabled={!aiEnabled}
-              >
-                <option value="gemini">Gemini</option>
-                <option value="grok">Grok</option>
-                <option value="ollama">Ollama</option>
-                <option value="openclaw">OpenClaw</option>
-              </select>
-              {(aiProvider === 'gemini' || aiProvider === 'grok') && (
-                <input
-                  type="password"
-                  value={aiProvider === 'gemini' ? geminiApiKey : grokApiKey}
+          </div>
+          )}
+
+          {activeTab === 'ai' && (
+          <div className="sidebar-tab-content">
+            <div className="sidebar-section">
+              <h3>Configuración IA</h3>
+              <div className="chat-controls">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={aiEnabled}
+                    onChange={e => setAiEnabled(e.target.checked)}
+                  />
+                  Activar IA
+                </label>
+                <select
+                  value={aiProvider}
                   onChange={e => {
-                    if (aiProvider === 'gemini') {
-                      setGeminiApiKey(e.target.value);
+                    const provider = e.target.value as AIProvider;
+                    setAiProvider(provider);
+                    if (provider === 'gemini') {
+                      const preferred = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+                      setAiModel(preferred.find(model => geminiModels.includes(model)) ?? geminiModels[0] ?? 'gemini-2.5-pro');
+                    } else if (provider === 'grok') {
+                      const preferred = ['grok-4-fast', 'grok-3-mini', 'grok-2-latest'];
+                      setAiModel(preferred.find(model => grokModels.includes(model)) ?? grokModels[0] ?? 'grok-3-mini');
+                    } else if (provider === 'openclaw') {
+                      setAiModel(openclawModels[0] || 'openai-codex/gpt-5.4');
                     } else {
-                      setGrokApiKey(e.target.value);
+                      setAiModel(ollamaModels[0] || 'gemma3');
                     }
                   }}
-                  placeholder={aiProvider === 'gemini' ? 'Gemini API Key' : 'Grok API Key (xAI)'}
-                  disabled={!aiEnabled}
-                />
-              )}
-              {aiProvider === 'gemini' && geminiModels.length > 0 ? (
-                <select
-                  value={aiModel}
-                  onChange={e => setAiModel(e.target.value)}
                   disabled={!aiEnabled}
                 >
-                  {geminiModels.map(model => (
-                    <option key={model} value={model}>{model}</option>
-                  ))}
+                  <option value="gemini">Gemini</option>
+                  <option value="grok">Grok</option>
+                  <option value="ollama">Ollama</option>
+                  <option value="openclaw">OpenClaw</option>
                 </select>
-              ) : aiProvider === 'grok' && grokModels.length > 0 ? (
-                <select
-                  value={aiModel}
-                  onChange={e => setAiModel(e.target.value)}
-                  disabled={!aiEnabled}
-                >
-                  {grokModels.map(model => (
-                    <option key={model} value={model}>{model}</option>
-                  ))}
-                </select>
-              ) : aiProvider === 'ollama' && ollamaModels.length > 0 ? (
-                <select
-                  value={aiModel}
-                  onChange={e => setAiModel(e.target.value)}
-                  disabled={!aiEnabled}
-                >
-                  {ollamaModels.map(model => (
-                    <option key={model} value={model}>{model}</option>
-                  ))}
-                </select>
-              ) : aiProvider === 'openclaw' && openclawModels.length > 0 ? (
-                <select
-                  value={aiModel}
-                  onChange={e => setAiModel(e.target.value)}
-                  disabled={!aiEnabled}
-                >
-                  {openclawModels.map(model => (
-                    <option key={model} value={model}>{model}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={aiModel}
-                  onChange={e => setAiModel(e.target.value)}
-                  placeholder={
-                    aiProvider === 'gemini'
-                      ? 'Modelo (ej: gemini-2.5-pro)'
-                      : aiProvider === 'grok'
-                        ? 'Modelo (ej: grok-3-mini)'
-                        : aiProvider === 'openclaw'
-                          ? 'Modelo (ej: openai-codex/gpt-5.4)'
-                          : 'Modelo (ej: gemma3)'
-                  }
-                  disabled={!aiEnabled}
-                />
-              )}
-              <span className="chat-status">
-                {aiStatus === 'thinking' ? `Pensando... ${formatThinkingTime(aiThinkingSeconds)}` : 'Listo'}
-              </span>
+                {(aiProvider === 'gemini' || aiProvider === 'grok') && (
+                  <input
+                    type="password"
+                    value={aiProvider === 'gemini' ? geminiApiKey : grokApiKey}
+                    onChange={e => {
+                      if (aiProvider === 'gemini') {
+                        setGeminiApiKey(e.target.value);
+                      } else {
+                        setGrokApiKey(e.target.value);
+                      }
+                    }}
+                    placeholder={aiProvider === 'gemini' ? 'Gemini API Key' : 'Grok API Key (xAI)'}
+                    disabled={!aiEnabled}
+                  />
+                )}
+                {aiProvider === 'gemini' && geminiModels.length > 0 ? (
+                  <select
+                    value={aiModel}
+                    onChange={e => setAiModel(e.target.value)}
+                    disabled={!aiEnabled}
+                  >
+                    {geminiModels.map(model => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
+                ) : aiProvider === 'grok' && grokModels.length > 0 ? (
+                  <select
+                    value={aiModel}
+                    onChange={e => setAiModel(e.target.value)}
+                    disabled={!aiEnabled}
+                  >
+                    {grokModels.map(model => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
+                ) : aiProvider === 'ollama' && ollamaModels.length > 0 ? (
+                  <select
+                    value={aiModel}
+                    onChange={e => setAiModel(e.target.value)}
+                    disabled={!aiEnabled}
+                  >
+                    {ollamaModels.map(model => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
+                ) : aiProvider === 'openclaw' && openclawModels.length > 0 ? (
+                  <select
+                    value={aiModel}
+                    onChange={e => setAiModel(e.target.value)}
+                    disabled={!aiEnabled}
+                  >
+                    {openclawModels.map(model => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={aiModel}
+                    onChange={e => setAiModel(e.target.value)}
+                    placeholder={
+                      aiProvider === 'gemini'
+                        ? 'Modelo (ej: gemini-2.5-pro)'
+                        : aiProvider === 'grok'
+                          ? 'Modelo (ej: grok-3-mini)'
+                          : aiProvider === 'openclaw'
+                            ? 'Modelo (ej: openai-codex/gpt-5.4)'
+                            : 'Modelo (ej: gemma3)'
+                    }
+                    disabled={!aiEnabled}
+                  />
+                )}
+                <span className="chat-status">
+                  {aiStatus === 'thinking' ? `Pensando... ${formatThinkingTime(aiThinkingSeconds)}` : 'Listo'}
+                </span>
+              </div>
+            </div>
+            <div className="sidebar-section">
+              <h3>Conexiones</h3>
               <div className="ai-connection">
                 <div className="status-group">
                   <span className={getStatusClass(aiConnectivity.gemini)}>
-                    API Gemini: {getStatusLabel('gemini', aiConnectivity.gemini)}
+                    Gemini: {getStatusLabel('gemini', aiConnectivity.gemini)}
                   </span>
                   {aiConnectivityReason.gemini && (
                     <span className="status-reason">{aiConnectivityReason.gemini}</span>
@@ -3544,7 +3556,7 @@ function App() {
                 </div>
                 <div className="status-group">
                   <span className={getStatusClass(aiConnectivity.grok)}>
-                    API Grok: {getStatusLabel('grok', aiConnectivity.grok)}
+                    Grok: {getStatusLabel('grok', aiConnectivity.grok)}
                   </span>
                   {aiConnectivityReason.grok && (
                     <span className="status-reason">{aiConnectivityReason.grok}</span>
@@ -3552,7 +3564,7 @@ function App() {
                 </div>
                 <div className="status-group">
                   <span className={getStatusClass(aiConnectivity.ollama)}>
-                    API Ollama: {getStatusLabel('ollama', aiConnectivity.ollama)}
+                    Ollama: {getStatusLabel('ollama', aiConnectivity.ollama)}
                   </span>
                   {aiConnectivityReason.ollama && (
                     <span className="status-reason">{aiConnectivityReason.ollama}</span>
