@@ -2465,6 +2465,7 @@ function App() {
     const explicitCommandIntent = /\b(agregar|crear|añadir|anadir|add|create)\b/i.test(text);
     const scenarioDetected = looksLikeScenario(text) && !explicitCommandIntent;
     let parsed = scenarioDetected ? null : parseChatCommand(text, entityLabels);
+    let aiResponseText = '';
 
     if (scenarioDetected) {
       if (!aiEnabled) {
@@ -2597,19 +2598,26 @@ function App() {
 
       setAiStatus('thinking');
       try {
-        const entityHint = entityLabels.length > 0 ? `Entidades existentes: ${entityLabels.join(', ')}.\n` : '';
-        const prompt = `${entityHint}Convierte la petición del usuario a un SOLO comando en español.\n` +
-          `Reglas:\n` +
-          `- Responde solo con una línea, sin comillas.\n` +
-          `- Si es crear entidad con atributos, usa: "agregar una entidad <Nombre> con atributos: a, b, c donde <clave> es clave".\n` +
-          `- Si es agregar atributos a entidad existente, usa: "agrega atributos: a, b, c a la entidad <Nombre>".\n` +
-          `- Si es conectar entidades, usa: "vincula la entidad <A> con la entidad <B>" y opcional "relacion <Nombre>".\n` +
-          `- Si es agregar una agregación, usa: "la relacion <R> debe relacionar <Entidad> con una agregacion entre <A> y <B>".\n` +
-          `- Si falta información, responde "NO_ENTENDIDO".\n` +
+        const entityHint = entityLabels.length > 0 ? `Entidades actuales en el diagrama: ${entityLabels.join(', ')}.\n` : '';
+        const prompt = `Eres el asistente de derup, una herramienta de modelado entidad-relación (ER/EER).\n` +
+          `${entityHint}\n` +
+          `Tu única función es ayudar al usuario a construir diagramas ER. Respondé siempre en español.\n` +
+          `\n` +
+          `Si el mensaje del usuario es un comando de modelado ER, respondé SOLO con una línea en este formato exacto (sin comillas, sin explicación):\n` +
+          `- Crear entidad: "agregar una entidad <Nombre> con atributos: a, b, c donde <clave> es clave"\n` +
+          `- Agregar atributos: "agrega atributos: a, b, c a la entidad <Nombre>"\n` +
+          `- Conectar entidades: "vincula la entidad <A> con la entidad <B> relacion <Nombre>"\n` +
+          `- Agregar agregación: "la relacion <R> debe relacionar <Entidad> con una agregacion entre <A> y <B>"\n` +
+          `\n` +
+          `Si el mensaje NO es un comando ER (saludo, pregunta, consulta general), respondé en lenguaje natural guiando al usuario.\n` +
+          `Explicá qué puede hacer en derup: crear entidades, agregar atributos, vincular entidades, crear relaciones, agregaciones.\n` +
+          `Sé breve, amigable y siempre terminá sugiriendo una acción concreta que puede realizar.\n` +
+          `\n` +
           `Usuario: ${text}`;
         const aiText = await requestAIText(prompt);
-        if (aiText && aiText.toUpperCase() !== 'NO_ENTENDIDO') {
-          parsed = parseChatCommand(aiText, entityLabels);
+        aiResponseText = aiText ?? '';
+        if (aiResponseText) {
+          parsed = parseChatCommand(aiResponseText, entityLabels);
         }
       } catch (error) {
         const fallbackNote = lastAIFallbackFrom ? ` (fallback desde ${getProviderLabel(lastAIFallbackFrom)})` : '';
@@ -2633,7 +2641,7 @@ function App() {
         {
           id: createId(),
           role: 'assistant',
-          text: 'No entendí. Prueba: "Agregar una entidad Empleado con los siguientes atributos: id, nombre, email donde id es clave".'
+          text: aiResponseText || 'Podés pedirme: crear entidades, agregar atributos, vincular entidades o crear relaciones. ¿Qué querés modelar?'
         }
       ]);
       return;
