@@ -2385,8 +2385,14 @@ function App() {
     `delete-relationship: {"type":"delete-relationship","relationshipName":"R"}\n` +
     `clear-diagram: {"type":"clear-diagram"}\n` +
     `chat: {"type":"chat","message":"Texto en español para el usuario"}\n\n` +
-    `Usa "chat" para saludos, preguntas y pedidos no mapeables. ` +
-    `Los nombres deben coincidir con los del diagrama (case-insensitive).\n\n` +
+    `Reglas importantes:\n` +
+    `- Usa "chat" para saludos, preguntas y pedidos no mapeables.\n` +
+    `- Los nombres de entidad/relación deben coincidir con los del diagrama (case-insensitive).\n` +
+    `- Si el usuario pide "atributos propios/típicos/habituales/comunes" de una entidad, ` +
+    `genera los nombres de atributo reales y específicos en español snake_case ` +
+    `(ej: para Persona → ["nombre","apellido","email","telefono","fecha_nacimiento"]).\n` +
+    `- NUNCA pongas frases como "propios de X" o "atributos de X" como nombre de atributo.\n` +
+    `- Siempre genera snake_case sin espacios para los atributos.\n\n` +
     `Usuario: ${userText}`;
 
   const getSelectedEntity = () => {
