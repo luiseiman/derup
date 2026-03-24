@@ -176,9 +176,8 @@ function App() {
   const currentView: DiagramView = { scale, offset };
 
   const relationalSchema = useMemo(
-    () => erToRelationalSchema(nodes, connections, aggregations,
-      selectedNodeIds.size > 0 ? selectedNodeIds : undefined),
-    [nodes, connections, aggregations, selectedNodeIds]
+    () => erToRelationalSchema(nodes, connections, aggregations),
+    [nodes, connections, aggregations]
   );
   const sqlDDL = useMemo(() => buildSQLDDL(relationalSchema), [relationalSchema]);
 
