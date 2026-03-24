@@ -1051,10 +1051,15 @@ function App() {
 
   const inferAttributesWithAI = async (entityLabel: string) => {
     const prompt =
-      `Genera hasta 5 atributos propios para la entidad "${entityLabel}". ` +
-      `Responde SOLO con JSON en una línea: ` +
-      `{"attributes":["id","..."],"key":"id"}. ` +
-      `Reglas: atributos en español y snake_case, la clave debe estar dentro de attributes, máximo 5.`;
+      `You are an ER modeling expert (Ramakrishnan & Gehrke, 3rd ed.).\n` +
+      `Generate up to 5 attributes for the entity "${entityLabel}".\n` +
+      `Rules:\n` +
+      `- Include exactly one key attribute (simple, uniquely identifies each instance).\n` +
+      `- Prefer simple attributes over composite ones.\n` +
+      `- For multivalued attributes (e.g. phones, emails), append _list suffix (e.g. telefonos_list).\n` +
+      `- For derived attributes (computed from others, e.g. age from birth_date), append _calc suffix.\n` +
+      `- Use Spanish snake_case for all names. Maximum 5 attributes including the key.\n` +
+      `Respond ONLY with JSON on one line: {"attributes":["key_attr","attr2"],"key":"key_attr"}`;
 
     const aiText = await requestAIText(prompt);
     const json = extractJsonFromText(aiText);
@@ -1175,27 +1180,73 @@ function App() {
     return `Reglas aprendidas del usuario:\n${modelingHints.map(hint => `- ${hint}`).join('\n')}\n`;
   };
 
+  const ER_RAMAKRISHNAN_THEORY = `ER/EER THEORY — Ramakrishnan & Gehrke, 3rd ed., Ch. 2 (apply strictly)
+
+ENTITIES:
+- Strong entity: has its own key that uniquely identifies each instance.
+- Weak entity: no own key; depends on owner (strong) entity via an identifying relationship.
+  Uses a partial key (discriminator). Mark with set-entity-weakness isWeak:true.
+
+ATTRIBUTES — types and visual encoding:
+- Simple: atomic single value (e.g. name, salary).
+- Composite: made of sub-components (e.g. address = street + city + zip). Model as separate attributes.
+- Multivalued {}: multiple values per instance (e.g. phones, emails). isMultivalued:true.
+- Derived /: computed from other attributes (e.g. age from birth_date). isDerived:true.
+- Key: underlined; uniquely identifies each instance in the entity set. isKey:true.
+- Partial key: discriminator for weak entity (unique only when combined with owner key).
+
+RELATIONSHIPS:
+- Binary: between two entity sets (default; most common).
+- Ternary (n-ary): among 3+ entity sets simultaneously; use only when the fact truly requires all 3.
+- Recursive (self-referential): entity set relates to itself (e.g. Employee supervises Employee).
+  Requires distinct roles on each connection (roleA / roleB).
+- Identifying relationship: connects a weak entity to its owner; isIdentifying:true.
+
+CARDINALITY CONSTRAINTS (key constraint / ratio):
+- 1:1  cardinalityA="1" cardinalityB="1"  — at most one on each side.
+- 1:N  cardinalityA="1" cardinalityB="N"  — arrow side is "1" (at most one).
+- M:N  cardinalityA="N" cardinalityB="N"  — many on each side.
+Heuristic cues for "1": "unique", "only one", "primary", "owner", "the X of Y", "a single".
+Heuristic cues for "N": "many", "several", "multiple", "various", "any number of".
+
+PARTICIPATION CONSTRAINTS:
+- Total (mandatory / double line): every instance MUST participate. totalA/totalB = true.
+  Text cues: "must", "always", "every", "at least one", "required", "cannot exist without".
+- Partial (optional / single line): some instances may not participate. totalA/totalB = false.
+  Text cues: "may", "can", "optionally", "sometimes", "if applicable".
+
+ISA HIERARCHIES (EER):
+Overlap constraint (isDisjoint):
+  - Disjoint (d)  isDisjoint:true  — instance belongs to AT MOST ONE subtype.
+    Text cues: "either…or", "exclusive", "only one type at a time".
+  - Overlapping (o)  isDisjoint:false  — instance can belong to MULTIPLE subtypes.
+    Text cues: "can be both", "simultaneously", "more than one role".
+Covering constraint (isTotal):
+  - Total  isTotal:true  — every supertype instance belongs to AT LEAST ONE subtype.
+    Text cues: "always a", "must be classified as", "no uncategorized instances".
+  - Partial  isTotal:false  — supertype instance may belong to no subtype.
+    Text cues: "may or may not", "not all are typed", "generic instances exist".
+Create ISA when: exclusive attributes/relationships exist per subgroup, or text says "types of",
+"kinds of", "can be a", "is either a … or a".
+
+AGGREGATION:
+Use when a relationship must itself participate in another relationship (treated as entity).
+Pattern: {EntityA — RelationshipX — EntityB} [aggregation] — RelationshipY — EntityC.
+Text cues: "the relationship between A and B is supervised/monitored by C",
+"monitor the assignment of X to Y", "a project involves employees in a task".`.trim();
+
   const SCENARIO_MASTER_GUIDE =
-    `Rol: Eres un Asistente de Modelado Conceptual ER/EER (estilo Ramakrishnan–Gehrke).\n` +
-    `Objetivo: transformar requisitos de negocio en un modelo ER/EER correcto y minimalista, capturando semántica con claves, participación/completitud, ISA, agregación y relaciones n-arias.\n` +
-    `\n` +
-    `Modo de trabajo obligatorio:\n` +
-    `1) Extrae hechos del texto ("Cada X...", "Un Y puede...").\n` +
-    `2) Decide entidades y atributos.\n` +
-    `3) Decide relaciones y cardinalidades.\n` +
-    `4) Marca participación total/parcial por participante.\n` +
-    `5) Evalúa ISA (disjoint/overlap y covering/partial).\n` +
-    `6) Evalúa agregación (cuando una relación se relaciona con otra entidad).\n` +
-    `7) Evalúa relaciones ternarias (o más) cuando el hecho depende simultáneamente de 3 participantes.\n` +
-    `\n` +
-    `Heurísticas obligatorias:\n` +
-    `- Key constraint: usa cardinalidad "1" del lado que implique "a lo sumo uno", "único", "principal", "titular".\n` +
-    `- Participación total: usa total=true cuando el texto indique "debe", "siempre", "al menos uno", "sin excepción".\n` +
-    `- ISA: crea subtipos cuando haya atributos exclusivos, relaciones exclusivas o "tipos de" con identidad compartida.\n` +
-    `- Agregación: úsala cuando una relación deba ser tratada como objeto para conectarla con otra entidad/relación.\n` +
-    `- Binaria vs ternaria: si el hecho depende de (A,B,C) de forma conjunta, mantén relación ternaria.\n` +
-    `\n` +
-    `Si falta información, infiere lo mínimo razonable y registra supuestos breves en notes.assumptions con impacto.`;
+    `Role: ER/EER modeling assistant (Ramakrishnan & Gehrke, 3rd ed.).\n` +
+    `Goal: transform business requirements into a correct, minimal ER/EER model.\n\n` +
+    `${ER_RAMAKRISHNAN_THEORY}\n\n` +
+    `Mandatory workflow:\n` +
+    `1. Extract facts from text ("Each X...", "A Y can...", "Every Z must...").\n` +
+    `2. Identify entities, attributes and keys.\n` +
+    `3. Identify relationships, cardinality ratios and participation constraints.\n` +
+    `4. Evaluate ISA (check overlap and covering constraints per theory above).\n` +
+    `5. Evaluate aggregation (relationship as entity).\n` +
+    `6. Evaluate n-ary relationships (only when fact requires all N participants simultaneously).\n\n` +
+    `If information is missing, infer the minimum reasonable and record assumptions in notes.assumptions.`;
 
   const normalizeScenarioNameList = (value: unknown) => {
     if (!Array.isArray(value)) return [];
@@ -2465,36 +2516,46 @@ function App() {
   };
 
   const buildAICommandPrompt = (userText: string, recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
-    `Eres el asistente de modelado ER de derup. Responde SOLO con un JSON válido sin markdown.\n` +
-    `Estado actual del diagrama:\n${buildDiagramContext()}\n` +
+    `You are the ER modeling assistant of derup. Apply Ramakrishnan & Gehrke theory strictly.\n` +
+    `Respond ONLY with valid JSON, no markdown.\n\n` +
+    `${ER_RAMAKRISHNAN_THEORY}\n\n` +
+    `DECISION HEURISTICS (apply before choosing command type):\n` +
+    `- Weak entity? → set-entity-weakness isWeak:true; its connecting relationship should be identifying.\n` +
+    `- Multivalued attribute? → add the attribute first, then set-attribute-type isMultivalued:true.\n` +
+    `- Derived attribute? → add the attribute first, then set-attribute-type isDerived:true.\n` +
+    `- Recursive relationship? → connect-entities with entityA === entityB, set roleA and roleB.\n` +
+    `- ISA? → create-isa with isDisjoint and isTotal determined by R&G overlap/covering rules above.\n` +
+    `- Aggregation? → connect-entity-aggregation with the base relationship's two member entities.\n` +
+    `- Cardinality ambiguous? → default M:N ("N","N"); adjust only when text clearly implies constraint.\n\n` +
+    `Current diagram state:\n${buildDiagramContext()}\n` +
     buildRecentHistory(recentMessages) +
-    `\nEl JSON debe tener "type" con uno de estos valores:\n` +
+    `\nJSON "type" values (use exactly one per response):\n` +
     `add-entity: {"type":"add-entity","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
-    `add-attributes (atributos específicos): {"type":"add-attributes","entityName":"X","attributes":["c","d"],"keyAttributes":[]}\n` +
-    `add-attributes (atributos típicos/propios/habituales sin lista): {"type":"add-attributes","entityName":"X","attributes":[],"useDefaultAttributes":true}\n` +
+    `add-attributes (specific): {"type":"add-attributes","entityName":"X","attributes":["c","d"],"keyAttributes":[]}\n` +
+    `add-attributes (typical/default, no list given): {"type":"add-attributes","entityName":"X","attributes":[],"useDefaultAttributes":true}\n` +
     `replace-attributes: {"type":"replace-attributes","entityName":"X","attributes":["a"],"keyAttributes":["a"]}\n` +
-    `rename-entity: {"type":"rename-entity","entityName":"Viejo","newName":"Nuevo"}\n` +
-    `rename-relationship: {"type":"rename-relationship","relationshipName":"Viejo","newName":"Nuevo"}\n` +
-    `connect-entities: {"type":"connect-entities","entityA":"A","entityB":"B","relationshipName":"R","cardinalityA":"1","cardinalityB":"N","totalA":false,"totalB":true} (autorrelación: entityA===entityB)\n` +
+    `rename-entity: {"type":"rename-entity","entityName":"Old","newName":"New"}\n` +
+    `rename-relationship: {"type":"rename-relationship","relationshipName":"Old","newName":"New"}\n` +
+    `connect-entities: {"type":"connect-entities","entityA":"A","entityB":"B","relationshipName":"R","cardinalityA":"1","cardinalityB":"N","totalA":false,"totalB":true,"roleA":"r1","roleB":"r2"}\n` +
     `set-entity-weakness: {"type":"set-entity-weakness","entityName":"X","isWeak":true}\n` +
     `set-cardinality: {"type":"set-cardinality","entityA":"A","entityB":"B","cardinalityA":"1","cardinalityB":"N"}\n` +
     `set-participation: {"type":"set-participation","entityName":"A","relationshipName":"R","isTotal":true}\n` +
-    `set-attribute-type: {"type":"set-attribute-type","entityName":"X","attributeName":"telefonos","isMultivalued":true}\n` +
+    `set-attribute-type: {"type":"set-attribute-type","entityName":"X","attributeName":"phones","isMultivalued":true}\n` +
     `set-connection-role: {"type":"set-connection-role","entityName":"X","relationshipName":"R","role":"supervisor"}\n` +
-    `create-isa: {"type":"create-isa","supertype":"Persona","subtypes":["Alumno","Empleado"],"isDisjoint":true,"isTotal":false}\n` +
+    `create-isa: {"type":"create-isa","supertype":"Person","subtypes":["Student","Employee"],"isDisjoint":true,"isTotal":false}\n` +
     `delete-entity: {"type":"delete-entity","entityName":"X"}\n` +
     `delete-relationship: {"type":"delete-relationship","relationshipName":"R"}\n` +
     `clear-diagram: {"type":"clear-diagram"}\n` +
-    `chat: {"type":"chat","message":"Texto en español para el usuario"}\n\n` +
-    `Reglas importantes:\n` +
-    `- Usa "chat" para saludos, preguntas y pedidos no mapeables.\n` +
-    `- Los nombres de entidad/relación deben coincidir EXACTAMENTE con los del diagrama (case-insensitive).\n` +
-    `- Si el usuario menciona una entidad sin nombrarla, infiere el nombre de la conversación reciente.\n` +
-    `- Si el usuario pide atributos típicos/propios/habituales/comunes SIN especificar cuáles, usa useDefaultAttributes:true y attributes:[].\n` +
-    `- Si el usuario especifica atributos concretos, ponlos en snake_case en el array attributes.\n` +
-    `- Para set-attribute-type, el attributeName debe coincidir con un atributo existente del diagrama.\n` +
-    `- NUNCA pongas frases descriptivas como "propios de X" como nombre de atributo.\n\n` +
-    `Usuario: ${userText}`;
+    `chat: {"type":"chat","message":"Response in Spanish for the user"}\n\n` +
+    `Rules:\n` +
+    `- Use "chat" for greetings, ER theory questions, and unmappable requests. Answer theory questions in Spanish.\n` +
+    `- Entity/relationship names must match the diagram EXACTLY (case-insensitive).\n` +
+    `- If user refers to an entity without naming it, infer from recent conversation.\n` +
+    `- If user asks for typical/own attributes without listing them, use useDefaultAttributes:true and attributes:[].\n` +
+    `- If user lists concrete attributes, use snake_case in the attributes array.\n` +
+    `- For set-attribute-type, attributeName must match an existing attribute in the diagram.\n` +
+    `- NEVER use descriptive phrases like "own attributes of X" as an attribute name.\n\n` +
+    `User: ${userText}`;
 
   const getSelectedEntity = () => {
     if (selectedNodeIds.size === 1) {
