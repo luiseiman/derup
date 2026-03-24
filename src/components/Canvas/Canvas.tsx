@@ -44,6 +44,9 @@ const Canvas: React.FC<CanvasProps> = ({
     const [draggedAggregationId, setDraggedAggregationId] = useState<string | null>(null);
     const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
     const [isDrag, setIsDrag] = useState(false); // Distinction between click and drag
+    const [editingZoom, setEditingZoom] = useState(false);
+    const [zoomInput, setZoomInput] = useState('');
+    const zoomInputRef = useRef<HTMLInputElement>(null);
 
     const canvasRef = useRef<HTMLDivElement>(null);
     const contextMenu = useContextMenu();
@@ -1047,7 +1050,49 @@ const Canvas: React.FC<CanvasProps> = ({
             />
 
             <div className="canvas-controls">
-                Zoom: {(scale * 100).toFixed(0)}%
+                <button
+                    className="zoom-btn"
+                    onClick={() => onViewChange(Math.min(Math.max(0.1, scale - 0.1), 5))}
+                    title="Alejar"
+                >−</button>
+                {editingZoom ? (
+                    <input
+                        ref={zoomInputRef}
+                        className="zoom-input"
+                        value={zoomInput}
+                        onChange={e => setZoomInput(e.target.value.replace(/[^0-9]/g, ''))}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                                const v = parseInt(zoomInput, 10);
+                                if (!isNaN(v) && v > 0) onViewChange(Math.min(Math.max(0.1, v / 100), 5));
+                                setEditingZoom(false);
+                            }
+                            if (e.key === 'Escape') setEditingZoom(false);
+                        }}
+                        onBlur={() => {
+                            const v = parseInt(zoomInput, 10);
+                            if (!isNaN(v) && v > 0) onViewChange(Math.min(Math.max(0.1, v / 100), 5));
+                            setEditingZoom(false);
+                        }}
+                    />
+                ) : (
+                    <span
+                        className="zoom-label"
+                        title="Clic para editar zoom"
+                        onClick={() => {
+                            setZoomInput((scale * 100).toFixed(0));
+                            setEditingZoom(true);
+                            setTimeout(() => zoomInputRef.current?.select(), 0);
+                        }}
+                    >
+                        {(scale * 100).toFixed(0)}%
+                    </span>
+                )}
+                <button
+                    className="zoom-btn"
+                    onClick={() => onViewChange(Math.min(Math.max(0.1, scale + 0.1), 5))}
+                    title="Acercar"
+                >+</button>
             </div>
         </div>
     );
