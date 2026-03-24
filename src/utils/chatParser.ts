@@ -348,6 +348,15 @@ export const parseChatCommand = (input: string, entityLabels: string[] = []): Pa
     return null;
   }
 
+  // Self-relationship: explicit "recursiva/autorrelacion" + one entity mentioned
+  const hasSelfRelationIntent = normalizedTokens.some(token =>
+    ['recursiva', 'recursivo', 'autorrelacion', 'autorelacion', 'consigo', 'misma'].some(kw => fuzzyMatch(token, kw, 2))
+  );
+  if (isLinkIntent && hasSelfRelationIntent && entityMentions.length >= 1) {
+    const relationshipName = extractRelationshipName(text);
+    return { type: 'connect-entities', entityA: entityMentions[0], entityB: entityMentions[0], relationshipName };
+  }
+
   if (isLinkIntent && (entityMentions.length >= 2 || includesSelectedEntity(text))) {
     const relationshipName = extractRelationshipName(text);
     if (entityMentions.length >= 2) {

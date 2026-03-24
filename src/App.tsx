@@ -2520,10 +2520,11 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `Respond ONLY with valid JSON, no markdown.\n\n` +
     `${ER_RAMAKRISHNAN_THEORY}\n\n` +
     `DECISION HEURISTICS (apply before choosing command type):\n` +
-    `- Weak entity? → set-entity-weakness isWeak:true; its connecting relationship should be identifying.\n` +
+    `- Weak entity? → set-entity-weakness isWeak:true. NOTE: identifying relationship ≠ recursive relationship.\n` +
+    `- Recursive/self-relationship (entity relates to itself)? → connect-entities with entityA===entityB, set roleA and roleB. This is NOT an identifying relationship.\n` +
+    `- Identifying relationship? → ONLY used when connecting a WEAK entity to its STRONG owner entity.\n` +
     `- Multivalued attribute? → add the attribute first, then set-attribute-type isMultivalued:true.\n` +
     `- Derived attribute? → add the attribute first, then set-attribute-type isDerived:true.\n` +
-    `- Recursive relationship? → connect-entities with entityA === entityB, set roleA and roleB.\n` +
     `- ISA? → create-isa with isDisjoint and isTotal determined by R&G overlap/covering rules above.\n` +
     `- Aggregation? → connect-entity-aggregation with the base relationship's two member entities.\n` +
     `- Cardinality ambiguous? → default M:N ("N","N"); adjust only when text clearly implies constraint.\n\n` +
