@@ -250,6 +250,43 @@ function App() {
     setOffset({ x: 0, y: 0 });
   };
 
+  const fitNodesToScreen = (nodesToFit: ERNode[]) => {
+    if (nodesToFit.length === 0) return;
+    const padding = 80;
+    const sidebarWidth = sidebarOpen ? 320 : 0;
+    const toolbarHeight = 40;
+    const canvasWidth = window.innerWidth - sidebarWidth;
+    const canvasHeight = window.innerHeight - toolbarHeight;
+    const NODE_HALF: Record<string, { w: number; h: number }> = {
+      entity: { w: 70, h: 35 },
+      relationship: { w: 60, h: 30 },
+      attribute: { w: 50, h: 20 },
+      isa: { w: 20, h: 20 },
+    };
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodesToFit.forEach(node => {
+      const half = NODE_HALF[node.type] ?? { w: 50, h: 25 };
+      minX = Math.min(minX, node.position.x - half.w);
+      minY = Math.min(minY, node.position.y - half.h);
+      maxX = Math.max(maxX, node.position.x + half.w);
+      maxY = Math.max(maxY, node.position.y + half.h);
+    });
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+    if (contentW <= 0 || contentH <= 0) return;
+    const newScale = clampScale(Math.min(
+      (canvasWidth - padding * 2) / contentW,
+      (canvasHeight - padding * 2) / contentH,
+      1.2
+    ));
+    const newOffset = {
+      x: canvasWidth / 2 - ((minX + maxX) / 2) * newScale,
+      y: canvasHeight / 2 - ((minY + maxY) / 2) * newScale,
+    };
+    setScale(newScale);
+    setOffset(newOffset);
+  };
+
   const getCanvasCenter = () => {
     const sidebarWidth = sidebarOpen ? 320 : 0;
     const toolbarHeight = 40;
@@ -2841,6 +2878,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
         setSelectedConnectionIds(new Set());
         setSelectedAggregationIds(new Set());
         setLastSelectedNodeId(null);
+        setTimeout(() => fitNodesToScreen(scenarioNodes), 50);
 
         const nextPresets = { ...attributePresets };
         scenarioModel.entities.forEach(entity => {
@@ -3973,6 +4011,12 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
                 </div>
               ))}
             </div>
+            {aiStatus === 'thinking' && (
+              <div className="ai-thinking-bar">
+                <span className="ai-thinking-spinner" />
+                <span className="ai-thinking-label">Procesando… {formatThinkingTime(aiThinkingSeconds)}</span>
+              </div>
+            )}
             <div className="chat-input">
               <div className="chat-input-wrapper">
                 <input

@@ -276,6 +276,13 @@
   border-radius: 4px 14px 14px 14px;
 }
 
+.chat-message p { margin: 0 0 4px 0; }
+.chat-message p:last-child { margin: 0; }
+.chat-message ul, .chat-message ol { margin: 4px 0; padding-left: 16px; }
+.chat-message li { margin: 2px 0; }
+.chat-message strong { font-weight: 700; }
+.chat-message code { background: rgba(0,0,0,0.08); padding: 1px 4px; border-radius: 3px; font-size: 0.85em; }
+
 .chat-input {
   display: flex;
   flex-direction: column;
@@ -482,6 +489,33 @@
   font-size: 0.85rem;
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+.ai-thinking-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(99, 102, 241, 0.08);
+  border-top: 1px solid rgba(99, 102, 241, 0.2);
+  font-size: 0.82rem;
+  color: #6366f1;
+  font-weight: 500;
+}
+
+.ai-thinking-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(99, 102, 241, 0.25);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: ai-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ========== PRESETS ========== */
