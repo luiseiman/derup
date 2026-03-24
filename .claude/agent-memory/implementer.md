@@ -26,6 +26,12 @@
 - **Learned:** `"añadir campo email a esta entidad"` — "campo email a esta entidad" gets parsed but the extractor returns an empty attributes list because "a esta entidad" is the entity reference, not stripped from the attribute segment.
 - **Avoid:** Asserting parser output shape based on spec descriptions alone — always run the parser with `node --input-type=module` to verify actual output before writing assertions.
 
+## 2026-03-24 — Documentation rewrite (README + docs/)
+
+- **Learned:** Writing markdown files triggers the "file not read yet" guard even for files that exist. Always `Read` first even for docs that will be fully overwritten.
+- **Learned:** `docs/` already had ARCHITECTURE/CONTRIBUTING/DEPLOY_GCP files — the new DEPLOY.en/es.md files were net-new (no prior read required), so `Write` worked directly.
+- **Avoid:** Assuming a documentation file doesn't exist just because it wasn't in the recent git log — always check with `ls` first.
+
 ## 2026-03-24 — Unit tests for hooks and Canvas helpers
 
 - **Learned:** `src/utils/chatParser.test.ts` has 7 pre-existing failures — not introduced by new work. Don't try to fix them unless explicitly asked.
