@@ -429,6 +429,30 @@ function App() {
       return { nodes: curNodes.map(n => n.id === r.id ? { ...n, label: cmd.newName } : n), connections: curConns, ok: true, message: `${r.label} → ${cmd.newName}.` };
     }
 
+    if (cmd.type === 'replace-attributes') {
+      const parent = findAny(cmd.entityName);
+      if (!parent) return fail(`"${cmd.entityName}" no encontrado.`);
+      // Remove all existing attribute nodes connected to this parent
+      const existingAttrIds = new Set(
+        curConns
+          .filter(c => c.sourceId === parent.id || c.targetId === parent.id)
+          .map(c => c.sourceId === parent.id ? c.targetId : c.sourceId)
+          .filter(id => curNodes.find(n => n.id === id && n.type === 'attribute'))
+      );
+      const prunedNodes = curNodes.filter(n => !existingAttrIds.has(n.id));
+      const prunedConns = curConns.filter(c => !existingAttrIds.has(c.sourceId) && !existingAttrIds.has(c.targetId));
+      const keySet = new Set((cmd.keyAttributes ?? []).map(k => norm(k)));
+      const occupied = prunedNodes.map(n => ({ type: n.type, position: n.position }));
+      const positions = placeAttributePositions(cmd.attributes, parent.position, occupied);
+      const newAttrNodes: import('./types/er').AttributeNode[] = cmd.attributes.map((attr, i) => ({
+        id: createId(), type: 'attribute' as const,
+        position: positions[i] ?? { x: parent.position.x + 100 + i * 20, y: parent.position.y + 60 + i * 15 },
+        label: attr, isKey: keySet.has(norm(attr)), isMultivalued: false, isDerived: false,
+      }));
+      const newConns: Connection[] = newAttrNodes.map(n => ({ id: createId(), sourceId: parent.id, targetId: n.id, isTotalParticipation: false }));
+      return { nodes: [...prunedNodes, ...newAttrNodes], connections: [...prunedConns, ...newConns], ok: true, message: `Atributos de ${parent.label} reemplazados: ${cmd.attributes.join(', ')}.` };
+    }
+
     return fail(`Comando "${cmd.type}" no soportado en modo batch — ejecutalo individualmente.`);
   };
 
@@ -2784,9 +2808,9 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     buildRecentHistory(recentMessages) +
     `\nJSON "type" values (use exactly one per response):\n` +
     `add-entity: {"type":"add-entity","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
-    `add-attributes (specific): {"type":"add-attributes","entityName":"X","attributes":["c","d"],"keyAttributes":[]}\n` +
+    `add-attributes (to entity or relationship): {"type":"add-attributes","entityName":"X","attributes":["c","d"],"keyAttributes":[]}\n` +
     `add-attributes (typical/default, no list given): {"type":"add-attributes","entityName":"X","attributes":[],"useDefaultAttributes":true}\n` +
-    `replace-attributes: {"type":"replace-attributes","entityName":"X","attributes":["a"],"keyAttributes":["a"]}\n` +
+    `replace-attributes (entity or relationship — replaces ALL existing): {"type":"replace-attributes","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
     `rename-entity: {"type":"rename-entity","entityName":"Old","newName":"New"}\n` +
     `rename-relationship: {"type":"rename-relationship","relationshipName":"Old","newName":"New"}\n` +
     `connect-entities: {"type":"connect-entities","entityA":"A","entityB":"B","relationshipName":"R","cardinalityA":"1","cardinalityB":"N","totalA":false,"totalB":true,"roleA":"r1","roleB":"r2"}\n` +
@@ -2822,7 +2846,10 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- If user asks for typical/own attributes without listing them, use useDefaultAttributes:true and attributes:[].\n` +
     `- If user lists concrete attributes, use snake_case in the attributes array.\n` +
     `- For set-attribute-type, attributeName must match an existing attribute in the diagram.\n` +
-    `- NEVER use descriptive phrases like "own attributes of X" as an attribute name.\n\n` +
+    `- NEVER use descriptive phrases like "own attributes of X" as an attribute name.\n` +
+    `- add-attributes and replace-attributes work for BOTH entities and relationships — put the relationship name in entityName.\n` +
+    `- To add attributes to a relationship (e.g. Detalle_comprobante): {"type":"add-attributes","entityName":"Detalle_comprobante","attributes":["precio","descuento","total"],"keyAttributes":[]}\n` +
+    `- To replace/fix attributes of a weak entity (e.g. remove wrong key, add correct partial key): use replace-attributes with the correct attributes and keyAttributes list.\n\n` +
     `User: ${userText}`;
 
   const getSelectedEntity = () => {
