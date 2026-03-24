@@ -63,9 +63,26 @@ export const isNumber = (value: unknown): value is number =>
 
 /**
  * Valida que un valor sea un booleano.
- * 
+ *
  * @param value - Valor a validar
  * @returns true si es un booleano
  */
 export const isBoolean = (value: unknown): value is boolean =>
   typeof value === 'boolean';
+
+/**
+ * Extrae un objeto JSON de un texto que puede contener markdown o texto libre.
+ * Intenta primero con bloques de código cercados, luego busca el primer { ... }.
+ */
+export const extractJsonObject = (text: string): Record<string, unknown> | null => {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  if (fenced) {
+    try { const r = JSON.parse(fenced[1].trim()) as unknown; if (isObject(r)) return r; } catch { /* continue */ }
+  }
+  const s = text.indexOf('{');
+  const e = text.lastIndexOf('}');
+  if (s !== -1 && e > s) {
+    try { const r = JSON.parse(text.slice(s, e + 1)) as unknown; if (isObject(r)) return r; } catch { /* continue */ }
+  }
+  return null;
+};

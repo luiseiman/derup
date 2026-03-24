@@ -6,6 +6,7 @@ import type { ERNode, Connection, NodeType, Cardinality, DiagramView, Aggregatio
 import { createId } from './utils/ids';
 import { parseDiagramSnapshot, serializeDiagram } from './utils/diagram';
 import { parseChatCommand } from './utils/chatParser';
+import { type AICommand, parseAICommandJson, isLegacyAICommand } from './utils/aiCommands';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { safeCardinality } from './utils/schemas';
 import Toolbar from './components/Toolbar/Toolbar';
@@ -2339,6 +2340,55 @@ function App() {
     return (node && node.type === 'entity') ? node : null;
   };
 
+  const findRelationshipByLabel = (label: string) => {
+    const target = label.toLowerCase();
+    const node = nodes.find(n => n.type === 'relationship' && n.label.toLowerCase() === target);
+    return (node && node.type === 'relationship') ? node : undefined;
+  };
+
+  const findConnectionBetween = (idA: string, idB: string) =>
+    connections.find(c =>
+      (c.sourceId === idA && c.targetId === idB) ||
+      (c.sourceId === idB && c.targetId === idA)
+    );
+
+  const findAttributeOfEntity = (entity: import('./types/er').EntityNode, attrLabel: string) => {
+    const connectedIds = connections
+      .filter(c => c.sourceId === entity.id || c.targetId === entity.id)
+      .map(c => c.sourceId === entity.id ? c.targetId : c.sourceId);
+    const node = nodes.find(n =>
+      n.type === 'attribute' &&
+      connectedIds.includes(n.id) &&
+      n.label.toLowerCase() === attrLabel.toLowerCase()
+    );
+    return (node && node.type === 'attribute') ? node : undefined;
+  };
+
+  const buildAICommandPrompt = (userText: string, entityLabelList: string[], relLabelList: string[]): string =>
+    `Eres el asistente de modelado ER de derup. Responde SOLO con un JSON válido sin markdown.\n` +
+    `Entidades en el diagrama: ${entityLabelList.join(', ') || 'ninguna'}\n` +
+    `Relaciones en el diagrama: ${relLabelList.join(', ') || 'ninguna'}\n\n` +
+    `El JSON debe tener "type" con uno de estos valores:\n` +
+    `add-entity: {"type":"add-entity","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
+    `add-attributes: {"type":"add-attributes","entityName":"X","attributes":["c"],"keyAttributes":[]}\n` +
+    `replace-attributes: {"type":"replace-attributes","entityName":"X","attributes":["a"],"keyAttributes":["a"]}\n` +
+    `rename-entity: {"type":"rename-entity","entityName":"Viejo","newName":"Nuevo"}\n` +
+    `rename-relationship: {"type":"rename-relationship","relationshipName":"Viejo","newName":"Nuevo"}\n` +
+    `connect-entities: {"type":"connect-entities","entityA":"A","entityB":"B","relationshipName":"R","cardinalityA":"1","cardinalityB":"N","totalA":false,"totalB":true}\n` +
+    `set-entity-weakness: {"type":"set-entity-weakness","entityName":"X","isWeak":true}\n` +
+    `set-cardinality: {"type":"set-cardinality","entityA":"A","entityB":"B","cardinalityA":"1","cardinalityB":"N"}\n` +
+    `set-participation: {"type":"set-participation","entityName":"A","relationshipName":"R","isTotal":true}\n` +
+    `set-attribute-type: {"type":"set-attribute-type","entityName":"X","attributeName":"telefonos","isMultivalued":true}\n` +
+    `set-connection-role: {"type":"set-connection-role","entityName":"X","relationshipName":"R","role":"supervisor"}\n` +
+    `create-isa: {"type":"create-isa","supertype":"Persona","subtypes":["Alumno","Empleado"],"isDisjoint":true,"isTotal":false}\n` +
+    `delete-entity: {"type":"delete-entity","entityName":"X"}\n` +
+    `delete-relationship: {"type":"delete-relationship","relationshipName":"R"}\n` +
+    `clear-diagram: {"type":"clear-diagram"}\n` +
+    `chat: {"type":"chat","message":"Texto en español para el usuario"}\n\n` +
+    `Usa "chat" para saludos, preguntas y pedidos no mapeables. ` +
+    `Los nombres deben coincidir con los del diagrama (case-insensitive).\n\n` +
+    `Usuario: ${userText}`;
+
   const getSelectedEntity = () => {
     if (selectedNodeIds.size === 1) {
       const selectedId = Array.from(selectedNodeIds)[0];
@@ -2556,6 +2606,7 @@ function App() {
     const scenarioDetected = looksLikeScenario(text) && !explicitCommandIntent;
     let parsed = scenarioDetected ? null : parseChatCommand(text, entityLabels);
     let aiResponseText = '';
+    let aiCommand: AICommand | null = null;
 
     if (scenarioDetected) {
       if (!aiEnabled) {
@@ -2688,28 +2739,12 @@ function App() {
 
       setAiStatus('thinking');
       try {
-        const entityHint = entityLabels.length > 0 ? `Entidades actuales en el diagrama: ${entityLabels.join(', ')}.\n` : '';
-        const prompt = `Eres el asistente de derup, una herramienta de modelado entidad-relación (ER/EER).\n` +
-          `${entityHint}\n` +
-          `Tu única función es ayudar al usuario a construir diagramas ER. Respondé siempre en español.\n` +
-          `\n` +
-          `Si el mensaje del usuario es un comando de modelado ER, respondé SOLO con una línea en este formato exacto (sin comillas, sin explicación):\n` +
-          `- Crear entidad: "agregar una entidad <Nombre> con atributos: a, b, c donde <clave> es clave"\n` +
-          `- Agregar atributos: "agrega atributos: a, b, c a la entidad <Nombre>"\n` +
-          `- Reemplazar atributos: "reemplaza atributos de la entidad <Nombre> con: a, b, c donde <clave> es clave"\n` +
-          `- Renombrar entidad: "renombra la entidad <Nombre> a <NuevoNombre>"\n` +
-          `- Conectar entidades: "vincula la entidad <A> con la entidad <B> relacion <Nombre>"\n` +
-          `- Agregar agregación: "la relacion <R> debe relacionar <Entidad> con una agregacion entre <A> y <B>"\n` +
-          `\n` +
-          `Si el mensaje NO es un comando ER (saludo, pregunta, consulta general), respondé en lenguaje natural guiando al usuario.\n` +
-          `Explicá qué puede hacer en derup: crear entidades, agregar atributos, vincular entidades, crear relaciones, agregaciones.\n` +
-          `Sé breve, amigable y siempre terminá sugiriendo una acción concreta que puede realizar.\n` +
-          `\n` +
-          `Usuario: ${text}`;
+        const relationshipLabels = nodes.filter(n => n.type === 'relationship').map(n => n.label);
+        const prompt = buildAICommandPrompt(text, entityLabels, relationshipLabels);
         const aiText = await requestAIText(prompt);
         aiResponseText = aiText ?? '';
         if (aiResponseText) {
-          parsed = parseChatCommand(aiResponseText, entityLabels);
+          aiCommand = parseAICommandJson(aiResponseText);
         }
       } catch (error) {
         const fallbackNote = lastAIFallbackFrom ? ` (fallback desde ${getProviderLabel(lastAIFallbackFrom)})` : '';
@@ -2727,6 +2762,209 @@ function App() {
         setAiStatus('idle');
       }
     }
+    // Respuesta conversacional
+    if (aiCommand?.type === 'chat') {
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: aiCommand.message }]);
+      return;
+    }
+
+    // Comandos nuevos (no legacy)
+    if (aiCommand && !isLegacyAICommand(aiCommand.type)) {
+      const cmd = aiCommand;
+      // set-cardinality
+      if (cmd.type === 'set-cardinality') {
+        const eA = findEntityByLabel(cmd.entityA);
+        const eB = findEntityByLabel(cmd.entityB);
+        if (!eA || !eB) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré las entidades "${cmd.entityA}" y/o "${cmd.entityB}".` }]);
+          return;
+        }
+        const relBetween = nodes.find(n => {
+          if (n.type !== 'relationship') return false;
+          const connA = connections.find(c => (c.sourceId === n.id && c.targetId === eA.id) || (c.sourceId === eA.id && c.targetId === n.id));
+          const connB = connections.find(c => (c.sourceId === n.id && c.targetId === eB.id) || (c.sourceId === eB.id && c.targetId === n.id));
+          return !!(connA && connB);
+        });
+        if (!relBetween) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré una relación entre "${cmd.entityA}" y "${cmd.entityB}". Creá primero la relación.` }]);
+          return;
+        }
+        setConnections(prev => prev.map(c => {
+          const isConnA = (c.sourceId === relBetween.id && c.targetId === eA.id) || (c.sourceId === eA.id && c.targetId === relBetween.id);
+          const isConnB = (c.sourceId === relBetween.id && c.targetId === eB.id) || (c.sourceId === eB.id && c.targetId === relBetween.id);
+          if (isConnA && cmd.cardinalityA) return { ...c, cardinality: cmd.cardinalityA };
+          if (isConnB && cmd.cardinalityB) return { ...c, cardinality: cmd.cardinalityB };
+          return c;
+        }));
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Listo. Actualicé la cardinalidad de la relación entre ${eA.label} y ${eB.label}.` }]);
+        return;
+      }
+      // set-participation
+      if (cmd.type === 'set-participation') {
+        const entity = findEntityByLabel(cmd.entityName);
+        const rel = findRelationshipByLabel(cmd.relationshipName);
+        if (!entity || !rel) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la entidad "${cmd.entityName}" o la relación "${cmd.relationshipName}".` }]);
+          return;
+        }
+        const conn = findConnectionBetween(entity.id, rel.id);
+        if (!conn) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No hay conexión entre "${cmd.entityName}" y "${cmd.relationshipName}".` }]);
+          return;
+        }
+        setConnections(prev => prev.map(c => c.id === conn.id ? { ...c, isTotalParticipation: cmd.isTotal } : c));
+        const label = cmd.isTotal ? 'total' : 'parcial';
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Listo. Participación de ${entity.label} en ${rel.label} marcada como ${label}.` }]);
+        return;
+      }
+      // set-attribute-type
+      if (cmd.type === 'set-attribute-type') {
+        const entity = findEntityByLabel(cmd.entityName);
+        if (!entity) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la entidad "${cmd.entityName}".` }]);
+          return;
+        }
+        const attr = findAttributeOfEntity(entity, cmd.attributeName);
+        if (!attr) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré el atributo "${cmd.attributeName}" en ${entity.label}.` }]);
+          return;
+        }
+        const attrUpdates: Partial<import('./types/er').AttributeNode> = {};
+        if (cmd.isMultivalued !== undefined) attrUpdates.isMultivalued = cmd.isMultivalued;
+        if (cmd.isDerived !== undefined) attrUpdates.isDerived = cmd.isDerived;
+        if (cmd.isKey !== undefined) attrUpdates.isKey = cmd.isKey;
+        updateNode(attr.id, attrUpdates);
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Listo. Actualicé el tipo del atributo ${attr.label} en ${entity.label}.` }]);
+        return;
+      }
+      // set-connection-role
+      if (cmd.type === 'set-connection-role') {
+        const entity = findEntityByLabel(cmd.entityName);
+        const rel = findRelationshipByLabel(cmd.relationshipName);
+        if (!entity || !rel) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la entidad "${cmd.entityName}" o la relación "${cmd.relationshipName}".` }]);
+          return;
+        }
+        const conn = findConnectionBetween(entity.id, rel.id);
+        if (!conn) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No hay conexión entre "${cmd.entityName}" y "${cmd.relationshipName}".` }]);
+          return;
+        }
+        setConnections(prev => prev.map(c => c.id === conn.id ? { ...c, role: cmd.role } : c));
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Listo. Rol de ${entity.label} en ${rel.label} establecido como "${cmd.role}".` }]);
+        return;
+      }
+      // rename-relationship
+      if (cmd.type === 'rename-relationship') {
+        const rel = findRelationshipByLabel(cmd.relationshipName);
+        if (!rel) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la relación "${cmd.relationshipName}".` }]);
+          return;
+        }
+        updateNode(rel.id, { label: cmd.newName });
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Listo. Renombré la relación a "${cmd.newName}".` }]);
+        return;
+      }
+      // delete-entity
+      if (cmd.type === 'delete-entity') {
+        const entity = findEntityByLabel(cmd.entityName);
+        if (!entity) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la entidad "${cmd.entityName}".` }]);
+          return;
+        }
+        const attrIds = connections
+          .filter(c => c.sourceId === entity.id || c.targetId === entity.id)
+          .map(c => c.sourceId === entity.id ? c.targetId : c.sourceId)
+          .filter(id => nodes.find(n => n.id === id)?.type === 'attribute');
+        const toRemove = new Set([entity.id, ...attrIds]);
+        setNodes(prev => prev.filter(n => !toRemove.has(n.id)));
+        setConnections(prev => prev.filter(c => !toRemove.has(c.sourceId) && !toRemove.has(c.targetId)));
+        setAggregations(prev =>
+          prev
+            .map(a => ({ ...a, memberIds: a.memberIds.filter(id => !toRemove.has(id)) }))
+            .filter(a => a.memberIds.length >= 2)
+        );
+        setSelectedNodeIds(prev => { const next = new Set(prev); next.delete(entity.id); return next; });
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Listo. Eliminé la entidad ${entity.label} y sus atributos.` }]);
+        return;
+      }
+      // delete-relationship
+      if (cmd.type === 'delete-relationship') {
+        const rel = findRelationshipByLabel(cmd.relationshipName);
+        if (!rel) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la relación "${cmd.relationshipName}".` }]);
+          return;
+        }
+        setNodes(prev => prev.filter(n => n.id !== rel.id));
+        setConnections(prev => prev.filter(c => c.sourceId !== rel.id && c.targetId !== rel.id));
+        setSelectedNodeIds(prev => { const next = new Set(prev); next.delete(rel.id); return next; });
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Listo. Eliminé la relación ${rel.label}.` }]);
+        return;
+      }
+      // create-isa
+      if (cmd.type === 'create-isa') {
+        const superEntity = findEntityByLabel(cmd.supertype);
+        if (!superEntity) {
+          setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `No encontré la entidad supertipo "${cmd.supertype}". Creala primero.` }]);
+          return;
+        }
+        const subtypeEntities: Array<{ id: string; label: string; position: { x: number; y: number } }> = [];
+        const newNodes: ERNode[] = [];
+        const newConnections: Connection[] = [];
+        for (const subName of cmd.subtypes) {
+          let sub = findEntityByLabel(subName);
+          if (!sub) {
+            const center = getCanvasCenter();
+            const angle = (subtypeEntities.length / cmd.subtypes.length) * Math.PI;
+            sub = {
+              id: createId(), type: 'entity' as const, label: subName, isWeak: false,
+              position: { x: center.x + Math.cos(angle) * 180, y: superEntity.position.y + 200 },
+            };
+            newNodes.push(sub);
+          }
+          subtypeEntities.push(sub);
+        }
+        const isaNode: import('./types/er').ISANode = {
+          id: createId(), type: 'isa' as const,
+          label: cmd.label ?? 'ES',
+          position: { x: superEntity.position.x, y: superEntity.position.y + 100 },
+          isDisjoint: cmd.isDisjoint,
+          isTotal: cmd.isTotal,
+        };
+        newNodes.push(isaNode);
+        newConnections.push({ id: createId(), sourceId: superEntity.id, targetId: isaNode.id, isTotalParticipation: false });
+        for (const sub of subtypeEntities) {
+          newConnections.push({ id: createId(), sourceId: isaNode.id, targetId: sub.id, isTotalParticipation: false });
+        }
+        setNodes(prev => [...prev, ...newNodes]);
+        setConnections(prev => [...prev, ...newConnections]);
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Listo. Creé la jerarquía ISA: ${cmd.supertype} → ${cmd.subtypes.join(', ')}.` }]);
+        return;
+      }
+    }
+
+    // Comandos legacy: mapear AICommand → ParsedChatCommand
+    if (aiCommand && isLegacyAICommand(aiCommand.type)) {
+      const cmd = aiCommand;
+      if (cmd.type === 'add-entity') {
+        parsed = { type: 'add-entity', entityName: cmd.entityName, attributes: cmd.attributes, keyAttributes: cmd.keyAttributes, useDefaultAttributes: cmd.useDefaultAttributes };
+      } else if (cmd.type === 'add-attributes') {
+        parsed = { type: 'add-attributes', entityName: cmd.entityName, attributes: cmd.attributes, keyAttributes: cmd.keyAttributes };
+      } else if (cmd.type === 'replace-attributes') {
+        parsed = { type: 'replace-attributes', entityName: cmd.entityName, attributes: cmd.attributes, keyAttributes: cmd.keyAttributes };
+      } else if (cmd.type === 'rename-entity') {
+        parsed = { type: 'rename-entity', entityName: cmd.entityName, newName: cmd.newName };
+      } else if (cmd.type === 'connect-entities') {
+        parsed = { type: 'connect-entities', entityA: cmd.entityA, entityB: cmd.entityB, relationshipName: cmd.relationshipName };
+      } else if (cmd.type === 'connect-entity-aggregation') {
+        parsed = { type: 'connect-entity-aggregation', entityName: cmd.entityName, aggregationEntityA: cmd.aggregationEntityA, aggregationEntityB: cmd.aggregationEntityB, relationshipName: cmd.relationshipName };
+      } else if (cmd.type === 'set-entity-weakness') {
+        parsed = { type: 'set-entity-weakness', entityName: cmd.entityName, isWeak: cmd.isWeak };
+      } else if (cmd.type === 'clear-diagram') {
+        parsed = { type: 'clear-diagram' };
+      }
+    }
+
     if (!parsed) {
       setChatMessages(prev => [
         ...prev,
