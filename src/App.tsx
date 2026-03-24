@@ -896,10 +896,8 @@ function App() {
     };
 
     runChecks();
-    const timer = window.setInterval(runChecks, 8000);
     return () => {
       active = false;
-      window.clearInterval(timer);
     };
   }, [geminiApiKey, grokApiKey]);
 
@@ -3356,7 +3354,7 @@ function App() {
           <div className="sidebar-tabs">
             <button className={`sidebar-tab ${activeTab === 'properties' ? 'active' : ''}`} onClick={() => setActiveTab('properties')}>Properties</button>
             <button className={`sidebar-tab ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>Chat</button>
-            <button className={`sidebar-tab ${activeTab === 'ai' ? 'active' : ''}`} onClick={() => setActiveTab('ai')}>IA</button>
+            <button className={`sidebar-tab ${activeTab === 'ai' ? 'active' : ''}`} onClick={() => { setActiveTab('ai'); Promise.all([checkGeminiHealth(), checkGrokHealth(), checkOllamaHealth(), checkOpenclawHealth()]); }}>IA</button>
             <button className={`sidebar-tab ${activeTab === 'menu' ? 'active' : ''}`} onClick={() => setActiveTab('menu')}>Menu</button>
             <button className="sidebar-tab sidebar-close" onClick={() => setSidebarOpen(false)} title="Ocultar panel" aria-label="Ocultar panel">✕</button>
           </div>
