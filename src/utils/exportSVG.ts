@@ -176,7 +176,7 @@ function renderConnectionsSVG(
 
     const isTotalSrc = conn.isTotalParticipation;
     const strokeColor = '#0f172a';
-    const strokeW = isTotalSrc ? 2 : 1.5;
+    const strokeW = isTotalSrc ? 4 : 2;
 
     // Arrow marker for cardinality=1
     let markerEnd = '';
@@ -188,8 +188,6 @@ function renderConnectionsSVG(
       else if (tgtType === 'relationship') markerEnd = 'marker-end="url(#exp-arrow)"';
     }
 
-    // Double-line for total participation
-    const doubleLineOffset = isTotalSrc ? 3 : 0;
     let linesSVG = '';
 
     if (isDuplicate) {
@@ -203,12 +201,6 @@ function renderConnectionsSVG(
       const cx = cmx + px * co * direction, cy = cmy + py * co * direction;
       const pathD = `M ${osx} ${osy} Q ${cx} ${cy} ${otx} ${oty}`;
       linesSVG = `<path d="${pathD}" fill="none" stroke="${strokeColor}" stroke-width="${strokeW}" ${markerStart} ${markerEnd}/>`;
-    } else if (isTotalSrc) {
-      // Double line: draw two parallel lines
-      const nx = -uy * doubleLineOffset, ny = ux * doubleLineOffset;
-      linesSVG = `
-      <line x1="${start.x + nx}" y1="${start.y + ny}" x2="${end.x + nx}" y2="${end.y + ny}" stroke="${strokeColor}" stroke-width="1.5" ${markerStart} ${markerEnd}/>
-      <line x1="${start.x - nx}" y1="${start.y - ny}" x2="${end.x - nx}" y2="${end.y - ny}" stroke="${strokeColor}" stroke-width="1.5"/>`;
     } else {
       linesSVG = `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${strokeColor}" stroke-width="${strokeW}" ${markerStart} ${markerEnd}/>`;
     }
