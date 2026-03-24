@@ -2364,25 +2364,98 @@ function App() {
     return (node && node.type === 'attribute') ? node : undefined;
   };
 
-  const buildEntityDetails = (): string => {
+  const buildDiagramContext = (): string => {
+    const nodeById = new Map(nodes.map(n => [n.id, n]));
+    const parts: string[] = [];
+
+    // ENTITIES
     const entityNodes = nodes.filter(n => n.type === 'entity');
-    if (entityNodes.length === 0) return 'ninguna';
-    return entityNodes.map(entity => {
-      const connectedIds = connections
-        .filter(c => c.sourceId === entity.id || c.targetId === entity.id)
-        .map(c => c.sourceId === entity.id ? c.targetId : c.sourceId);
-      const attrs = nodes
-        .filter(n => n.type === 'attribute' && connectedIds.includes(n.id))
-        .map(n => {
-          if (n.type !== 'attribute') return n.label;
-          const tags: string[] = [];
-          if (n.isKey) tags.push('clave');
-          if (n.isMultivalued) tags.push('multivaluado');
-          if (n.isDerived) tags.push('derivado');
-          return tags.length > 0 ? `${n.label}(${tags.join(',')})` : n.label;
+    if (entityNodes.length > 0) {
+      const lines = entityNodes.map(entity => {
+        const connectedIds = connections
+          .filter(c => c.sourceId === entity.id || c.targetId === entity.id)
+          .map(c => c.sourceId === entity.id ? c.targetId : c.sourceId);
+        const attrs = nodes
+          .filter(n => n.type === 'attribute' && connectedIds.includes(n.id))
+          .map(n => {
+            if (n.type !== 'attribute') return n.label;
+            const tags: string[] = [];
+            if (n.isKey) tags.push('clave');
+            if (n.isMultivalued) tags.push('multivaluado');
+            if (n.isDerived) tags.push('derivado');
+            return tags.length > 0 ? `${n.label}(${tags.join(',')})` : n.label;
+          });
+        const weakTag = (entity.type === 'entity' && entity.isWeak) ? '[débil] ' : '';
+        return `  ${weakTag}${entity.label}: ${attrs.length > 0 ? attrs.join(', ') : '(sin atributos)'}`;
+      });
+      parts.push(`ENTIDADES:\n${lines.join('\n')}`);
+    }
+
+    // RELATIONSHIPS with their entity connections
+    const relNodes = nodes.filter(n => n.type === 'relationship');
+    if (relNodes.length > 0) {
+      const lines = relNodes.map(rel => {
+        // Find connections to/from this relationship
+        const relConns = connections.filter(c => c.sourceId === rel.id || c.targetId === rel.id);
+        // Separate entity connections from attribute connections
+        const entityConns = relConns.filter(c => {
+          const otherId = c.sourceId === rel.id ? c.targetId : c.sourceId;
+          const other = nodeById.get(otherId);
+          return other?.type === 'entity';
         });
-      return `${entity.label}: [${attrs.join(', ') || 'sin atributos'}]`;
-    }).join('\n');
+        const attrConns = relConns.filter(c => {
+          const otherId = c.sourceId === rel.id ? c.targetId : c.sourceId;
+          const other = nodeById.get(otherId);
+          return other?.type === 'attribute';
+        });
+        const entityParts = entityConns.map(c => {
+          const entityId = c.sourceId === rel.id ? c.targetId : c.sourceId;
+          const entity = nodeById.get(entityId);
+          if (!entity) return '?';
+          const card = c.cardinality ?? '?';
+          const total = c.isTotalParticipation ? ':total' : '';
+          const role = c.role ? `(${c.role})` : '';
+          return `${entity.label}${role} ${card}${total}`;
+        });
+        const attrLabels = attrConns.map(c => {
+          const aId = c.sourceId === rel.id ? c.targetId : c.sourceId;
+          return nodeById.get(aId)?.label ?? '?';
+        });
+        const identifying = (rel.type === 'relationship' && rel.isIdentifying) ? '[identificadora] ' : '';
+        const attrStr = attrLabels.length > 0 ? ` | atributos: ${attrLabels.join(', ')}` : '';
+        return `  ${identifying}${rel.label}: ${entityParts.join(' — ')}${attrStr}`;
+      });
+      parts.push(`RELACIONES:\n${lines.join('\n')}`);
+    }
+
+    // ISA HIERARCHIES
+    const isaNodes = nodes.filter(n => n.type === 'isa');
+    if (isaNodes.length > 0) {
+      const lines = isaNodes.map(isa => {
+        const isaConns = connections.filter(c => c.sourceId === isa.id || c.targetId === isa.id);
+        const supertypeIds = isaConns
+          .filter(c => c.targetId === isa.id)
+          .map(c => nodeById.get(c.sourceId)?.label ?? '?');
+        const subtypeIds = isaConns
+          .filter(c => c.sourceId === isa.id)
+          .map(c => nodeById.get(c.targetId)?.label ?? '?');
+        const disjoint = (isa.type === 'isa' && isa.isDisjoint) ? 'disjunto' : 'solapado';
+        const total = (isa.type === 'isa' && isa.isTotal) ? 'total' : 'parcial';
+        return `  ${supertypeIds.join(',')} → {${subtypeIds.join(', ')}} [${disjoint}, ${total}]`;
+      });
+      parts.push(`JERARQUÍAS ISA:\n${lines.join('\n')}`);
+    }
+
+    // AGGREGATIONS
+    if (aggregations.length > 0) {
+      const lines = aggregations.map(agg => {
+        const members = agg.memberIds.map(id => nodeById.get(id)?.label ?? id);
+        return `  [${members.join(' + ')}]${agg.label ? ` (${agg.label})` : ''}`;
+      });
+      parts.push(`AGREGACIONES:\n${lines.join('\n')}`);
+    }
+
+    return parts.length > 0 ? parts.join('\n\n') : '(diagrama vacío)';
   };
 
   const buildRecentHistory = (recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string => {
@@ -2391,10 +2464,9 @@ function App() {
     return `\nConversación reciente:\n${lines}\n`;
   };
 
-  const buildAICommandPrompt = (userText: string, relLabelList: string[], recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
+  const buildAICommandPrompt = (userText: string, recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
     `Eres el asistente de modelado ER de derup. Responde SOLO con un JSON válido sin markdown.\n` +
-    `Entidades en el diagrama:\n${buildEntityDetails()}\n` +
-    `Relaciones en el diagrama: ${relLabelList.join(', ') || 'ninguna'}\n` +
+    `Estado actual del diagrama:\n${buildDiagramContext()}\n` +
     buildRecentHistory(recentMessages) +
     `\nEl JSON debe tener "type" con uno de estos valores:\n` +
     `add-entity: {"type":"add-entity","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
@@ -2417,7 +2489,7 @@ function App() {
     `Reglas importantes:\n` +
     `- Usa "chat" para saludos, preguntas y pedidos no mapeables.\n` +
     `- Los nombres de entidad/relación deben coincidir EXACTAMENTE con los del diagrama (case-insensitive).\n` +
-    `- Si el usuario menciona una entidad sin nombrarla (ej: "esa entidad", "la misma", responde en contexto a un mensaje previo), infiere el nombre de la conversación reciente.\n` +
+    `- Si el usuario menciona una entidad sin nombrarla, infiere el nombre de la conversación reciente.\n` +
     `- Si el usuario pide atributos típicos/propios/habituales/comunes SIN especificar cuáles, usa useDefaultAttributes:true y attributes:[].\n` +
     `- Si el usuario especifica atributos concretos, ponlos en snake_case en el array attributes.\n` +
     `- Para set-attribute-type, el attributeName debe coincidir con un atributo existente del diagrama.\n` +
@@ -2774,9 +2846,8 @@ function App() {
 
       setAiStatus('thinking');
       try {
-        const relationshipLabels = nodes.filter(n => n.type === 'relationship').map(n => n.label);
         const recentHistory = chatMessages.slice(-4).map(m => ({ role: m.role, text: m.text }));
-        const prompt = buildAICommandPrompt(text, relationshipLabels, recentHistory);
+        const prompt = buildAICommandPrompt(text, recentHistory);
         const aiText = await requestAIText(prompt);
         aiResponseText = aiText ?? '';
         if (aiResponseText) {
