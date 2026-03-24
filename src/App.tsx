@@ -248,6 +248,15 @@ function App() {
     setOffset({ x: 0, y: 0 });
   };
 
+  const getCanvasCenter = () => {
+    const sidebarWidth = sidebarOpen ? 320 : 0;
+    const toolbarHeight = 40;
+    return {
+      x: (window.innerWidth - sidebarWidth) / 2,
+      y: (window.innerHeight - toolbarHeight) / 2,
+    };
+  };
+
   const clampScale = (value: number) => Math.min(Math.max(0.1, value), 5);
 
   const setZoom = (value: number) => {
@@ -266,8 +275,7 @@ function App() {
       if (parentNode) {
         position = { x: parentNode.position.x + 100, y: parentNode.position.y + 50 };
       } else {
-        const centerX = window.innerWidth / 2;
-        const centerY = window.innerHeight / 2 - 50;
+        const { x: centerX, y: centerY } = getCanvasCenter();
         position = { x: (centerX - offset.x) / scale, y: (centerY - offset.y) / scale };
       }
     } else {
@@ -1678,8 +1686,7 @@ function App() {
   };
 
   const buildDiagramFromScenario = (model: ScenarioModelNormalized) => {
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2 - 40;
+    const { x: centerX, y: centerY } = getCanvasCenter();
     const center = { x: (centerX - offset.x) / scale, y: (centerY - offset.y) / scale };
 
     const uniqueEntities = new Map<string, { name: string; attributes: string[]; key?: string }>();
@@ -2270,8 +2277,7 @@ function App() {
     const entityId = createId();
     const entityLabel = normalizeEntityLabel(entityName);
 
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2 - 50;
+    const { x: centerX, y: centerY } = getCanvasCenter();
     const basePos = { x: (centerX - offset.x) / scale, y: (centerY - offset.y) / scale };
     const entityPos = findAvailablePosition(basePos);
 
