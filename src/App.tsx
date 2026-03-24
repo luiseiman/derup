@@ -1819,15 +1819,14 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       attributes: string[];
     }> = [];
 
-    const entityRadiusX = Math.max(300, 160 + entityEntries.length * 90);
-    const entityRadiusY = Math.max(240, 120 + entityEntries.length * 70);
+    const entityRadiusX = Math.max(160, 80 + entityEntries.length * 38);
+    const entityRadiusY = Math.max(120, 60 + entityEntries.length * 28);
 
     entityEntries.forEach((entity, index) => {
       const angle = (Math.PI * 2 * index) / Math.max(entityEntries.length, 1) - Math.PI / 2;
-      const jitter = (index % 2 === 0 ? 1 : -1) * 20;
       const pos = {
-        x: center.x + Math.cos(angle) * entityRadiusX + jitter,
-        y: center.y + Math.sin(angle) * entityRadiusY - jitter * 0.5,
+        x: center.x + Math.cos(angle) * entityRadiusX,
+        y: center.y + Math.sin(angle) * entityRadiusY,
       };
 
       const normalizedAttributes = normalizeAttributeList(entity.attributes, 5);
@@ -1918,7 +1917,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
         const nx = -dy / len;
         const ny = dx / len;
         const direction = offsetIndex % 2 === 0 ? 1 : -1;
-        const distance = 80 + Math.floor(offsetIndex / 2) * 64;
+        const distance = 50 + Math.floor(offsetIndex / 2) * 44;
         base = {
           x: (a.x + b.x) / 2 + nx * distance * direction,
           y: (a.y + b.y) / 2 + ny * distance * direction,
@@ -1930,7 +1929,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           y: entityPositions.reduce((sum, pos) => sum + pos.y, 0) / entityPositions.length,
         };
         const angle = nAryIndex * 1.17;
-        const distance = 85 + nAryIndex * 34;
+        const distance = 55 + nAryIndex * 25;
         base = {
           x: centroid.x + Math.cos(angle) * distance,
           y: centroid.y + Math.sin(angle) * distance,
@@ -2119,8 +2118,8 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
         entry.attributes,
         entry.keys,
         occupiedNodes,
-        180,
-        120
+        120,
+        80
       );
       nodes.push(...attrNodes);
       connections.push(...attrConnections);
@@ -2134,8 +2133,8 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
         entry.attributes,
         [],
         occupiedNodes,
-        150,
-        100
+        100,
+        65
       );
       nodes.push(...attrNodes);
       connections.push(...attrConnections);
