@@ -455,25 +455,34 @@ const Canvas: React.FC<CanvasProps> = ({
 
             if (isDuplicate) {
                 // Curved rendering for reflexive/duplicate connections
-                const mx = (sx + tx) / 2;
-                const my = (sy + ty) / 2;
                 const dx = tx - sx;
                 const dy = ty - sy;
                 const len = Math.sqrt(dx * dx + dy * dy) || 1;
                 // Perpendicular unit vector
                 const px = -dy / len;
                 const py = dx / len;
-                // Offset: first connection curves one way, second curves the other
-                const curveOffset = 50;
                 const direction = myIndex === 0 ? 1 : -1;
-                const cx = mx + px * curveOffset * direction;
-                const cy = my + py * curveOffset * direction;
+
+                // Offset start/end points laterally so the two connectors
+                // exit from visually distinct positions on each node
+                const lineOffset = 18;
+                const osx = sx + px * lineOffset * direction;
+                const osy = sy + py * lineOffset * direction;
+                const otx = tx + px * lineOffset * direction;
+                const oty = ty + py * lineOffset * direction;
+
+                // Control point: perpendicular bow relative to the offset line
+                const cmx = (osx + otx) / 2;
+                const cmy = (osy + oty) / 2;
+                const curveOffset = 55;
+                const cx = cmx + px * curveOffset * direction;
+                const cy = cmy + py * curveOffset * direction;
 
                 // Midpoint of the curve (approximate: the control point area)
-                const curveMidX = (sx + 2 * cx + tx) / 4;
-                const curveMidY = (sy + 2 * cy + ty) / 4;
+                const curveMidX = (osx + 2 * cx + otx) / 4;
+                const curveMidY = (osy + 2 * cy + oty) / 4;
 
-                const pathD = `M ${sx} ${sy} Q ${cx} ${cy} ${tx} ${ty}`;
+                const pathD = `M ${osx} ${osy} Q ${cx} ${cy} ${otx} ${oty}`;
 
                 return (
                     <g key={conn.id}
