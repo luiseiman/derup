@@ -2,11 +2,15 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { URL } from 'node:url';
+import zlib from 'node:zlib';
+import { pipeline } from 'node:stream';
 import { WebSocketServer } from 'ws';
 
 const PORT = Number(process.env.PORT || process.env.GEMINI_PORT || 8787);
 const HOST = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
 const DIST_DIR = path.resolve(process.cwd(), 'dist');
+
+const MAX_BODY_SIZE = 1 * 1024 * 1024; // 1 MB
 
 const CONTENT_TYPE_BY_EXT = {
   '.html': 'text/html; charset=utf-8',
@@ -19,7 +23,12 @@ const CONTENT_TYPE_BY_EXT = {
   '.jpeg': 'image/jpeg',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
 };
+
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.json', '.svg', '.txt']);
 
 const loadDotEnv = () => {
   const envPath = path.resolve(process.cwd(), '.env');
@@ -58,17 +67,41 @@ const sendJson = (res, status, payload) => {
   res.end(JSON.stringify(payload));
 };
 
-const sendFile = (res, filePath) => {
+const sendFile = (req, res, filePath) => {
   const ext = path.extname(filePath).toLowerCase();
   const contentType = CONTENT_TYPE_BY_EXT[ext] || 'application/octet-stream';
+  const basename = path.basename(filePath);
+
+  // Cache: hashed Vite assets → 1 year, index.html → no-cache
+  const isHashed = /\.[a-f0-9]{8,}\.\w+$/.test(basename);
+  const cacheControl = isHashed
+    ? 'public, max-age=31536000, immutable'
+    : ext === '.html'
+      ? 'no-cache, no-store, must-revalidate'
+      : 'public, max-age=3600';
+
+  const headers = {
+    'Content-Type': contentType,
+    'Cache-Control': cacheControl,
+    'Vary': 'Accept-Encoding',
+  };
+
+  const acceptEncoding = (req.headers['accept-encoding'] || '').toString();
+  const canGzip = COMPRESSIBLE.has(ext) && acceptEncoding.includes('gzip');
+
   const stream = fs.createReadStream(filePath);
-  stream.on('open', () => {
-    res.writeHead(200, { 'Content-Type': contentType });
-  });
   stream.on('error', () => {
     sendJson(res, 500, { error: 'Error serving static file.' });
   });
-  stream.pipe(res);
+
+  if (canGzip) {
+    headers['Content-Encoding'] = 'gzip';
+    res.writeHead(200, headers);
+    pipeline(stream, zlib.createGzip({ level: 6 }), res, () => {});
+  } else {
+    res.writeHead(200, headers);
+    stream.pipe(res);
+  }
 };
 
 const serveSpa = (req, res, pathname) => {
@@ -85,14 +118,14 @@ const serveSpa = (req, res, pathname) => {
   }
 
   if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-    sendFile(res, candidate);
+    sendFile(req, res, candidate);
     return true;
   }
 
   if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
     const indexInFolder = path.join(candidate, 'index.html');
     if (fs.existsSync(indexInFolder)) {
-      sendFile(res, indexInFolder);
+      sendFile(req, res, indexInFolder);
       return true;
     }
   }
@@ -102,7 +135,7 @@ const serveSpa = (req, res, pathname) => {
     sendJson(res, 404, { error: 'Static index not found.' });
     return true;
   }
-  sendFile(res, indexPath);
+  sendFile(req, res, indexPath);
   return true;
 };
 
@@ -118,7 +151,14 @@ const normalizeError = (error, fallback = 'Server error.') => {
 const getBody = req =>
   new Promise((resolve, reject) => {
     let data = '';
+    let size = 0;
     req.on('data', chunk => {
+      size += chunk.length;
+      if (size > MAX_BODY_SIZE) {
+        req.destroy();
+        reject(new Error('Request body too large.'));
+        return;
+      }
       data += chunk;
     });
     req.on('end', () => {
@@ -493,9 +533,31 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { error: 'Not found.' });
 });
 
+// ── Connection tuning for 100+ concurrent users ────────────────────────────
+server.keepAliveTimeout = 65_000;   // slightly above typical LB/CDN 60s
+server.headersTimeout = 70_000;
+server.maxHeadersCount = 100;
+server.timeout = 120_000;           // 2 min for AI proxy requests
+
 server.listen(PORT, HOST, () => {
-  console.log(`AI app server listening on http://${HOST}:${PORT}`);
+  console.log(`derup server listening on http://${HOST}:${PORT} (pid ${process.pid})`);
 });
+
+// ── Graceful shutdown ───────────────────────────────────────────────────────
+const shutdown = (signal) => {
+  console.log(`\n${signal} received — shutting down gracefully...`);
+  // Stop accepting new connections
+  server.close(() => {
+    console.log('HTTP server closed.');
+    process.exit(0);
+  });
+  // Close all WebSocket clients
+  wss.clients.forEach(ws => ws.close(1001, 'Server shutting down'));
+  // Force exit after 10s if something hangs
+  setTimeout(() => { console.error('Forced exit.'); process.exit(1); }, 10_000).unref();
+};
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 const wss = new WebSocketServer({ server });
 
