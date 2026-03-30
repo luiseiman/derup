@@ -33,7 +33,17 @@ type ParsedRelationshipCommand = {
   type: 'connect-entities';
   entityA: string;
   entityB: string;
+  entityC?: string;
   relationshipName?: string;
+  cardinalityA?: '1' | 'N' | 'M';
+  cardinalityB?: '1' | 'N' | 'M';
+  cardinalityC?: '1' | 'N' | 'M';
+  totalA?: boolean;
+  totalB?: boolean;
+  totalC?: boolean;
+  roleA?: string;
+  roleB?: string;
+  roleC?: string;
   usesSelectedEntity?: boolean;
 };
 

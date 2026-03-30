@@ -2955,6 +2955,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `${ER_RAMAKRISHNAN_THEORY}\n\n` +
     `DECISION HEURISTICS (apply before choosing command type):\n` +
     `- Weak entity? → set-entity-weakness isWeak:true. NOTE: identifying relationship ≠ recursive relationship.\n` +
+    `- Ternary relationship (3 entities participate)? → connect-entities with entityA, entityB, AND entityC. Example: Professors teach Subjects on Days → entityA="Professors", entityB="Subjects", entityC="Days".\n` +
     `- Recursive/self-relationship (entity relates to itself)? → connect-entities with entityA===entityB, set roleA and roleB. This is NOT an identifying relationship.\n` +
     `- Identifying relationship? → ONLY used when connecting a WEAK entity to its STRONG owner entity.\n` +
     `- Multivalued attribute? → add the attribute first, then set-attribute-type isMultivalued:true.\n` +
@@ -2975,7 +2976,9 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `replace-attributes (entity or relationship — replaces ALL existing): {"type":"replace-attributes","entityName":"X","attributes":["a","b"],"keyAttributes":["a"]}\n` +
     `rename-entity: {"type":"rename-entity","entityName":"Old","newName":"New"}\n` +
     `rename-relationship: {"type":"rename-relationship","relationshipName":"Old","newName":"New"}\n` +
-    `connect-entities: {"type":"connect-entities","entityA":"A","entityB":"B","relationshipName":"R","cardinalityA":"1","cardinalityB":"N","totalA":false,"totalB":true,"roleA":"r1","roleB":"r2"}\n` +
+    `connect-entities (binary): {"type":"connect-entities","entityA":"A","entityB":"B","relationshipName":"R","cardinalityA":"1","cardinalityB":"N","totalA":false,"totalB":true,"roleA":"r1","roleB":"r2"}\n` +
+    `connect-entities (ternary): {"type":"connect-entities","entityA":"A","entityB":"B","entityC":"C","relationshipName":"R","cardinalityA":"N","cardinalityB":"N","cardinalityC":"N"}\n` +
+    `connect-entity-aggregation: {"type":"connect-entity-aggregation","entityName":"C","aggregationEntityA":"A","aggregationEntityB":"B","relationshipName":"monitors"}\n` +
     `set-entity-weakness: {"type":"set-entity-weakness","entityName":"X","isWeak":true}\n` +
     `set-cardinality: {"type":"set-cardinality","entityA":"A","entityB":"B","cardinalityA":"1","cardinalityB":"N"}\n` +
     `set-participation: {"type":"set-participation","entityName":"A","relationshipName":"R","isTotal":true}\n` +
@@ -3604,7 +3607,13 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       } else if (cmd.type === 'rename-entity') {
         parsed = { type: 'rename-entity', entityName: cmd.entityName, newName: cmd.newName };
       } else if (cmd.type === 'connect-entities') {
-        parsed = { type: 'connect-entities', entityA: cmd.entityA, entityB: cmd.entityB, relationshipName: cmd.relationshipName };
+        parsed = {
+          type: 'connect-entities', entityA: cmd.entityA, entityB: cmd.entityB, entityC: cmd.entityC,
+          relationshipName: cmd.relationshipName,
+          cardinalityA: cmd.cardinalityA, cardinalityB: cmd.cardinalityB, cardinalityC: cmd.cardinalityC,
+          totalA: cmd.totalA, totalB: cmd.totalB, totalC: cmd.totalC,
+          roleA: cmd.roleA, roleB: cmd.roleB, roleC: cmd.roleC,
+        };
       } else if (cmd.type === 'connect-entity-aggregation') {
         parsed = { type: 'connect-entity-aggregation', entityName: cmd.entityName, aggregationEntityA: cmd.aggregationEntityA, aggregationEntityB: cmd.aggregationEntityB, relationshipName: cmd.relationshipName };
       } else if (cmd.type === 'set-entity-weakness') {
@@ -4022,28 +4031,37 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
 
       const entityA = parsed.entityA === '__selected__' ? selectedEntity : findEntityByLabel(parsed.entityA);
       const entityB = parsed.entityB === '__selected__' ? selectedEntity : findEntityByLabel(parsed.entityB);
+      const entityC = parsed.entityC ? findEntityByLabel(parsed.entityC) : null;
 
-      if (!entityA || !entityB) {
+      const missingNames = [
+        !entityA ? parsed.entityA : null,
+        !entityB ? parsed.entityB : null,
+        entityC === null && parsed.entityC ? parsed.entityC : null,
+      ].filter(Boolean);
+
+      if (!entityA || !entityB || (parsed.entityC && !entityC)) {
         setChatMessages(prev => [
           ...prev,
           {
             id: createId(),
             role: 'assistant',
-            text: 'No encontré ambas entidades. Selecciona una entidad y prueba "vincula esta entidad con la entidad Course".'
+            text: `No encontré las entidades: ${missingNames.join(', ')}. Verificá que existan en el diagrama.`
           }
         ]);
         return;
       }
 
-      const isSelfRelationship = entityA.id === entityB.id;
+      const isSelfRelationship = !entityC && entityA.id === entityB.id;
       const relId = createId();
-      // For self-relationships, offset the relationship node so it's visible
+
+      // Position: center of all participating entities
+      const allEntities = entityC ? [entityA, entityB, entityC] : [entityA, entityB];
       const midX = isSelfRelationship
         ? entityA.position.x + 200
-        : (entityA.position.x + entityB.position.x) / 2;
+        : allEntities.reduce((s, e) => s + e.position.x, 0) / allEntities.length;
       const midY = isSelfRelationship
         ? entityA.position.y - 80
-        : (entityA.position.y + entityB.position.y) / 2;
+        : allEntities.reduce((s, e) => s + e.position.y, 0) / allEntities.length;
 
       const relationshipLabel = parsed.relationshipName ? normalizeEntityLabel(parsed.relationshipName) : 'Relación';
       const relationshipNode: ERNode = {
@@ -4059,15 +4077,30 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           id: createId(),
           sourceId: entityA.id,
           targetId: relId,
-          isTotalParticipation: false,
+          cardinality: parsed.cardinalityA,
+          isTotalParticipation: parsed.totalA ?? false,
+          role: parsed.roleA,
         },
         {
           id: createId(),
           sourceId: relId,
           targetId: entityB.id,
-          isTotalParticipation: false,
+          cardinality: parsed.cardinalityB,
+          isTotalParticipation: parsed.totalB ?? false,
+          role: parsed.roleB,
         },
       ];
+
+      if (entityC) {
+        newConnections.push({
+          id: createId(),
+          sourceId: entityC.id,
+          targetId: relId,
+          cardinality: parsed.cardinalityC,
+          isTotalParticipation: parsed.totalC ?? false,
+          role: parsed.roleC,
+        });
+      }
 
       setNodes(prev => [...prev, relationshipNode]);
       setConnections(prev => [...prev, ...newConnections]);
@@ -4075,9 +4108,10 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       setSelectedConnectionIds(new Set());
       setSelectedAggregationIds(new Set());
 
+      const entityNames = allEntities.map(e => e.label).join(', ');
       const relDesc = isSelfRelationship
         ? `Listo. Creé la autorrelación ${relationshipLabel} sobre ${entityA.label}.`
-        : `Listo. Creé la relación ${relationshipLabel} entre ${entityA.label} y ${entityB.label}.`;
+        : `Listo. Creé la relación${entityC ? ' ternaria' : ''} ${relationshipLabel} entre ${entityNames}.`;
       setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: relDesc }]);
       return;
     }
