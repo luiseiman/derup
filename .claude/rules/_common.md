@@ -43,3 +43,9 @@ Reglas tecnicas por proyecto. Las reglas de comportamiento (comunicacion, planif
 - Prompts must be compact: high information density, no filler words, no hedging
 - One instruction per line, imperative mood, no "please" or "you should consider"
 - If a rule can be expressed in fewer words without losing meaning, rewrite it shorter
+
+## Context Continuity
+
+- After completing a significant task (>3 files changed, architectural decision, complex bug fix), update `.claude/session/last-compact.md` with active restrictions and decisions that must not be lost
+- Format: `## Active Constraints\n- [what must not change and why]`
+- This file is automatically re-injected after compaction via session-restore.sh
