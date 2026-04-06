@@ -635,6 +635,52 @@ function App() {
       return { nodes: [...prunedNodes, ...newAttrNodes], connections: [...prunedConns, ...newConns], ok: true, message: `Atributos de ${parent.label} reemplazados: ${cmd.attributes.join(', ')}.` };
     }
 
+    if (cmd.type === 'add-entity') {
+      const label = normalizeEntityLabel(cmd.entityName);
+      if (curNodes.some(n => n.type === 'entity' && norm(n.label) === norm(label))) {
+        return { nodes: curNodes, connections: curConns, ok: true, message: `${label} ya existe.` };
+      }
+      let attrs = cmd.attributes?.length > 0 ? cmd.attributes : getDefaultAttributesForEntity(label);
+      const keySet = new Set((cmd.keyAttributes ?? []).map(k => norm(k)));
+      const normalizedAttrs = normalizeAttributeList(attrs, 5);
+      const { attributes: finalAttrs, keys: keyList } = ensureKeyAttribute(normalizedAttrs, cmd.keyAttributes ?? [], 5);
+      const center = getCanvasCenter();
+      const entityId = createId();
+      const entityPos = {
+        x: (center.x - offset.x) / scale + (Math.random() - 0.5) * 200,
+        y: (center.y - offset.y) / scale + (Math.random() - 0.5) * 200,
+      };
+      const entityNode: ERNode = { id: entityId, type: 'entity', position: entityPos, label, isWeak: false };
+      const occupied = curNodes.map(n => ({ type: n.type, position: n.position }));
+      const positions = placeAttributePositions(finalAttrs, entityPos, occupied);
+      const attrNodes: import('./types/er').AttributeNode[] = finalAttrs.map((a, i) => ({
+        id: createId(), type: 'attribute' as const,
+        position: positions[i] ?? { x: entityPos.x + 80 + i * 20, y: entityPos.y + 50 + i * 15 },
+        label: a, isKey: keySet.has(norm(a)) || keyList.includes(a), isMultivalued: false, isDerived: false,
+      }));
+      const attrConns: Connection[] = attrNodes.map(n => ({ id: createId(), sourceId: entityId, targetId: n.id, isTotalParticipation: false }));
+      if (!getPresetAttributesForEntity(label)) upsertPreset(label, finalAttrs);
+      return { nodes: [...curNodes, entityNode, ...attrNodes], connections: [...curConns, ...attrConns], ok: true, message: `Entidad ${label} creada con ${finalAttrs.join(', ')}.` };
+    }
+
+    if (cmd.type === 'delete-entity') {
+      const e = findNode(cmd.entityName, 'entity');
+      if (!e) return fail(`Entidad "${cmd.entityName}" no encontrada.`);
+      const connectedIds = new Set(curConns.filter(c => c.sourceId === e.id || c.targetId === e.id).map(c => c.sourceId === e.id ? c.targetId : c.sourceId));
+      const attrIds = new Set([...connectedIds].filter(id => curNodes.find(n => n.id === id)?.type === 'attribute'));
+      return { nodes: curNodes.filter(n => n.id !== e.id && !attrIds.has(n.id)), connections: curConns.filter(c => c.sourceId !== e.id && c.targetId !== e.id && !attrIds.has(c.sourceId) && !attrIds.has(c.targetId)), ok: true, message: `${e.label} eliminada.` };
+    }
+
+    if (cmd.type === 'delete-relationship') {
+      const r = findNode(cmd.relationshipName, 'relationship');
+      if (!r) return fail(`Relación "${cmd.relationshipName}" no encontrada.`);
+      return { nodes: curNodes.filter(n => n.id !== r.id), connections: curConns.filter(c => c.sourceId !== r.id && c.targetId !== r.id), ok: true, message: `${r.label} eliminada.` };
+    }
+
+    if (cmd.type === 'chat') {
+      return { nodes: curNodes, connections: curConns, ok: true, message: cmd.message };
+    }
+
     return fail(`Comando "${cmd.type}" no soportado en modo batch — ejecutalo individualmente.`);
   };
 
