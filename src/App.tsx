@@ -670,6 +670,32 @@ function App() {
       return { nodes: [...curNodes, entityNode, ...attrNodes], connections: [...curConns, ...attrConns], ok: true, message: `Entidad ${label} creada con ${finalAttrs.join(', ')}.` };
     }
 
+    if (cmd.type === 'connect-entities') {
+      const eA = findNode(cmd.entityA, 'entity');
+      const eB = findNode(cmd.entityB, 'entity');
+      const eC = cmd.entityC ? findNode(cmd.entityC, 'entity') : null;
+      if (!eA || !eB) return fail(`Entidades "${cmd.entityA}" / "${cmd.entityB}" no encontradas.`);
+      if (cmd.entityC && !eC) return fail(`Entidad "${cmd.entityC}" no encontrada.`);
+
+      const allEntities = eC ? [eA, eB, eC] : [eA, eB];
+      const midX = allEntities.reduce((s, e) => s + e.position.x, 0) / allEntities.length;
+      const midY = allEntities.reduce((s, e) => s + e.position.y, 0) / allEntities.length;
+      const relLabel = cmd.relationshipName ? normalizeEntityLabel(cmd.relationshipName) : 'Relación';
+      const relId = createId();
+      const relNode: ERNode = { id: relId, type: 'relationship', position: { x: midX, y: midY }, label: relLabel, isIdentifying: false };
+
+      const newConns: Connection[] = [
+        { id: createId(), sourceId: eA.id, targetId: relId, cardinality: cmd.cardinalityA as Connection['cardinality'], isTotalParticipation: cmd.totalA ?? false, role: cmd.roleA },
+        { id: createId(), sourceId: relId, targetId: eB.id, cardinality: cmd.cardinalityB as Connection['cardinality'], isTotalParticipation: cmd.totalB ?? false, role: cmd.roleB },
+      ];
+      if (eC) {
+        newConns.push({ id: createId(), sourceId: eC.id, targetId: relId, cardinality: cmd.cardinalityC as Connection['cardinality'], isTotalParticipation: cmd.totalC ?? false, role: cmd.roleC });
+      }
+
+      const names = allEntities.map(e => e.label).join(', ');
+      return { nodes: [...curNodes, relNode], connections: [...curConns, ...newConns], ok: true, message: `Relación${eC ? ' ternaria' : ''} ${relLabel} entre ${names}.` };
+    }
+
     if (cmd.type === 'delete-entity') {
       const e = findNode(cmd.entityName, 'entity');
       if (!e) return fail(`Entidad "${cmd.entityName}" no encontrada.`);
@@ -684,10 +710,20 @@ function App() {
       return { nodes: curNodes.filter(n => n.id !== r.id), connections: curConns.filter(c => c.sourceId !== r.id && c.targetId !== r.id), ok: true, message: `${r.label} eliminada.` };
     }
 
+    if (cmd.type === 'set-connection-role') {
+      const entity = findNode(cmd.entityName, 'entity');
+      const rel = findNode(cmd.relationshipName, 'relationship');
+      if (!entity || !rel) return fail(`No encontré "${cmd.entityName}" o "${cmd.relationshipName}".`);
+      const conn = curConns.find(c => (c.sourceId === entity.id && c.targetId === rel.id) || (c.sourceId === rel.id && c.targetId === entity.id));
+      if (!conn) return fail(`No hay conexión entre "${cmd.entityName}" y "${cmd.relationshipName}".`);
+      return { nodes: curNodes, connections: curConns.map(c => c.id === conn.id ? { ...c, role: cmd.role } : c), ok: true, message: `Rol de ${entity.label} en ${rel.label}: ${cmd.role}.` };
+    }
+
     if (cmd.type === 'chat') {
       return { nodes: curNodes, connections: curConns, ok: true, message: cmd.message };
     }
 
+    // Unsupported in batch — process individually via main flow
     return fail(`Comando "${cmd.type}" no soportado en modo batch — ejecutalo individualmente.`);
   };
 
