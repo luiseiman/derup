@@ -441,7 +441,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await getBody(req);
       const token = resolveOpenclawToken(body);
-      const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : 'openclaw';
+      const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : 'openclaw/main';
       const healthHeaders = { 'Content-Type': 'application/json' };
       if (token) healthHeaders['Authorization'] = `Bearer ${token}`;
       const response = await fetch('http://localhost:18789/v1/chat/completions', {
@@ -487,7 +487,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await getBody(req);
       const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
-      const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : 'openclaw';
+      const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : 'openclaw/main';
       const token = resolveOpenclawToken(body);
       if (!prompt) {
         sendJson(res, 400, { error: 'Missing prompt.' });
