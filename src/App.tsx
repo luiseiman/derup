@@ -1554,7 +1554,8 @@ function App() {
   const fetchAITextFromProvider = async (
     provider: AIProvider,
     prompt: string,
-    timeoutMs?: number
+    timeoutMs?: number,
+    systemPrompt?: string
   ) => {
     const requestUrl =
       provider === 'gemini'
@@ -1577,7 +1578,7 @@ function App() {
           : provider === 'grok'
             ? { prompt, model: getProviderModel(provider), apiKey: getProviderApiKey(provider) }
             : provider === 'openai'
-              ? { prompt, model: getProviderModel(provider) }
+              ? { prompt, model: getProviderModel(provider), ...(systemPrompt ? { systemPrompt } : {}) }
               : provider === 'openclaw'
                 ? { prompt, model: getProviderModel(provider) }
                 : { prompt, model: getProviderModel(provider), stream: false }
@@ -1607,10 +1608,10 @@ function App() {
       : (typeof data.response === 'string' ? data.response.trim() : '');
   };
 
-  const requestAIText = async (prompt: string, timeoutMs?: number) => {
+  const requestAIText = async (prompt: string, timeoutMs?: number, systemPrompt?: string) => {
     setLastAIFallbackFrom(null);
     const primary = aiProvider;
-    const providerOrder: AIProvider[] = [primary, ...(['gemini', 'grok', 'ollama', 'openclaw'] as AIProvider[]).filter(p => p !== primary)];
+    const providerOrder: AIProvider[] = [primary, ...(['gemini', 'grok', 'openai', 'ollama', 'openclaw'] as AIProvider[]).filter(p => p !== primary)];
 
     const isProviderConfigured = (provider: AIProvider) => {
       if (providerNeedsApiKey(provider)) return !!getProviderApiKey(provider);
@@ -1629,7 +1630,7 @@ function App() {
       if (provider !== primary && !canFallbackToProvider(provider)) continue;
       if (provider === primary && !isProviderConfigured(provider)) continue;
       try {
-        const text = await fetchAITextFromProvider(provider, prompt, timeoutMs);
+        const text = await fetchAITextFromProvider(provider, prompt, timeoutMs, systemPrompt);
         setLastAIProviderUsed(provider);
         setLastAIFallbackFrom(provider === primary ? null : primary);
         return text;
@@ -3174,7 +3175,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     return `\nConversación reciente:\n${lines}\n`;
   };
 
-  const buildAICommandPrompt = (userText: string, recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
+  const buildAISystemPrompt = (recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
     `You are the ER modeling assistant of derup. Apply Ramakrishnan & Gehrke theory strictly.\n` +
     `Respond with valid JSON only, no markdown.\n` +
     `Single operation → one JSON object: {"type":"..."}.\n` +
@@ -3245,8 +3246,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- NEVER use descriptive phrases like "own attributes of X" as an attribute name.\n` +
     `- add-attributes and replace-attributes work for BOTH entities and relationships — put the relationship name in entityName.\n` +
     `- To add attributes to a relationship (e.g. Detalle_comprobante): {"type":"add-attributes","entityName":"Detalle_comprobante","attributes":["precio","descuento","total"],"keyAttributes":[]}\n` +
-    `- To replace/fix attributes of a weak entity (e.g. remove wrong key, add correct partial key): use replace-attributes with the correct attributes and keyAttributes list.\n\n` +
-    `User: ${userText}`;
+    `- To replace/fix attributes of a weak entity (e.g. remove wrong key, add correct partial key): use replace-attributes with the correct attributes and keyAttributes list.\n`;
 
   const getSelectedEntity = () => {
     if (selectedNodeIds.size === 1) {
@@ -3601,8 +3601,13 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       setAiStatus('thinking');
       try {
         const recentHistory = chatMessages.slice(-8).map(m => ({ role: m.role, text: m.text }));
-        const prompt = buildAICommandPrompt(text, recentHistory);
-        const aiText = await requestAIText(prompt);
+        const systemPrompt = buildAISystemPrompt(recentHistory);
+        const userPrompt = `User: ${text}`;
+        // For providers that support separate instructions (ChatGPT), send systemPrompt separately
+        // For others, concatenate into a single prompt
+        const aiText = aiProvider === 'openai'
+          ? await requestAIText(userPrompt, undefined, systemPrompt)
+          : await requestAIText(systemPrompt + '\n\n' + userPrompt);
         aiResponseText = aiText ?? '';
         if (aiResponseText) {
           const batch = parseAICommandBatch(aiResponseText);
