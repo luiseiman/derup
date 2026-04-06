@@ -646,9 +646,16 @@ function App() {
       const { attributes: finalAttrs, keys: keyList } = ensureKeyAttribute(normalizedAttrs, cmd.keyAttributes ?? [], 5);
       const center = getCanvasCenter();
       const entityId = createId();
+      // Space entities in a grid layout based on existing entity count
+      const existingEntityCount = curNodes.filter(n => n.type === 'entity').length;
+      const col = existingEntityCount % 3;
+      const row = Math.floor(existingEntityCount / 3);
+      const spacing = 300;
+      const baseX = (center.x - offset.x) / scale - spacing;
+      const baseY = (center.y - offset.y) / scale - spacing / 2;
       const entityPos = {
-        x: (center.x - offset.x) / scale + (Math.random() - 0.5) * 200,
-        y: (center.y - offset.y) / scale + (Math.random() - 0.5) * 200,
+        x: baseX + col * spacing,
+        y: baseY + row * spacing,
       };
       const entityNode: ERNode = { id: entityId, type: 'entity', position: entityPos, label, isWeak: false };
       const occupied = curNodes.map(n => ({ type: n.type, position: n.position }));
