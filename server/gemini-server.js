@@ -189,6 +189,94 @@ const server = http.createServer(async (req, res) => {
     const envToken = typeof process.env.OPENCLAW_TOKEN === 'string' ? process.env.OPENCLAW_TOKEN.trim() : '';
     return requestKey || envToken;
   };
+  const resolveOpenaiApiKey = body => {
+    const requestKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
+    const envKey = typeof process.env.OPENAI_API_KEY === 'string' ? process.env.OPENAI_API_KEY.trim() : '';
+    return requestKey || envKey;
+  };
+
+  // ── ChatGPT OAuth token manager ──────────────────────────────────────────
+  const CHATGPT_API_URL = 'https://chatgpt.com/backend-api/codex/responses';
+  const CHATGPT_MODEL = 'gpt-5.4';
+  const OAUTH_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
+  const OAUTH_TOKEN_URL = 'https://auth.openai.com/oauth/token';
+  const OAUTH_TOKEN_FILE = path.join(process.cwd(), '.oauth-tokens.json');
+  const OAUTH_REFRESH_BUFFER_MS = 60_000;
+
+  function decodeJwtPayload(token) {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    try { return JSON.parse(Buffer.from(parts[1], 'base64url').toString()); }
+    catch { return null; }
+  }
+
+  function readOAuthTokens() {
+    try { return JSON.parse(fs.readFileSync(OAUTH_TOKEN_FILE, 'utf-8')); }
+    catch { return null; }
+  }
+
+  function saveOAuthTokens(tokens) {
+    fs.writeFileSync(OAUTH_TOKEN_FILE, JSON.stringify(tokens, null, 2));
+  }
+
+  async function refreshOAuthTokens(tokens) {
+    const res = await fetch(OAUTH_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: tokens.refresh_token,
+        client_id: OAUTH_CLIENT_ID,
+      }),
+    });
+    if (!res.ok) throw new Error(`Token refresh failed (${res.status})`);
+    const json = await res.json();
+    if (!json.access_token || !json.refresh_token) throw new Error('Token refresh incomplete');
+    const payload = decodeJwtPayload(json.access_token);
+    const auth = payload?.['https://api.openai.com/auth'];
+    const updated = {
+      access_token: json.access_token,
+      refresh_token: json.refresh_token,
+      expires_at: Date.now() + (json.expires_in ?? 3600) * 1000,
+      account_id: auth?.chatgpt_account_id ?? tokens.account_id,
+      email: tokens.email,
+      updated_at: new Date().toISOString(),
+    };
+    saveOAuthTokens(updated);
+    return updated;
+  }
+
+  async function getOAuthCredentials() {
+    let tokens = readOAuthTokens();
+    if (!tokens) return null;
+    if (Date.now() >= tokens.expires_at - OAUTH_REFRESH_BUFFER_MS) {
+      try { tokens = await refreshOAuthTokens(tokens); }
+      catch (err) {
+        console.error('[oauth] Refresh failed:', err.message);
+        if (Date.now() >= tokens.expires_at) return null;
+      }
+    }
+    return { accessToken: tokens.access_token, accountId: tokens.account_id };
+  }
+
+  async function parseChatGPTSSE(response) {
+    const text = await response.text();
+    let result = '';
+    for (const line of text.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') break;
+      try {
+        const event = JSON.parse(data);
+        if (event.type === 'response.output_text.delta' && event.delta) result += event.delta;
+        if (event.type === 'response.content_part.delta' && event.delta?.text) result += event.delta.text;
+        if (event.type === 'error' || event.type === 'response.failed') {
+          throw new Error(event.error?.message ?? 'ChatGPT error');
+        }
+      } catch (e) { if (e.message === 'ChatGPT error') throw e; }
+    }
+    return result;
+  }
 
   const parseJsonResponse = async (response, fallbackMessage) => {
     const rawText = await response.text();
@@ -240,6 +328,26 @@ const server = http.createServer(async (req, res) => {
       ? data.data
         .map(model => (typeof model?.id === 'string' ? model.id : ''))
         .filter(Boolean)
+      : [];
+    return { ok: true, status: 200, models };
+  };
+
+  const fetchOpenaiModels = async apiKey => {
+    const response = await fetch('https://api.openai.com/v1/models', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+    const data = await parseJsonResponse(response, 'Respuesta no JSON desde OpenAI.');
+    if (!response.ok) {
+      return { ok: false, status: response.status, data };
+    }
+    const models = Array.isArray(data?.data)
+      ? data.data
+        .map(model => (typeof model?.id === 'string' ? model.id : ''))
+        .filter(id => id.startsWith('gpt'))
+        .sort()
       : [];
     return { ok: true, status: 200, models };
   };
@@ -521,6 +629,72 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, { text });
     } catch (error) {
       sendJson(res, 500, { error: `Server error in /api/openclaw: ${normalizeError(error)}` });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/openai/models') {
+    // ChatGPT OAuth: return fixed model
+    const creds = await getOAuthCredentials();
+    if (!creds) {
+      sendJson(res, 401, { error: 'OAuth no configurado. Ejecutá: node scripts/openai-oauth-login.mjs' });
+      return;
+    }
+    sendJson(res, 200, { models: [CHATGPT_MODEL] });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/openai') {
+    try {
+      const body = await getBody(req);
+      const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+      if (!prompt) {
+        sendJson(res, 400, { error: 'Missing prompt.' });
+        return;
+      }
+
+      const creds = await getOAuthCredentials();
+      if (!creds) {
+        sendJson(res, 401, { error: 'OAuth no configurado. Ejecutá: node scripts/openai-oauth-login.mjs' });
+        return;
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${creds.accessToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        'OpenAI-Beta': 'responses=experimental',
+      };
+      if (creds.accountId) headers['chatgpt-account-id'] = creds.accountId;
+
+      const systemPrompt = typeof body.systemPrompt === 'string' && body.systemPrompt.trim()
+        ? body.systemPrompt.trim() : undefined;
+
+      const requestBody = {
+        model: CHATGPT_MODEL,
+        stream: true,
+        store: false,
+        ...(systemPrompt ? { instructions: systemPrompt } : {}),
+        input: [{ role: 'user', content: prompt }],
+        reasoning: { effort: 'high' },
+      };
+
+      const response = await fetch(CHATGPT_API_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        sendJson(res, response.status, { error: `ChatGPT API error (${response.status}): ${errText.slice(0, 300)}` });
+        return;
+      }
+
+      const text = await parseChatGPTSSE(response);
+      sendJson(res, 200, { text });
+    } catch (error) {
+      sendJson(res, 500, { error: `Server error in /api/openai: ${normalizeError(error)}` });
     }
     return;
   }

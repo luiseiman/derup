@@ -18,7 +18,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { generateDiagramSVG, svgToPng, downloadDataUrl } from './utils/exportSVG';
 
-type AIProvider = 'gemini' | 'grok' | 'ollama' | 'openclaw';
+type AIProvider = 'gemini' | 'grok' | 'ollama' | 'openclaw' | 'openai';
 type AIConnectivityStatus = 'unknown' | 'checking' | 'connected' | 'disconnected' | 'missing-key';
 
 /**
@@ -115,8 +115,8 @@ function App() {
   const chatInputRef = useRef<HTMLInputElement>(null);
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string }>>([]);
   const [aiEnabled, setAiEnabled] = useState(true);
-  const [aiProvider, setAiProvider] = useState<AIProvider>('openclaw');
-  const [aiModel, setAiModel] = useState('openclaw/main');
+  const [aiProvider, setAiProvider] = useState<AIProvider>('openai');
+  const [aiModel, setAiModel] = useState('gpt-5.4');
   const [geminiModels, setGeminiModels] = useState<string[]>([]);
   const [grokModels, setGrokModels] = useState<string[]>([]);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
@@ -125,22 +125,27 @@ function App() {
   const [aiThinkingSeconds, setAiThinkingSeconds] = useState(0);
   const [geminiApiKey, setGeminiApiKey] = useLocalStorage('gemini_api_key', '');
   const [grokApiKey, setGrokApiKey] = useLocalStorage('grok_api_key', '');
+  // OpenAI uses server-side OAuth — no client API key needed
+  const [openaiModels, setOpenaiModels] = useState<string[]>([]);
   const [aiConnectivity, setAiConnectivity] = useState<{
     gemini: AIConnectivityStatus;
     grok: AIConnectivityStatus;
     ollama: AIConnectivityStatus;
     openclaw: AIConnectivityStatus;
+    openai: AIConnectivityStatus;
   }>({
     gemini: 'unknown',
     grok: 'unknown',
     ollama: 'unknown',
     openclaw: 'unknown',
+    openai: 'unknown',
   });
-  const [aiConnectivityReason, setAiConnectivityReason] = useState<{ gemini: string; grok: string; ollama: string; openclaw: string }>({
+  const [aiConnectivityReason, setAiConnectivityReason] = useState<{ gemini: string; grok: string; ollama: string; openclaw: string; openai: string }>({
     gemini: '',
     grok: '',
     ollama: '',
     openclaw: '',
+    openai: '',
   });
   const [lastAIProviderUsed, setLastAIProviderUsed] = useState<AIProvider | null>(null);
   const [lastAIFallbackFrom, setLastAIFallbackFrom] = useState<AIProvider | null>(null);
@@ -1234,6 +1239,47 @@ function App() {
     }
   };
 
+  const checkOpenaiHealth = async () => {
+    setAiConnectivity(prev => ({ ...prev, openai: 'checking' }));
+    setAiConnectivityReason(prev => ({ ...prev, openai: 'Verificando conexión con OpenAI...' }));
+    try {
+      const response = await fetchWithTimeout('/api/openai/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }, 2000);
+      if (response.ok) {
+        const data = await response.json() as { models?: string[] };
+        const models = Array.isArray(data?.models)
+          ? data.models.filter(model => typeof model === 'string' && model.trim().length > 0)
+          : [];
+        setOpenaiModels(models);
+        setAiConnectivity(prev => ({ ...prev, openai: 'connected' }));
+        setAiConnectivityReason(prev => ({
+          ...prev,
+          openai: models.length > 0
+            ? `Modelos detectados: ${models.slice(0, 3).join(', ')}${models.length > 3 ? '...' : ''}`
+            : 'Conectada, pero no se detectaron modelos compatibles.',
+        }));
+        return;
+      }
+      if (response.status === 401) {
+        setAiConnectivity(prev => ({ ...prev, openai: 'missing-key' }));
+        setOpenaiModels([]);
+        setAiConnectivityReason(prev => ({ ...prev, openai: 'OAuth no configurado. Ejecutá: node scripts/openai-oauth-login.mjs' }));
+        return;
+      }
+      const reason = await readApiErrorMessage(response, `OpenAI devolvió HTTP ${response.status}.`);
+      setAiConnectivity(prev => ({ ...prev, openai: 'disconnected' }));
+      setOpenaiModels([]);
+      setAiConnectivityReason(prev => ({ ...prev, openai: reason }));
+    } catch {
+      setAiConnectivity(prev => ({ ...prev, openai: 'disconnected' }));
+      setOpenaiModels([]);
+      setAiConnectivityReason(prev => ({ ...prev, openai: 'No se pudo conectar al proxy local de OpenAI.' }));
+    }
+  };
+
   const checkOllamaHealth = async () => {
     setAiConnectivity(prev => ({ ...prev, ollama: 'checking' }));
     setAiConnectivityReason(prev => ({ ...prev, ollama: 'Verificando conexión con Ollama...' }));
@@ -1334,10 +1380,19 @@ function App() {
   }, [aiProvider, aiModel, grokModels]);
 
   useEffect(() => {
+    if (aiProvider !== 'openai') return;
+    if (openaiModels.length === 0) return;
+    if (openaiModels.includes(aiModel)) return;
+    const preferred = ['gpt-4o', 'gpt-4-turbo', 'gpt-4'];
+    const nextModel = preferred.find(model => openaiModels.includes(model)) ?? openaiModels[0];
+    setAiModel(nextModel);
+  }, [aiProvider, aiModel, openaiModels]);
+
+  useEffect(() => {
     let active = true;
     const runChecks = async () => {
       if (!active) return;
-      await Promise.all([checkGeminiHealth(), checkGrokHealth(), checkOllamaHealth(), checkOpenclawHealth()]);
+      await Promise.all([checkGeminiHealth(), checkGrokHealth(), checkOpenaiHealth(), checkOllamaHealth(), checkOpenclawHealth()]);
     };
 
     runChecks();
@@ -1347,7 +1402,7 @@ function App() {
   }, [geminiApiKey, grokApiKey]);
 
   const getProviderLabel = (provider: AIProvider) =>
-    provider === 'gemini' ? 'Gemini' : provider === 'grok' ? 'Grok' : provider === 'ollama' ? 'Ollama' : 'OpenClaw';
+    provider === 'gemini' ? 'Gemini' : provider === 'grok' ? 'Grok' : provider === 'ollama' ? 'Ollama' : provider === 'openai' ? 'OpenAI' : 'OpenClaw';
 
   const getStatusLabel = (provider: AIProvider, status: AIConnectivityStatus) => {
     if (status === 'checking') return 'Comprobando';
@@ -1402,9 +1457,11 @@ function App() {
         ? '/api/gemini'
         : provider === 'grok'
           ? '/api/grok'
-          : provider === 'openclaw'
-            ? '/api/openclaw'
-            : '/api/ollama/generate';
+          : provider === 'openai'
+            ? '/api/openai'
+            : provider === 'openclaw'
+              ? '/api/openclaw'
+              : '/api/ollama/generate';
     const requestInit: RequestInit = {
       method: 'POST',
       headers: {
@@ -1415,9 +1472,11 @@ function App() {
           ? { prompt, model: getProviderModel(provider), apiKey: getProviderApiKey(provider) }
           : provider === 'grok'
             ? { prompt, model: getProviderModel(provider), apiKey: getProviderApiKey(provider) }
-            : provider === 'openclaw'
+            : provider === 'openai'
               ? { prompt, model: getProviderModel(provider) }
-              : { prompt, model: getProviderModel(provider), stream: false }
+              : provider === 'openclaw'
+                ? { prompt, model: getProviderModel(provider) }
+                : { prompt, model: getProviderModel(provider), stream: false }
       ),
     };
 
@@ -1439,7 +1498,7 @@ function App() {
     }
 
     const data = await response.json();
-    return provider === 'gemini' || provider === 'grok' || provider === 'openclaw'
+    return provider === 'gemini' || provider === 'grok' || provider === 'openai' || provider === 'openclaw'
       ? (typeof data.text === 'string' ? data.text.trim() : '')
       : (typeof data.response === 'string' ? data.response.trim() : '');
   };
@@ -4691,20 +4750,23 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
                   onChange={e => {
                     const provider = e.target.value as AIProvider;
                     setAiProvider(provider);
-                    if (provider === 'gemini') {
+                    if (provider === 'openai') {
+                      setAiModel('gpt-5.4');
+                    } else if (provider === 'gemini') {
                       const preferred = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
                       setAiModel(preferred.find(model => geminiModels.includes(model)) ?? geminiModels[0] ?? 'gemini-2.5-pro');
                     } else if (provider === 'grok') {
                       const preferred = ['grok-4-fast', 'grok-3-mini', 'grok-2-latest'];
                       setAiModel(preferred.find(model => grokModels.includes(model)) ?? grokModels[0] ?? 'grok-3-mini');
                     } else if (provider === 'openclaw') {
-                      setAiModel(openclawModels[0] || 'openai-codex/gpt-5.4');
+                      setAiModel(openclawModels[0] || 'openclaw/main');
                     } else {
                       setAiModel(ollamaModels[0] || 'gemma3');
                     }
                   }}
                   disabled={!aiEnabled}
                 >
+                  <option value="openai">ChatGPT (OAuth)</option>
                   <option value="gemini">Gemini</option>
                   <option value="grok">Grok</option>
                   <option value="ollama">Ollama</option>

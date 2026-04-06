@@ -33,3 +33,4 @@ dist-ssr
 # Claude Code — local-only (may contain private IPs, SSH paths, tokens)
 .claude/settings.local.json
 .claude/agent-memory/
+.oauth-tokens.json
