@@ -3279,7 +3279,15 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- Derived attribute? → add the attribute first, then set-attribute-type isDerived:true.\n` +
     `- ISA? → create-isa with isDisjoint and isTotal determined by R&G overlap/covering rules above.\n` +
     `- Aggregation? → connect-entity-aggregation with the base relationship's two member entities.\n` +
-    `- Cardinality ambiguous? → default M:N ("N","N"); adjust only when text clearly implies constraint.\n\n` +
+    `- Cardinality ambiguous? → default M:N ("N","N"); adjust only when text clearly implies constraint.\n` +
+    `- "restricción de clave" / "key constraint" on entity X → set-cardinality with "1" on X's side. Means each X participates in at most one relationship instance (arrow). NEVER interpret as replacing attributes.\n` +
+    `- "participación total" / "total participation" of entity X → set-participation isTotal:true (double/thick line). Means EVERY instance of X must participate.\n` +
+    `- "entidad débil" / "weak entity" X → set-entity-weakness isWeak:true. Requires identifying relationship to owner.\n` +
+    `- "marcar como clave" / "hacer clave" attribute A of X → set-attribute-type isKey:true.\n` +
+    `- "atributo multivaluado" / "multivalued" A of X → set-attribute-type isMultivalued:true.\n` +
+    `- "atributo derivado" / "derived" A of X → set-attribute-type isDerived:true.\n` +
+    `- "cardinalidad 1:N" between X and Y → set-cardinality entityA=X entityB=Y cardinalityA="1" cardinalityB="N".\n` +
+    `- "rol" of X in R → set-connection-role entityName=X relationshipName=R role="the role".\n\n` +
     (buildModelingHintsBlock() ? `LEARNED RULES (from past modeling errors — never repeat these):\n${buildModelingHintsBlock()}\n` : '') +
     `Current diagram state:\n${buildDiagramContext()}\n` +
     (lastScenarioText
