@@ -668,13 +668,13 @@ const server = http.createServer(async (req, res) => {
       if (creds.accountId) headers['chatgpt-account-id'] = creds.accountId;
 
       const systemPrompt = typeof body.systemPrompt === 'string' && body.systemPrompt.trim()
-        ? body.systemPrompt.trim() : undefined;
+        ? body.systemPrompt.trim() : 'You are an ER modeling assistant. Respond with valid JSON only.';
 
       const requestBody = {
         model: CHATGPT_MODEL,
         stream: true,
         store: false,
-        ...(systemPrompt ? { instructions: systemPrompt } : {}),
+        instructions: systemPrompt,
         input: [{ role: 'user', content: prompt }],
         reasoning: { effort: 'high' },
       };
