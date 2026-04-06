@@ -3557,12 +3557,45 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
 
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data) as { type: string; nodes?: ERNode[]; connections?: Connection[]; aggregations?: Aggregation[] };
-      if (msg.type === 'update' || (msg.type === 'state' && !asOwner)) {
+      if (msg.type === 'state' && !asOwner) {
+        // Initial state from server — full replace
         isSyncingRef.current = true;
         if (Array.isArray(msg.nodes)) setNodes(msg.nodes);
         if (Array.isArray(msg.connections)) setConnections(msg.connections);
         if (Array.isArray(msg.aggregations)) setAggregations(msg.aggregations);
-        setTimeout(() => { isSyncingRef.current = false; }, 0);
+        setTimeout(() => { isSyncingRef.current = false; }, 50);
+      } else if (msg.type === 'update') {
+        // Incremental merge — don't overwrite local edits
+        isSyncingRef.current = true;
+        if (Array.isArray(msg.nodes)) {
+          setNodes(prev => {
+            const remoteById = new Map(msg.nodes!.map(n => [n.id, n]));
+            const localIds = new Set(prev.map(n => n.id));
+            // Keep local nodes, update with remote changes, add new remote nodes
+            const merged = prev.map(n => remoteById.get(n.id) ?? n);
+            // Add nodes that exist remotely but not locally
+            for (const rn of msg.nodes!) {
+              if (!localIds.has(rn.id)) merged.push(rn);
+            }
+            // Remove nodes that were deleted remotely
+            const remoteIds = new Set(msg.nodes!.map(n => n.id));
+            return merged.filter(n => remoteIds.has(n.id) || !localIds.has(n.id));
+          });
+        }
+        if (Array.isArray(msg.connections)) {
+          setConnections(prev => {
+            const remoteById = new Map(msg.connections!.map(c => [c.id, c]));
+            const localIds = new Set(prev.map(c => c.id));
+            const merged = prev.map(c => remoteById.get(c.id) ?? c);
+            for (const rc of msg.connections!) {
+              if (!localIds.has(rc.id)) merged.push(rc);
+            }
+            const remoteIds = new Set(msg.connections!.map(c => c.id));
+            return merged.filter(c => remoteIds.has(c.id) || !localIds.has(c.id));
+          });
+        }
+        if (Array.isArray(msg.aggregations)) setAggregations(msg.aggregations!);
+        setTimeout(() => { isSyncingRef.current = false; }, 50);
       }
     };
 
@@ -3596,10 +3629,10 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     if (isSyncingRef.current) return;
     if (sendUpdateDebounceRef.current) clearTimeout(sendUpdateDebounceRef.current);
     sendUpdateDebounceRef.current = window.setTimeout(() => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
+      if (wsRef.current?.readyState === WebSocket.OPEN && !isSyncingRef.current) {
         wsRef.current.send(JSON.stringify({ type: 'update', nodes, connections, aggregations }));
       }
-    }, 150);
+    }, 300);
   }, [nodes, connections, aggregations, roomId]);
 
   const handleChatSubmit = async () => {
