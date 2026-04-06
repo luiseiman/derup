@@ -17,7 +17,7 @@ export const AttributeShape: React.FC<AttributeProps> = memo(({ node, selected, 
     return (
         <div
             style={{
-                width, height, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab',
+                width, height, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab', userSelect: 'none',
                 filter: selected ? 'drop-shadow(0 0 5px #9333ea) drop-shadow(0 0 12px rgba(147,51,234,0.45))' : undefined,
                 zIndex: selected ? 10 : undefined,
             }}

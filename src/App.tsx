@@ -694,11 +694,6 @@ function App() {
   };
 
   const handleNodeClick = (id: string, multi: boolean) => {
-    // In multi-select mode, skip attribute nodes — only entities, relationships, and ISA are selectable
-    if (multi) {
-      const clickedNode = nodes.find(n => n.id === id);
-      if (clickedNode?.type === 'attribute') return;
-    }
     setSelectedNodeIds(prev => {
       const newSet = new Set(multi ? prev : []);
       if (newSet.has(id)) {
