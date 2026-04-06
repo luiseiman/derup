@@ -286,19 +286,28 @@ function App() {
 
   const canConnectSelection = useMemo(() => {
     const connectableIds = Array.from(new Set([...selectedNodeIds, ...selectedAggregationIds]));
-    if (connectableIds.length !== 2) return false;
-    const [id1, id2] = connectableIds;
+    if (connectableIds.length < 2) return false;
 
-    const isAgg1 = selectedAggregationIds.has(id1);
-    const isAgg2 = selectedAggregationIds.has(id2);
-    if (isAgg1 && isAgg2) return false;
-
-    if (isAgg1 || isAgg2) {
-      const nonAggId = isAgg1 ? id2 : id1;
-      const nonAggNode = nodes.find(n => n.id === nonAggId);
-      return !!nonAggNode && nonAggNode.type === 'relationship';
+    // Case: exactly 2 items (original behavior + aggregation support)
+    if (connectableIds.length === 2) {
+      const [id1, id2] = connectableIds;
+      const isAgg1 = selectedAggregationIds.has(id1);
+      const isAgg2 = selectedAggregationIds.has(id2);
+      if (isAgg1 && isAgg2) return false;
+      if (isAgg1 || isAgg2) {
+        const nonAggId = isAgg1 ? id2 : id1;
+        const nonAggNode = nodes.find(n => n.id === nonAggId);
+        return !!nonAggNode && nonAggNode.type === 'relationship';
+      }
+      return true;
     }
-    return true;
+
+    // Case: 3+ items — must be exactly 1 relationship + N entities
+    const selectedNodes = connectableIds.map(id => nodes.find(n => n.id === id)).filter(Boolean);
+    const relationships = selectedNodes.filter(n => n!.type === 'relationship');
+    const entities = selectedNodes.filter(n => n!.type === 'entity');
+    return relationships.length === 1 && entities.length >= 1
+      && relationships.length + entities.length === selectedNodes.length;
   }, [nodes, selectedAggregationIds, selectedNodeIds]);
 
   useEffect(() => {
@@ -685,6 +694,11 @@ function App() {
   };
 
   const handleNodeClick = (id: string, multi: boolean) => {
+    // In multi-select mode, skip attribute nodes — only entities, relationships, and ISA are selectable
+    if (multi) {
+      const clickedNode = nodes.find(n => n.id === id);
+      if (clickedNode?.type === 'attribute') return;
+    }
     setSelectedNodeIds(prev => {
       const newSet = new Set(multi ? prev : []);
       if (newSet.has(id)) {
@@ -800,7 +814,35 @@ function App() {
 
   const connectSelected = () => {
     const connectableIds = Array.from(new Set([...selectedNodeIds, ...selectedAggregationIds]));
-    if (connectableIds.length !== 2) return;
+    if (connectableIds.length < 2) return;
+
+    // Multi-connect: N entities + 1 relationship → connect each entity to the relationship
+    if (connectableIds.length > 2) {
+      const selectedNodes = connectableIds.map(id => nodes.find(n => n.id === id)).filter(Boolean);
+      const rel = selectedNodes.find(n => n!.type === 'relationship');
+      const entities = selectedNodes.filter(n => n!.type === 'entity');
+      if (!rel || entities.length === 0) return;
+
+      const newConns: Connection[] = [];
+      for (const entity of entities) {
+        const alreadyConnected = connections.some(c =>
+          (c.sourceId === entity!.id && c.targetId === rel.id) ||
+          (c.sourceId === rel.id && c.targetId === entity!.id)
+        );
+        if (!alreadyConnected) {
+          newConns.push({
+            id: createId(),
+            sourceId: entity!.id,
+            targetId: rel.id,
+            isTotalParticipation: false,
+          });
+        }
+      }
+      if (newConns.length > 0) setConnections([...connections, ...newConns]);
+      return;
+    }
+
+    // Original 2-item connect
     const [id1, id2] = connectableIds;
 
     const isAgg1 = selectedAggregationIds.has(id1);
