@@ -302,12 +302,12 @@ function App() {
       return true;
     }
 
-    // Case: 3+ items — must be exactly 1 relationship + N entities
+    // Case: 3+ items — must be exactly 1 relationship/ISA + N entities
     const selectedNodes = connectableIds.map(id => nodes.find(n => n.id === id)).filter(Boolean);
-    const relationships = selectedNodes.filter(n => n!.type === 'relationship');
+    const hubs = selectedNodes.filter(n => n!.type === 'relationship' || n!.type === 'isa');
     const entities = selectedNodes.filter(n => n!.type === 'entity');
-    return relationships.length === 1 && entities.length >= 1
-      && relationships.length + entities.length === selectedNodes.length;
+    return hubs.length === 1 && entities.length >= 1
+      && hubs.length + entities.length === selectedNodes.length;
   }, [nodes, selectedAggregationIds, selectedNodeIds]);
 
   useEffect(() => {
@@ -811,24 +811,24 @@ function App() {
     const connectableIds = Array.from(new Set([...selectedNodeIds, ...selectedAggregationIds]));
     if (connectableIds.length < 2) return;
 
-    // Multi-connect: N entities + 1 relationship → connect each entity to the relationship
+    // Multi-connect: N entities + 1 relationship/ISA → connect each entity to it
     if (connectableIds.length > 2) {
       const selectedNodes = connectableIds.map(id => nodes.find(n => n.id === id)).filter(Boolean);
-      const rel = selectedNodes.find(n => n!.type === 'relationship');
+      const hub = selectedNodes.find(n => n!.type === 'relationship' || n!.type === 'isa');
       const entities = selectedNodes.filter(n => n!.type === 'entity');
-      if (!rel || entities.length === 0) return;
+      if (!hub || entities.length === 0) return;
 
       const newConns: Connection[] = [];
       for (const entity of entities) {
         const alreadyConnected = connections.some(c =>
-          (c.sourceId === entity!.id && c.targetId === rel.id) ||
-          (c.sourceId === rel.id && c.targetId === entity!.id)
+          (c.sourceId === entity!.id && c.targetId === hub.id) ||
+          (c.sourceId === hub.id && c.targetId === entity!.id)
         );
         if (!alreadyConnected) {
           newConns.push({
             id: createId(),
             sourceId: entity!.id,
-            targetId: rel.id,
+            targetId: hub.id,
             isTotalParticipation: false,
           });
         }
