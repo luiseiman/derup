@@ -116,7 +116,7 @@ function App() {
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; text: string }>>([]);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [aiProvider, setAiProvider] = useState<AIProvider>('openclaw');
-  const [aiModel, setAiModel] = useState('openai-codex/gpt-5.4');
+  const [aiModel, setAiModel] = useState('openclaw');
   const [geminiModels, setGeminiModels] = useState<string[]>([]);
   const [grokModels, setGrokModels] = useState<string[]>([]);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
