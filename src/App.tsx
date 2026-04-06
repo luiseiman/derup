@@ -4322,7 +4322,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
             {
               id: 'box-select',
               label: selectionMode ? 'Select ON' : 'Select',
-              icon: '⬚',
+              icon: '□',
               action: () => setSelectionMode(prev => !prev),
               active: selectionMode,
             },

@@ -1057,7 +1057,7 @@ const Canvas: React.FC<CanvasProps> = ({
 
     return (
         <div
-            className="canvas-wrapper"
+            className={`canvas-wrapper${selectionMode ? ' selection-mode' : ''}`}
             ref={canvasRef}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -1065,7 +1065,6 @@ const Canvas: React.FC<CanvasProps> = ({
             onMouseLeave={() => { setIsPanning(false); setDraggedNodeId(null); setDraggedAggregationId(null); setIsSelecting(false); setIsDrag(false); }}
             onWheel={handleWheel}
             onContextMenu={handleCanvasContextMenu}
-            style={selectionMode ? { cursor: 'crosshair' } : undefined}
         >
             <div className="canvas-content" style={transformStyle}>
                 <svg

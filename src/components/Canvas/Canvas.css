@@ -25,6 +25,14 @@
   cursor: grabbing;
 }
 
+.canvas-wrapper.selection-mode {
+  cursor: crosshair !important;
+}
+
+.canvas-wrapper.selection-mode:active {
+  cursor: crosshair !important;
+}
+
 .canvas-wrapper:hover {
   background-color: rgba(248, 246, 255, 0.97);
 }
