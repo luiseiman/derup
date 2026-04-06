@@ -3647,9 +3647,30 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
 
       setAiStatus('thinking');
       try {
+        // Pre-process: resolve entity/relationship references to actual diagram names
+        const resolvedText = (() => {
+          let t = text;
+          const entityNames = nodes.filter(n => n.type === 'entity').map(n => n.label);
+          const relNames = nodes.filter(n => n.type === 'relationship').map(n => n.label);
+          // Replace "las N entidades existentes", "las entidades", "todas las entidades", "entre ellas"
+          const entityRefPattern = /(?:las\s+(?:\d+\s+)?entidades?\s*(?:existentes?|del\s+diagrama|actuales)?|todas\s+las\s+entidades|entre\s+ellas)/gi;
+          if (entityRefPattern.test(t) && entityNames.length > 0) {
+            const nameList = entityNames.length === 2
+              ? entityNames.join(' y ')
+              : entityNames.slice(0, -1).join(', ') + ' y ' + entityNames[entityNames.length - 1];
+            t = t.replace(entityRefPattern, nameList);
+          }
+          // Replace "las relaciones existentes"
+          const relRefPattern = /(?:las\s+(?:\d+\s+)?relaciones?\s*(?:existentes?|del\s+diagrama|actuales)?)/gi;
+          if (relRefPattern.test(t) && relNames.length > 0) {
+            t = t.replace(relRefPattern, relNames.join(', '));
+          }
+          return t;
+        })();
+
         const recentHistory = chatMessages.slice(-8).map(m => ({ role: m.role, text: m.text }));
         const systemPrompt = buildAISystemPrompt(recentHistory);
-        const userPrompt = `User: ${text}`;
+        const userPrompt = `User: ${resolvedText}`;
         // For providers that support separate instructions (ChatGPT), send systemPrompt separately
         // For others, concatenate into a single prompt
         const aiText = aiProvider === 'openai'
@@ -4902,10 +4923,12 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
                   </ul>
                 )}
               </div>
-              <button onClick={handleChatSubmit} className="primary-button">Enviar</button>
-              {chatMessages.length > 0 && (
-                <button onClick={() => setChatMessages([])} className="chat-clear-btn" title="Limpiar chat">✕</button>
-              )}
+              <div className="chat-input-actions">
+                <button onClick={handleChatSubmit} className="primary-button">Enviar</button>
+                {chatMessages.length > 0 && (
+                  <button onClick={() => setChatMessages([])} className="chat-clear-btn" title="Limpiar chat">✕</button>
+                )}
+              </div>
             </div>
           </div>
           )}
