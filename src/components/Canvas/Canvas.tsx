@@ -424,8 +424,9 @@ const Canvas: React.FC<CanvasProps> = ({
             const myIndex = pairIndex[key]++;
 
             // Determine Arrow Direction for Key Constraint ('1')
-            let markerStart = undefined;
-            let markerEnd = undefined;
+            // Arrow points FROM entity TOWARD relationship (arrowhead at relationship end)
+            let arrowAtStart = false; // arrow at source (relationship) end
+            let arrowAtEnd = false;   // arrow at target (relationship) end
 
             if (conn.cardinality === '1') {
                 const sourceRole = sourceNode?.type === 'relationship'
@@ -443,12 +444,10 @@ const Canvas: React.FC<CanvasProps> = ({
                             ? 'entity'
                             : 'other';
 
-                // Use curve-specific markers for duplicate connections
-                const prefix = isDuplicate ? 'arrow-curve' : 'arrow-head';
                 if (sourceRole === 'relationship' && targetRole === 'entity') {
-                    markerStart = isSelected ? `url(#${prefix}-blue)` : `url(#${prefix})`;
+                    arrowAtStart = true;
                 } else if (sourceRole === 'entity' && targetRole === 'relationship') {
-                    markerEnd = isSelected ? `url(#${prefix}-blue)` : `url(#${prefix})`;
+                    arrowAtEnd = true;
                 }
             }
 
@@ -516,9 +515,28 @@ const Canvas: React.FC<CanvasProps> = ({
                             strokeWidth={isSelected ? (conn.isTotalParticipation ? 6 : 4) : (conn.isTotalParticipation ? 4 : 2)}
                             fill="none"
                             filter={isSelected ? "url(#sel-glow)" : undefined}
-                            markerStart={markerStart}
-                            markerEnd={markerEnd}
                         />
+                        {/* Arrow for key constraint (cardinality=1) on curved path */}
+                        {arrowAtStart && (() => {
+                            // Tangent at curve start: control - start
+                            const tdx = cx - osx, tdy = cy - osy;
+                            const tlen = Math.sqrt(tdx * tdx + tdy * tdy) || 1;
+                            const udx = tdx / tlen, udy = tdy / tlen;
+                            const aLen = 16, aHalf = 6;
+                            const bx = osx + udx * aLen, by = osy + udy * aLen;
+                            const ppx = -udy, ppy = udx;
+                            return <polygon points={`${osx},${osy} ${bx + ppx * aHalf},${by + ppy * aHalf} ${bx - ppx * aHalf},${by - ppy * aHalf}`} fill={isSelected ? "var(--accent)" : "#0f172a"} />;
+                        })()}
+                        {arrowAtEnd && (() => {
+                            // Tangent at curve end: end - control
+                            const tdx = otx - cx, tdy = oty - cy;
+                            const tlen = Math.sqrt(tdx * tdx + tdy * tdy) || 1;
+                            const udx = tdx / tlen, udy = tdy / tlen;
+                            const aLen = 16, aHalf = 6;
+                            const bx = otx - udx * aLen, by = oty - udy * aLen;
+                            const ppx = -udy, ppy = udx;
+                            return <polygon points={`${otx},${oty} ${bx + ppx * aHalf},${by + ppy * aHalf} ${bx - ppx * aHalf},${by - ppy * aHalf}`} fill={isSelected ? "var(--accent)" : "#0f172a"} />;
+                        })()}
                         {/* Cardinality Label */}
                         {conn.cardinality && (
                         <text
@@ -578,9 +596,23 @@ const Canvas: React.FC<CanvasProps> = ({
                         stroke={isSelected ? "var(--accent)" : "#0f172a"}
                         strokeWidth={isSelected ? (conn.isTotalParticipation ? 6 : 4) : (conn.isTotalParticipation ? 4 : 2)}
                         filter={isSelected ? "url(#sel-glow)" : undefined}
-                        markerStart={markerStart}
-                        markerEnd={markerEnd}
                     />
+                    {/* Arrow for key constraint (cardinality=1) */}
+                    {(arrowAtStart || arrowAtEnd) && (() => {
+                        const ldx = tx - sx, ldy = ty - sy;
+                        const llen = Math.sqrt(ldx * ldx + ldy * ldy) || 1;
+                        const udx = ldx / llen, udy = ldy / llen;
+                        const aLen = 16, aHalf = 6;
+                        const ppx = -udy, ppy = udx;
+                        if (arrowAtStart) {
+                            // Arrow tip at source (relationship end), pointing toward relationship
+                            const bx = sx + udx * aLen, by = sy + udy * aLen;
+                            return <polygon points={`${sx},${sy} ${bx + ppx * aHalf},${by + ppy * aHalf} ${bx - ppx * aHalf},${by - ppy * aHalf}`} fill={isSelected ? "var(--accent)" : "#0f172a"} />;
+                        }
+                        // Arrow tip at target (relationship end), pointing toward relationship
+                        const bx = tx - udx * aLen, by = ty - udy * aLen;
+                        return <polygon points={`${tx},${ty} ${bx + ppx * aHalf},${by + ppy * aHalf} ${bx - ppx * aHalf},${by - ppy * aHalf}`} fill={isSelected ? "var(--accent)" : "#0f172a"} />;
+                    })()}
                     {/* Cardinality Label */}
                     {conn.cardinality && (
                         <text
@@ -993,52 +1025,7 @@ const Canvas: React.FC<CanvasProps> = ({
                                 <feMergeNode in="SourceGraphic"/>
                             </feMerge>
                         </filter>
-                        {/* Markers for straight lines */}
-                        <marker
-                            id="arrow-head"
-                            markerWidth="16"
-                            markerHeight="10"
-                            refX="16"
-                            refY="5"
-                            orient="auto-start-reverse"
-                            markerUnits="userSpaceOnUse"
-                        >
-                            <polygon points="0 0, 16 5, 0 10" fill="#0f172a" />
-                        </marker>
-                        <marker
-                            id="arrow-head-blue"
-                            markerWidth="16"
-                            markerHeight="10"
-                            refX="16"
-                            refY="5"
-                            orient="auto-start-reverse"
-                            markerUnits="userSpaceOnUse"
-                        >
-                            <polygon points="0 0, 16 5, 0 10" fill="#9333ea" />
-                        </marker>
-                        {/* Markers for curved paths */}
-                        <marker
-                            id="arrow-curve"
-                            markerWidth="16"
-                            markerHeight="10"
-                            refX="16"
-                            refY="5"
-                            orient="auto-start-reverse"
-                            markerUnits="userSpaceOnUse"
-                        >
-                            <polygon points="0 0, 16 5, 0 10" fill="#0f172a" />
-                        </marker>
-                        <marker
-                            id="arrow-curve-blue"
-                            markerWidth="16"
-                            markerHeight="10"
-                            refX="16"
-                            refY="5"
-                            orient="auto-start-reverse"
-                            markerUnits="userSpaceOnUse"
-                        >
-                            <polygon points="0 0, 16 5, 0 10" fill="#9333ea" />
-                        </marker>
+                        {/* Arrow markers removed — arrows rendered as explicit <polygon> elements */}
                     </defs>
                     <g style={{ pointerEvents: 'visiblePainted' }}>
                         {renderAggregations()}

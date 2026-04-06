@@ -178,17 +178,18 @@ function renderConnectionsSVG(
     const strokeColor = '#0f172a';
     const strokeW = isTotalSrc ? 4 : 2;
 
-    // Arrow marker for cardinality=1
-    let markerEnd = '';
-    let markerStart = '';
+    // Arrow for key constraint (cardinality=1) — explicit polygon
+    let arrowAtStart = false;
+    let arrowAtEnd = false;
     if (conn.cardinality === '1') {
       const srcType = srcNode?.type ?? 'entity';
       const tgtType = tgtNode?.type ?? 'entity';
-      if (srcType === 'relationship') markerStart = 'marker-start="url(#exp-arrow)"';
-      else if (tgtType === 'relationship') markerEnd = 'marker-end="url(#exp-arrow)"';
+      if (srcType === 'relationship') arrowAtStart = true;
+      else if (tgtType === 'relationship') arrowAtEnd = true;
     }
 
     let linesSVG = '';
+    let arrowSVG = '';
 
     if (isDuplicate) {
       const px = -uy, py = ux;
@@ -200,9 +201,36 @@ function renderConnectionsSVG(
       const co = 55;
       const cx = cmx + px * co * direction, cy = cmy + py * co * direction;
       const pathD = `M ${osx} ${osy} Q ${cx} ${cy} ${otx} ${oty}`;
-      linesSVG = `<path d="${pathD}" fill="none" stroke="${strokeColor}" stroke-width="${strokeW}" ${markerStart} ${markerEnd}/>`;
+      linesSVG = `<path d="${pathD}" fill="none" stroke="${strokeColor}" stroke-width="${strokeW}"/>`;
+      // Arrow on curved path
+      if (arrowAtStart) {
+        const tdx = cx - osx, tdy = cy - osy;
+        const tl = Math.sqrt(tdx * tdx + tdy * tdy) || 1;
+        const ud = tdx / tl, vd = tdy / tl;
+        const aL = 16, aH = 6, ppx = -vd, ppy = ud;
+        const bx = osx + ud * aL, by = osy + vd * aL;
+        arrowSVG = `<polygon points="${osx},${osy} ${bx + ppx * aH},${by + ppy * aH} ${bx - ppx * aH},${by - ppy * aH}" fill="${strokeColor}"/>`;
+      } else if (arrowAtEnd) {
+        const tdx = otx - cx, tdy = oty - cy;
+        const tl = Math.sqrt(tdx * tdx + tdy * tdy) || 1;
+        const ud = tdx / tl, vd = tdy / tl;
+        const aL = 16, aH = 6, ppx = -vd, ppy = ud;
+        const bx = otx - ud * aL, by = oty - vd * aL;
+        arrowSVG = `<polygon points="${otx},${oty} ${bx + ppx * aH},${by + ppy * aH} ${bx - ppx * aH},${by - ppy * aH}" fill="${strokeColor}"/>`;
+      }
     } else {
-      linesSVG = `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${strokeColor}" stroke-width="${strokeW}" ${markerStart} ${markerEnd}/>`;
+      linesSVG = `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${strokeColor}" stroke-width="${strokeW}"/>`;
+      // Arrow on straight line
+      if (arrowAtStart || arrowAtEnd) {
+        const aL = 16, aH = 6, ppx = -uy, ppy = ux;
+        if (arrowAtStart) {
+          const bx = start.x + ux * aL, by = start.y + uy * aL;
+          arrowSVG = `<polygon points="${start.x},${start.y} ${bx + ppx * aH},${by + ppy * aH} ${bx - ppx * aH},${by - ppy * aH}" fill="${strokeColor}"/>`;
+        } else {
+          const bx = end.x - ux * aL, by = end.y - uy * aL;
+          arrowSVG = `<polygon points="${end.x},${end.y} ${bx + ppx * aH},${by + ppy * aH} ${bx - ppx * aH},${by - ppy * aH}" fill="${strokeColor}"/>`;
+        }
+      }
     }
 
     // Cardinality label
@@ -223,7 +251,7 @@ function renderConnectionsSVG(
       ? `<text x="${roleX}" y="${roleY}" text-anchor="middle" dominant-baseline="middle" font-size="10" font-family="system-ui,sans-serif" fill="#64748b" font-style="italic">${esc(conn.role)}</text>`
       : '';
 
-    return `<g>${linesSVG}${cardLabel}${roleLabel}</g>`;
+    return `<g>${linesSVG}${arrowSVG}${cardLabel}${roleLabel}</g>`;
   }).join('\n');
 }
 
@@ -297,11 +325,7 @@ export function generateDiagramSVG(
   return `<svg xmlns="http://www.w3.org/2000/svg"
   viewBox="${vbX} ${vbY} ${vbW} ${vbH}"
   width="${vbW}" height="${vbH}">
-  <defs>
-    <marker id="exp-arrow" markerWidth="14" markerHeight="9" refX="14" refY="4.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-      <polygon points="0 0, 14 4.5, 0 9" fill="#0f172a"/>
-    </marker>
-  </defs>
+  <defs></defs>
   <rect x="${vbX}" y="${vbY}" width="${vbW}" height="${vbH}" fill="#f0edff"/>
   ${aggSVG}
   ${connSVG}
