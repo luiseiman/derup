@@ -154,6 +154,9 @@ function App() {
   const [presetName, setPresetName] = useState('');
   const [presetAttributesInput, setPresetAttributesInput] = useState('');
   const [modelingHints, setModelingHints] = useLocalStorage<string[]>('derup.modeling.hints.v1', []);
+  const [fewShotExamples, setFewShotExamples] = useLocalStorage<Array<{ input: string; output: string }>>('derup.fewshot.v1', []);
+  const [domainMemory, setDomainMemory] = useLocalStorage<Record<string, string[]>>('derup.domain.v1', {});
+  const lastAIInteraction = useRef<{ userInput: string; aiOutput: string; commandType: string } | null>(null);
   const [canvasView, setCanvasView] = useState<'er' | 'schema' | 'sql'>('er');
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -1864,6 +1867,45 @@ function App() {
     return `Reglas aprendidas del usuario:\n${modelingHints.map(hint => `- ${hint}`).join('\n')}\n`;
   };
 
+  const detectAndSaveDomain = () => {
+    const entityNames = nodes.filter(n => n.type === 'entity').map(n => n.label.toLowerCase());
+    if (entityNames.length < 2) return;
+    // Simple domain detection based on entity names
+    const domainKeywords: Record<string, string[]> = {
+      universidad: ['alumno', 'profesor', 'curso', 'materia', 'aula', 'carrera', 'facultad', 'semestre', 'examen', 'nota'],
+      hospital: ['paciente', 'medico', 'doctor', 'enfermero', 'cama', 'habitacion', 'diagnostico', 'tratamiento', 'consulta'],
+      empresa: ['empleado', 'departamento', 'proyecto', 'cliente', 'proveedor', 'producto', 'factura', 'pedido', 'venta'],
+      banco: ['cuenta', 'cliente', 'sucursal', 'prestamo', 'transaccion', 'tarjeta', 'deposito'],
+      biblioteca: ['libro', 'autor', 'socio', 'prestamo', 'editorial', 'ejemplar', 'categoria'],
+    };
+    for (const [domain, keywords] of Object.entries(domainKeywords)) {
+      const matches = entityNames.filter(e => keywords.some(k => e.includes(k)));
+      if (matches.length >= 2) {
+        setDomainMemory(prev => ({
+          ...prev,
+          [domain]: [...new Set([...(prev[domain] || []), ...entityNames])].slice(0, 20),
+        }));
+        break;
+      }
+    }
+  };
+
+  const buildDomainBlock = () => {
+    if (Object.keys(domainMemory).length === 0) return '';
+    const lines = Object.entries(domainMemory).map(([domain, entities]) =>
+      `- ${domain}: entidades conocidas: ${entities.join(', ')}`
+    );
+    return `DOMAIN KNOWLEDGE (from previous sessions):\n${lines.join('\n')}\n\n`;
+  };
+
+  const buildFewShotBlock = () => {
+    if (fewShotExamples.length === 0) return '';
+    const examples = fewShotExamples.slice(-5); // last 5 successful examples
+    return `SUCCESSFUL EXAMPLES (follow these patterns):\n${examples.map(ex =>
+      `User: ${ex.input.slice(0, 100)}\nResponse: ${ex.output.slice(0, 200)}`
+    ).join('\n\n')}\n\n`;
+  };
+
   const ER_RAMAKRISHNAN_THEORY = `ER/EER THEORY — Ramakrishnan & Gehrke, 3rd ed., Ch. 2 (apply strictly)
 
 ENTITIES:
@@ -3289,6 +3331,8 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- "cardinalidad 1:N" between X and Y → set-cardinality entityA=X entityB=Y cardinalityA="1" cardinalityB="N".\n` +
     `- "rol" of X in R → set-connection-role entityName=X relationshipName=R role="the role".\n\n` +
     (buildModelingHintsBlock() ? `LEARNED RULES (from past modeling errors — never repeat these):\n${buildModelingHintsBlock()}\n` : '') +
+    buildFewShotBlock() +
+    buildDomainBlock() +
     `Current diagram state:\n${buildDiagramContext()}\n` +
     (lastScenarioText
       ? `\nOriginal scenario used to generate this diagram:\n"""\n${lastScenarioText}\n"""\n`
@@ -3528,6 +3572,37 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     setChatInput('');
 
     const normalizedText = text.toLowerCase().trim();
+
+    // Auto-learn: detect user corrections and save as hints
+    const correctionPattern = /^(?:no[, ]+|mal[, ]+|interpretaste?\s+mal|eso\s+no|no\s+(?:es|era|quiero|quise|pedí)|está\s+mal|incorrecto|error[, ]+)/i;
+    if (correctionPattern.test(normalizedText) && lastAIInteraction.current) {
+      const { userInput, commandType } = lastAIInteraction.current;
+      const correction = text.replace(correctionPattern, '').trim();
+      if (correction.length > 5) {
+        const hint = `Cuando el usuario dice "${userInput.slice(0, 80)}", NO usar ${commandType}. Lo correcto: ${correction.slice(0, 120)}`;
+        const normHint = hint.toLowerCase();
+        setModelingHints(prev => {
+          if (prev.some(h => h.toLowerCase() === normHint)) return prev;
+          return [hint, ...prev].slice(0, 20);
+        });
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `📝 Aprendido: "${hint}". No voy a repetir este error.` }]);
+        lastAIInteraction.current = null;
+        return;
+      }
+    }
+    // If last interaction wasn't corrected → it was successful → save as few-shot example
+    if (lastAIInteraction.current && !correctionPattern.test(normalizedText)) {
+      const { userInput, aiOutput } = lastAIInteraction.current;
+      if (userInput && aiOutput && aiOutput.startsWith('{') || aiOutput?.startsWith('[')) {
+        setFewShotExamples(prev => {
+          const exists = prev.some(ex => ex.input === userInput);
+          if (exists) return prev;
+          return [...prev, { input: userInput, output: aiOutput }].slice(-15); // keep last 15
+        });
+      }
+      lastAIInteraction.current = null;
+    }
+
     if (normalizedText === 'ver reglas' || normalizedText === 'ver hints') {
       const reply = modelingHints.length > 0
         ? `Reglas activas:\n- ${modelingHints.join('\n- ')}`
@@ -3737,6 +3812,10 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
             return;
           }
           aiCommand = parseAICommandJson(aiResponseText);
+        }
+        // Track interaction for auto-learn
+        if (aiCommand) {
+          lastAIInteraction.current = { userInput: text, aiOutput: aiResponseText, commandType: aiCommand.type };
         }
       } catch (error) {
         const fallbackNote = lastAIFallbackFrom ? ` (fallback desde ${getProviderLabel(lastAIFallbackFrom)})` : '';
@@ -4344,6 +4423,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       }
 
       addEntityWithAttributes(parsed.entityName, finalAttributes, keyList);
+      detectAndSaveDomain();
       const keyText = keyList.length > 0 ? ` (clave: ${keyList.join(', ')})` : '';
       const attrsText = finalAttributes.length > 0 ? ` con atributos ${finalAttributes.join(', ')}` : '';
       setChatMessages(prev => [
