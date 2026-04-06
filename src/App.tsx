@@ -106,6 +106,7 @@ function App() {
   const [selectedAggregationIds, setSelectedAggregationIds] = useState<Set<string>>(new Set());
   const [aggregations, setAggregations] = useState<Aggregation[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
   const [lastSelectedNodeId, setLastSelectedNodeId] = useState<string | null>(null);
   const [hasSnapshot, setHasSnapshot] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -711,6 +712,13 @@ function App() {
       setSelectedConnectionIds(new Set());
       setSelectedAggregationIds(new Set());
     }
+  };
+
+  const handleBoxSelect = (nodeIds: string[], aggIds: string[]) => {
+    setSelectedNodeIds(new Set(nodeIds));
+    setSelectedAggregationIds(new Set(aggIds));
+    setSelectedConnectionIds(new Set());
+    if (nodeIds.length > 0) setActiveTab('properties');
   };
 
   const handleConnectionClick = (id: string, multi: boolean) => {
@@ -4312,6 +4320,13 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           const selectionCount = selectedNodeIds.size + selectedConnectionIds.size + selectedAggregationIds.size;
           const items: ToolbarItem[] = [
             {
+              id: 'box-select',
+              label: selectionMode ? 'Select ON' : 'Select',
+              icon: '⬚',
+              action: () => setSelectionMode(prev => !prev),
+              active: selectionMode,
+            },
+            {
               id: 'multi-select',
               label: multiSelectMode ? 'Multi-select ON' : 'Multi-select',
               icon: multiSelectMode ? '✓' : '☐',
@@ -4457,6 +4472,8 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           onConnectionClick={handleConnectionClick}
           onCanvasClick={handleCanvasClick}
           multiSelectMode={multiSelectMode}
+          selectionMode={selectionMode}
+          onBoxSelect={handleBoxSelect}
         />
           )}
           {canvasView === 'schema' && (

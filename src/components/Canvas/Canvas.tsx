@@ -22,6 +22,8 @@ interface CanvasProps {
     onConnectionClick: (id: string, multi: boolean) => void;
     onCanvasClick: () => void;
     multiSelectMode: boolean;
+    selectionMode: boolean;
+    onBoxSelect: (nodeIds: string[], aggIds: string[]) => void;
 }
 
 const Canvas: React.FC<CanvasProps> = ({
@@ -38,7 +40,9 @@ const Canvas: React.FC<CanvasProps> = ({
     onAggregationClick,
     onConnectionClick,
     onCanvasClick,
-    multiSelectMode
+    multiSelectMode,
+    selectionMode,
+    onBoxSelect
 }) => {
     const [isPanning, setIsPanning] = useState(false);
     const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
@@ -48,6 +52,11 @@ const Canvas: React.FC<CanvasProps> = ({
     const [editingZoom, setEditingZoom] = useState(false);
     const [zoomInput, setZoomInput] = useState('');
     const zoomInputRef = useRef<HTMLInputElement>(null);
+
+    // Marquee selection state
+    const [isSelecting, setIsSelecting] = useState(false);
+    const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 });
+    const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 });
 
     const canvasRef = useRef<HTMLDivElement>(null);
     const contextMenu = useContextMenu();
@@ -79,9 +88,20 @@ const Canvas: React.FC<CanvasProps> = ({
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
-        // If clicking on SVG line (handled by line click), stop propagation there?
-        // Actually line click is usually handled by onClick.
-        // We only want to start panning if clicking on background.
+        // Marquee selection: start rect on left-click on background
+        if (selectionMode && e.button === 0 && !draggedNodeId && !draggedAggregationId) {
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (rect) {
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                setIsSelecting(true);
+                setSelectionStart({ x, y });
+                setSelectionEnd({ x, y });
+            }
+            setIsDrag(false);
+            return;
+        }
+        // Normal panning
         if (e.button === 1 || (e.button === 0 && !draggedNodeId && !draggedAggregationId)) {
             setIsPanning(true);
             setLastMousePos({ x: e.clientX, y: e.clientY });
@@ -106,6 +126,15 @@ const Canvas: React.FC<CanvasProps> = ({
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
+        // Marquee selection drag
+        if (isSelecting) {
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (rect) {
+                setSelectionEnd({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            }
+            setIsDrag(true);
+            return;
+        }
         if (isPanning) {
             setIsDrag(true);
             const dx = e.clientX - lastMousePos.x;
@@ -159,18 +188,54 @@ const Canvas: React.FC<CanvasProps> = ({
     };
 
     const handleMouseUp = (e: React.MouseEvent) => {
+        // Finish marquee selection
+        if (isSelecting) {
+            setIsSelecting(false);
+            if (isDrag) {
+                // Convert screen rect to world coords
+                const minSX = Math.min(selectionStart.x, selectionEnd.x);
+                const minSY = Math.min(selectionStart.y, selectionEnd.y);
+                const maxSX = Math.max(selectionStart.x, selectionEnd.x);
+                const maxSY = Math.max(selectionStart.y, selectionEnd.y);
+
+                const minWX = (minSX - offset.x) / scale;
+                const minWY = (minSY - offset.y) / scale;
+                const maxWX = (maxSX - offset.x) / scale;
+                const maxWY = (maxSY - offset.y) / scale;
+
+                // Find nodes whose center is inside the rect
+                const hitNodeIds = nodes
+                    .filter(n => n.position.x >= minWX && n.position.x <= maxWX
+                              && n.position.y >= minWY && n.position.y <= maxWY)
+                    .map(n => n.id);
+
+                // Find aggregations whose center is inside the rect
+                const hitAggIds = aggregations
+                    .filter(agg => {
+                        const bounds = aggregationBounds.get(agg.id);
+                        if (!bounds) return false;
+                        return bounds.cx >= minWX && bounds.cx <= maxWX
+                            && bounds.cy >= minWY && bounds.cy <= maxWY;
+                    })
+                    .map(agg => agg.id);
+
+                if (hitNodeIds.length > 0 || hitAggIds.length > 0) {
+                    onBoxSelect(hitNodeIds, hitAggIds);
+                }
+            } else {
+                onCanvasClick();
+            }
+            setIsDrag(false);
+            return;
+        }
+
         if (!isDrag) {
             // It was a click
             if (draggedNodeId) {
-                // Clicked on node
                 onNodeClick(draggedNodeId, multiSelectMode || e.shiftKey || e.metaKey || e.ctrlKey);
             } else if (draggedAggregationId) {
                 onAggregationClick(draggedAggregationId, multiSelectMode || e.shiftKey || e.metaKey || e.ctrlKey);
             } else {
-                // Check if we hit a connection? The connection onClick should have fired if so?
-                // SVG events bubble.
-                // We will rely on bubbling to NOT hit this if connection handled it.
-                // Actually we need to stop prop on connection click.
                 onCanvasClick();
             }
         }
@@ -997,9 +1062,10 @@ const Canvas: React.FC<CanvasProps> = ({
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            onMouseLeave={() => { setIsPanning(false); setDraggedNodeId(null); setDraggedAggregationId(null); setIsDrag(false); }}
+            onMouseLeave={() => { setIsPanning(false); setDraggedNodeId(null); setDraggedAggregationId(null); setIsSelecting(false); setIsDrag(false); }}
             onWheel={handleWheel}
             onContextMenu={handleCanvasContextMenu}
+            style={selectionMode ? { cursor: 'crosshair' } : undefined}
         >
             <div className="canvas-content" style={transformStyle}>
                 <svg
@@ -1045,6 +1111,23 @@ const Canvas: React.FC<CanvasProps> = ({
                     />
                 ))}
             </div>
+
+            {/* Marquee selection rectangle */}
+            {isSelecting && isDrag && (() => {
+                const x = Math.min(selectionStart.x, selectionEnd.x);
+                const y = Math.min(selectionStart.y, selectionEnd.y);
+                const w = Math.abs(selectionEnd.x - selectionStart.x);
+                const h = Math.abs(selectionEnd.y - selectionStart.y);
+                return (
+                    <div style={{
+                        position: 'absolute', left: x, top: y, width: w, height: h,
+                        border: '2px dashed #9333ea',
+                        backgroundColor: 'rgba(147, 51, 234, 0.08)',
+                        pointerEvents: 'none',
+                        zIndex: 9999,
+                    }} />
+                );
+            })()}
 
             <ContextMenu
                 state={contextMenu.state}
