@@ -779,6 +779,110 @@ function App() {
     setSelectedAggregationIds(new Set());
   };
 
+  const explainRelationship = (relationshipNodeId: string) => {
+    const relNode = nodes.find(n => n.id === relationshipNodeId && n.type === 'relationship');
+    if (!relNode) return;
+
+    const relConns = connections.filter(c => c.sourceId === relationshipNodeId || c.targetId === relationshipNodeId);
+
+    const entityConns: Array<{ entity: ERNode; conn: Connection }> = [];
+    const attrConns: Array<{ attr: ERNode; conn: Connection }> = [];
+
+    for (const conn of relConns) {
+      const otherId = conn.sourceId === relationshipNodeId ? conn.targetId : conn.sourceId;
+      const otherNode = nodes.find(n => n.id === otherId);
+      if (!otherNode) continue;
+      if (otherNode.type === 'entity') {
+        entityConns.push({ entity: otherNode, conn });
+      } else if (otherNode.type === 'attribute') {
+        attrConns.push({ attr: otherNode, conn });
+      }
+    }
+
+    const lines: string[] = [];
+    lines.push(`### Relación: **${relNode.label}**`);
+
+    if ('isIdentifying' in relNode && relNode.isIdentifying) {
+      lines.push('> Relación **identificadora** (doble diamante).');
+    }
+
+    if (entityConns.length === 0) {
+      lines.push('No tiene entidades conectadas.');
+    } else {
+      const entityIds = entityConns.map(ec => ec.entity.id);
+      const isSelfRelationship = entityIds.length === 2 && entityIds[0] === entityIds[1];
+
+      lines.push('');
+      lines.push('**Entidades participantes:**');
+
+      if (isSelfRelationship) {
+        const ent = entityConns[0].entity;
+        lines.push(`- **${ent.label}** (autorrelación — la misma entidad participa dos veces)`);
+        for (const { conn } of entityConns) {
+          const card = conn.cardinality || '—';
+          const participation = conn.isTotalParticipation ? 'total' : 'parcial';
+          const role = conn.role ? ` (rol: ${conn.role})` : '';
+          lines.push(`  - Cardinalidad: **${card}**, participación: **${participation}**${role}`);
+        }
+      } else {
+        for (const { entity, conn } of entityConns) {
+          const card = conn.cardinality || '—';
+          const participation = conn.isTotalParticipation ? 'total' : 'parcial';
+          const role = conn.role ? ` (rol: ${conn.role})` : '';
+          const weak = (entity.type === 'entity' && entity.isWeak) ? ' *(débil)*' : '';
+          lines.push(`- **${entity.label}**${weak}: cardinalidad **${card}**, participación **${participation}**${role}`);
+        }
+      }
+
+      lines.push('');
+      lines.push('**Interpretación:**');
+
+      if (isSelfRelationship) {
+        const ent = entityConns[0].entity;
+        lines.push(`Una instancia de **${ent.label}** se relaciona con otra instancia de **${ent.label}** a través de "${relNode.label}".`);
+      } else if (entityConns.length === 2) {
+        const a = entityConns[0];
+        const b = entityConns[1];
+        const cardA = a.conn.cardinality || '1';
+        const cardB = b.conn.cardinality || '1';
+        const readableCard = (c: string) => c === '1' ? 'una' : 'muchas';
+
+        lines.push(`Cada **${a.entity.label}** se asocia con **${readableCard(cardB)}** instancia(s) de **${b.entity.label}**, y cada **${b.entity.label}** se asocia con **${readableCard(cardA)}** instancia(s) de **${a.entity.label}**.`);
+
+        const restrictions: string[] = [];
+        if (a.conn.isTotalParticipation) restrictions.push(`toda instancia de **${a.entity.label}** debe participar en "${relNode.label}"`);
+        if (b.conn.isTotalParticipation) restrictions.push(`toda instancia de **${b.entity.label}** debe participar en "${relNode.label}"`);
+        if (restrictions.length > 0) {
+          lines.push('');
+          lines.push('**Restricciones:**');
+          restrictions.forEach(r => lines.push(`- ${r}`));
+        }
+      } else {
+        const names = entityConns.map(ec => `**${ec.entity.label}**`).join(', ');
+        lines.push(`Relación ${entityConns.length}-aria entre ${names}.`);
+      }
+    }
+
+    if (attrConns.length > 0) {
+      lines.push('');
+      lines.push('**Atributos de la relación:**');
+      for (const { attr } of attrConns) {
+        const flags: string[] = [];
+        if (attr.type === 'attribute') {
+          if (attr.isKey) flags.push('clave');
+          if (attr.isMultivalued) flags.push('multivaluado');
+          if (attr.isDerived) flags.push('derivado');
+        }
+        const flagStr = flags.length > 0 ? ` _(${flags.join(', ')})_` : '';
+        lines.push(`- ${attr.label}${flagStr}`);
+      }
+    }
+
+    const message = lines.join('\n');
+    setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: message }]);
+    setActiveTab('chat');
+  };
+
   const updateNode = (id: string, updates: Partial<ERNode>) => {
     let updatedNodes = nodes.map(n => n.id === id ? { ...n, ...updates } as ERNode : n);
 
@@ -3130,7 +3234,10 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `  7. REDUNDANCY: relationships or attributes that duplicate information already captured.\n` +
     `  Format: numbered list, each item = [SEVERITY: ERROR|WARNING|SUGGESTION] — element name — description — R&G rule violated or improvement basis. Answer in Spanish.\n` +
     `- Entity/relationship names must match the diagram EXACTLY (case-insensitive).\n` +
-    `- If user refers to an entity without naming it, infer from recent conversation.\n` +
+    `- CRITICAL: Always analyze the current diagram state before choosing a command. Words like "existentes", "las entidades", "las dos entidades", "entre ellas" are REFERENCES to entities already in the diagram — NOT entity names. Resolve them to actual entity names from the diagram.\n` +
+    `- When user says "crear relación entre las entidades existentes" or similar: identify the entities in the diagram and use connect-entities with their actual names. NEVER create an entity from descriptor words.\n` +
+    `- If user says "agregar entidad X" without attributes, infer logical attributes for X based on its domain meaning (e.g. Persona → persona_id, nombre, apellido, fecha_nacimiento; Curso → curso_id, nombre, descripcion). Use useDefaultAttributes:true.\n` +
+    `- If user provides explicit attributes, use EXACTLY those — do not add or remove any.\n` +
     `- If user asks for typical/own attributes without listing them, use useDefaultAttributes:true and attributes:[].\n` +
     `- If user lists concrete attributes, use snake_case in the attributes array.\n` +
     `- For set-attribute-type, attributeName must match an existing attribute in the diagram.\n` +
@@ -4446,6 +4553,20 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
               },
               disabled: selectedAggregationIds.size === 0,
             },
+            // --- Explain ---
+            ...(() => {
+              const selectedRelationships = nodes.filter(n => selectedNodeIds.has(n.id) && n.type === 'relationship');
+              if (selectedRelationships.length === 1) {
+                return [{
+                  id: 'explain-relationship',
+                  label: 'Significado',
+                  icon: '?',
+                  action: () => explainRelationship(selectedRelationships[0].id),
+                  separator: true,
+                }];
+              }
+              return [];
+            })(),
             // --- View & File ---
             { id: 'reset-view', label: 'Reset View', icon: '⟳', action: handleResetView, separator: true },
             { id: 'import', label: 'Import', icon: '📂', action: handleImportClick, separator: true },
@@ -4533,6 +4654,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           multiSelectMode={multiSelectMode}
           selectionMode={selectionMode}
           onBoxSelect={handleBoxSelect}
+          onExplainRelationship={explainRelationship}
         />
           )}
           {canvasView === 'schema' && (
