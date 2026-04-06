@@ -106,7 +106,7 @@ function App() {
   const [selectedAggregationIds, setSelectedAggregationIds] = useState<Set<string>>(new Set());
   const [aggregations, setAggregations] = useState<Aggregation[]>([]);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(true);
   const [lastSelectedNodeId, setLastSelectedNodeId] = useState<string | null>(null);
   const [hasSnapshot, setHasSnapshot] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -4856,6 +4856,9 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
                 )}
               </div>
               <button onClick={handleChatSubmit} className="primary-button">Enviar</button>
+              {chatMessages.length > 0 && (
+                <button onClick={() => setChatMessages([])} className="chat-clear-btn" title="Limpiar chat">✕</button>
+              )}
             </div>
           </div>
           )}
