@@ -699,6 +699,98 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── Shared learning system (server-side, multi-user) ─────────────────────
+  const LEARNING_FILE = path.join(process.cwd(), 'learning.json');
+
+  function readLearning() {
+    try { return JSON.parse(fs.readFileSync(LEARNING_FILE, 'utf-8')); }
+    catch { return { hints: {}, examples: [], domain: {} }; }
+  }
+
+  function saveLearning(data) {
+    fs.writeFileSync(LEARNING_FILE, JSON.stringify(data, null, 2));
+  }
+
+  // GET /api/learning — read all learning data
+  if (req.method === 'GET' && url.pathname === '/api/learning') {
+    const data = readLearning();
+    // Only return promoted hints (count >= threshold)
+    const threshold = 3;
+    const promotedHints = Object.entries(data.hints || {})
+      .filter(([, v]) => v.count >= threshold)
+      .map(([, v]) => v.text);
+    sendJson(res, 200, {
+      hints: promotedHints,
+      examples: (data.examples || []).slice(-10),
+      domain: data.domain || {},
+    });
+    return;
+  }
+
+  // POST /api/learning/hint — report a hint (increments counter)
+  if (req.method === 'POST' && url.pathname === '/api/learning/hint') {
+    try {
+      const body = await getBody(req);
+      const text = typeof body.text === 'string' ? body.text.trim() : '';
+      if (!text) { sendJson(res, 400, { error: 'Missing hint text' }); return; }
+      const key = text.toLowerCase().replace(/\s+/g, ' ');
+      const data = readLearning();
+      if (!data.hints) data.hints = {};
+      if (data.hints[key]) {
+        data.hints[key].count += 1;
+        data.hints[key].lastReported = new Date().toISOString();
+      } else {
+        data.hints[key] = { text, count: 1, firstReported: new Date().toISOString(), lastReported: new Date().toISOString() };
+      }
+      saveLearning(data);
+      sendJson(res, 200, { count: data.hints[key].count, promoted: data.hints[key].count >= 3 });
+    } catch (error) {
+      sendJson(res, 500, { error: normalizeError(error) });
+    }
+    return;
+  }
+
+  // POST /api/learning/example — save a successful few-shot example
+  if (req.method === 'POST' && url.pathname === '/api/learning/example') {
+    try {
+      const body = await getBody(req);
+      const input = typeof body.input === 'string' ? body.input.trim() : '';
+      const output = typeof body.output === 'string' ? body.output.trim() : '';
+      if (!input || !output) { sendJson(res, 400, { error: 'Missing input/output' }); return; }
+      const data = readLearning();
+      if (!data.examples) data.examples = [];
+      // Dedup by input
+      if (!data.examples.some(ex => ex.input === input)) {
+        data.examples.push({ input: input.slice(0, 150), output: output.slice(0, 300), ts: new Date().toISOString() });
+        if (data.examples.length > 30) data.examples = data.examples.slice(-30);
+        saveLearning(data);
+      }
+      sendJson(res, 200, { saved: true });
+    } catch (error) {
+      sendJson(res, 500, { error: normalizeError(error) });
+    }
+    return;
+  }
+
+  // POST /api/learning/domain — save domain knowledge
+  if (req.method === 'POST' && url.pathname === '/api/learning/domain') {
+    try {
+      const body = await getBody(req);
+      const domain = typeof body.domain === 'string' ? body.domain.trim() : '';
+      const entities = Array.isArray(body.entities) ? body.entities.filter(e => typeof e === 'string') : [];
+      if (!domain || entities.length === 0) { sendJson(res, 400, { error: 'Missing domain/entities' }); return; }
+      const data = readLearning();
+      if (!data.domain) data.domain = {};
+      const existing = data.domain[domain] || [];
+      data.domain[domain] = [...new Set([...existing, ...entities])].slice(0, 30);
+      saveLearning(data);
+      sendJson(res, 200, { saved: true });
+    } catch (error) {
+      sendJson(res, 500, { error: normalizeError(error) });
+    }
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/rooms') {
     const roomId = Math.random().toString(36).slice(2, 10);
     getOrCreateRoom(roomId);

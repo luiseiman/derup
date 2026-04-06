@@ -34,3 +34,4 @@ dist-ssr
 .claude/settings.local.json
 .claude/agent-memory/
 .oauth-tokens.json
+learning.json

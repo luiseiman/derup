@@ -153,10 +153,11 @@ function App() {
   const [presetSelection, setPresetSelection] = useState('');
   const [presetName, setPresetName] = useState('');
   const [presetAttributesInput, setPresetAttributesInput] = useState('');
-  const [modelingHints, setModelingHints] = useLocalStorage<string[]>('derup.modeling.hints.v1', []);
-  const [fewShotExamples, setFewShotExamples] = useLocalStorage<Array<{ input: string; output: string }>>('derup.fewshot.v1', []);
-  const [domainMemory, setDomainMemory] = useLocalStorage<Record<string, string[]>>('derup.domain.v1', {});
+  const [modelingHints, setModelingHints] = useState<string[]>([]);
+  const [fewShotExamples, setFewShotExamples] = useState<Array<{ input: string; output: string }>>([]);
+  const [domainMemory, setDomainMemory] = useState<Record<string, string[]>>({});
   const lastAIInteraction = useRef<{ userInput: string; aiOutput: string; commandType: string } | null>(null);
+  const learningLoaded = useRef(false);
   const [canvasView, setCanvasView] = useState<'er' | 'schema' | 'sql'>('er');
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -328,6 +329,45 @@ function App() {
       setHasSnapshot(false);
     }
   }, []);
+
+  // Load shared learning data from server on mount
+  useEffect(() => {
+    if (learningLoaded.current) return;
+    learningLoaded.current = true;
+    fetch('/api/learning').then(r => r.json()).then(data => {
+      if (Array.isArray(data.hints)) setModelingHints(data.hints);
+      if (Array.isArray(data.examples)) setFewShotExamples(data.examples);
+      if (data.domain && typeof data.domain === 'object') setDomainMemory(data.domain);
+    }).catch(() => { /* server not available, use empty */ });
+  }, []);
+
+  const reportHintToServer = (text: string) => {
+    fetch('/api/learning/hint', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    }).then(r => r.json()).then(data => {
+      if (data.promoted) {
+        // Reload promoted hints
+        fetch('/api/learning').then(r => r.json()).then(d => {
+          if (Array.isArray(d.hints)) setModelingHints(d.hints);
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+  };
+
+  const reportExampleToServer = (input: string, output: string) => {
+    fetch('/api/learning/example', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input, output }),
+    }).catch(() => {});
+  };
+
+  const reportDomainToServer = (domain: string, entities: string[]) => {
+    fetch('/api/learning/domain', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain, entities }),
+    }).catch(() => {});
+  };
 
   // useLocalStorage hook handles all localStorage persisting automatically
   // for: geminiApiKey, grokApiKey, attributePresets, modelingHints
@@ -1885,6 +1925,7 @@ function App() {
           ...prev,
           [domain]: [...new Set([...(prev[domain] || []), ...entityNames])].slice(0, 20),
         }));
+        reportDomainToServer(domain, entityNames);
         break;
       }
     }
@@ -3580,12 +3621,8 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       const correction = text.replace(correctionPattern, '').trim();
       if (correction.length > 5) {
         const hint = `Cuando el usuario dice "${userInput.slice(0, 80)}", NO usar ${commandType}. Lo correcto: ${correction.slice(0, 120)}`;
-        const normHint = hint.toLowerCase();
-        setModelingHints(prev => {
-          if (prev.some(h => h.toLowerCase() === normHint)) return prev;
-          return [hint, ...prev].slice(0, 20);
-        });
-        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `📝 Aprendido: "${hint}". No voy a repetir este error.` }]);
+        reportHintToServer(hint);
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `📝 Reportado (se necesitan 3 reportes para que se vuelva regla). Corrección: "${correction}"` }]);
         lastAIInteraction.current = null;
         return;
       }
@@ -3593,12 +3630,8 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     // If last interaction wasn't corrected → it was successful → save as few-shot example
     if (lastAIInteraction.current && !correctionPattern.test(normalizedText)) {
       const { userInput, aiOutput } = lastAIInteraction.current;
-      if (userInput && aiOutput && aiOutput.startsWith('{') || aiOutput?.startsWith('[')) {
-        setFewShotExamples(prev => {
-          const exists = prev.some(ex => ex.input === userInput);
-          if (exists) return prev;
-          return [...prev, { input: userInput, output: aiOutput }].slice(-15); // keep last 15
-        });
+      if (userInput && aiOutput && (aiOutput.startsWith('{') || aiOutput.startsWith('['))) {
+        reportExampleToServer(userInput, aiOutput);
       }
       lastAIInteraction.current = null;
     }
@@ -3624,12 +3657,14 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
         setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: 'La regla está vacía. Escribe: regla: <instrucción>' }]);
         return;
       }
+      // Report manually — counts as 3 (immediate promotion)
+      for (let i = 0; i < 3; i++) reportHintToServer(hint);
       setModelingHints(prev => {
         const exists = prev.some(item => item.toLowerCase() === hint.toLowerCase());
         if (exists) return prev;
         return [hint, ...prev].slice(0, 20);
       });
-      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Regla guardada para próximos escenarios: "${hint}"` }]);
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Regla guardada (promovida inmediatamente): "${hint}"` }]);
       return;
     }
 
