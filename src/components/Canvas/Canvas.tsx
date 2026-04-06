@@ -24,6 +24,7 @@ interface CanvasProps {
     multiSelectMode: boolean;
     selectionMode: boolean;
     onBoxSelect: (nodeIds: string[], aggIds: string[]) => void;
+    onExplainRelationship?: (nodeId: string) => void;
 }
 
 const Canvas: React.FC<CanvasProps> = ({
@@ -42,7 +43,8 @@ const Canvas: React.FC<CanvasProps> = ({
     onCanvasClick,
     multiSelectMode,
     selectionMode,
-    onBoxSelect
+    onBoxSelect,
+    onExplainRelationship
 }) => {
     const [isPanning, setIsPanning] = useState(false);
     const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
@@ -867,6 +869,14 @@ const Canvas: React.FC<CanvasProps> = ({
                         0
                     );
                 },
+            });
+        }
+
+        if (node.type === 'relationship' && onExplainRelationship) {
+            items.push({
+                id: 'explain-relationship',
+                label: '❓ Significado',
+                action: () => onExplainRelationship(nodeId),
             });
         }
 
