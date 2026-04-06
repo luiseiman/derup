@@ -3281,8 +3281,9 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `  7. REDUNDANCY: relationships or attributes that duplicate information already captured.\n` +
     `  Format: numbered list, each item = [SEVERITY: ERROR|WARNING|SUGGESTION] — element name — description — R&G rule violated or improvement basis. Answer in Spanish.\n` +
     `- Entity/relationship names must match the diagram EXACTLY (case-insensitive).\n` +
-    `- CRITICAL: Always analyze the current diagram state before choosing a command. Words like "existentes", "las entidades", "las dos entidades", "entre ellas" are REFERENCES to entities already in the diagram — NOT entity names. Resolve them to actual entity names from the diagram.\n` +
-    `- When user says "crear relación entre las entidades existentes" or similar: identify the entities in the diagram and use connect-entities with their actual names. NEVER create an entity from descriptor words.\n` +
+    `- CRITICAL — REFERENCE RESOLUTION: Words like "existentes", "las entidades", "las tres entidades", "entre ellas", "todas" are REFERENCES to entities listed in "Current diagram state" above. They are NEVER entity names. You MUST resolve them to the actual entity names.\n` +
+    `  Example: If diagram has entities Profesores, Alumnos, Aulas and user says "crear relación ternaria entre las tres entidades existentes" → use connect-entities with entityA="Profesores", entityB="Alumnos", entityC="Aulas". NEVER create an entity named "Existentes".\n` +
+    `  Example: If diagram has entities A, B and user says "relacionar las entidades" → use connect-entities with entityA="A", entityB="B".\n` +
     `- CRITICAL: When user lists multiple items separated by commas or "y" (e.g. "agregar entidades: profesores, cursos, aulas" or "crear profesor y alumno"), each item is a SEPARATE entity. Return a JSON ARRAY with one add-entity per item. NEVER combine them into one entity.\n` +
     `- If user says "agregar entidad X" without attributes, infer logical attributes for X based on its domain meaning (e.g. Persona → persona_id, nombre, apellido, fecha_nacimiento; Curso → curso_id, nombre, descripcion). Use useDefaultAttributes:true.\n` +
     `- If user provides explicit attributes, use EXACTLY those — do not add or remove any.\n` +
