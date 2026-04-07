@@ -810,6 +810,8 @@ function App() {
       newNode = { id, type: 'relationship', position, label, isIdentifying: false };
     } else if (type === 'attribute') {
       newNode = { id, type: 'attribute', position, label, isKey: false, isMultivalued: false, isDerived: false };
+    } else if (type === 'textbox') {
+      newNode = { id, type: 'textbox', position, label: 'Texto', text: '' };
     } else {
       newNode = { id, type: 'isa', position, label: 'ES', isDisjoint: false, isTotal: false };
     }
@@ -4788,6 +4790,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
             { id: 'add-relationship', label: 'Relationship', icon: '◇', action: () => addNode('relationship') },
             { id: 'add-attribute', label: 'Attribute', icon: '○', action: () => addNode('attribute') },
             { id: 'add-isa', label: 'ISA', icon: '△', action: () => addNode('isa') },
+            { id: 'add-textbox', label: 'Texto', icon: 'T', action: () => addNode('textbox') },
             // --- Operations ---
             { id: 'connect', label: 'Connect', icon: '↗', action: connectSelected, disabled: !canConnectSelection, separator: true },
             { id: 'delete', label: 'Delete', icon: '🗑', action: deleteSelected, disabled: selectionCount === 0 },
@@ -4986,6 +4989,9 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
                           <label><input type="checkbox" checked={node.isDisjoint} onChange={e => updateNode(node.id, { isDisjoint: e.target.checked })} /> Disjoint</label>
                           <label><input type="checkbox" checked={node.isTotal} onChange={e => updateNode(node.id, { isTotal: e.target.checked })} /> Total</label>
                         </>
+                      )}
+                      {node.type === 'textbox' && (
+                        <label>Texto: <textarea value={node.text || ''} onChange={e => updateNode(node.id, { text: e.target.value })} rows={4} style={{ width: '100%', resize: 'vertical', fontFamily: 'var(--font-family)', fontSize: '12px' }} /></label>
                       )}
                     </div>
                   );

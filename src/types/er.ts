@@ -1,4 +1,4 @@
-export type NodeType = 'entity' | 'relationship' | 'attribute' | 'isa';
+export type NodeType = 'entity' | 'relationship' | 'attribute' | 'isa' | 'textbox';
 
 export interface Point {
   x: number;
@@ -42,7 +42,12 @@ export interface ISANode extends BaseNode {
   isTotal: boolean; // Total vs partial
 }
 
-export type ERNode = EntityNode | RelationshipNode | AttributeNode | ISANode;
+export interface TextboxNode extends BaseNode {
+  type: 'textbox';
+  text: string;
+}
+
+export type ERNode = EntityNode | RelationshipNode | AttributeNode | ISANode | TextboxNode;
 
 export type Cardinality = '1' | 'N' | 'M';
 

@@ -1,9 +1,10 @@
 import React from 'react';
-import type { ERNode, EntityNode, RelationshipNode, AttributeNode, ISANode } from '../../types/er';
+import type { ERNode, EntityNode, RelationshipNode, AttributeNode, ISANode, TextboxNode } from '../../types/er';
 import { EntityShape } from './EntityShape';
 import { RelationshipShape } from './RelationshipShape';
 import { AttributeShape } from './AttributeShape';
 import { ISAShape } from './ISAShape';
+import { TextboxShape } from './TextboxShape';
 
 interface NodeDispatcherProps {
     node: ERNode;
@@ -46,6 +47,9 @@ export const NodeDispatcher: React.FC<NodeDispatcherProps> = ({
             break;
         case 'isa':
             content = <ISAShape node={node as ISANode} selected={selected} onMouseDown={onMouseDown} />;
+            break;
+        case 'textbox':
+            content = <TextboxShape node={node as TextboxNode} selected={selected} onMouseDown={onMouseDown} />;
             break;
         default:
             content = null;
