@@ -18,7 +18,7 @@ const isPoint = (value: unknown): value is Point =>
   isObject(value) && typeof value.x === 'number' && typeof value.y === 'number';
 
 const isNodeType = (value: unknown): value is NodeType =>
-  value === 'entity' || value === 'relationship' || value === 'attribute' || value === 'isa';
+  value === 'entity' || value === 'relationship' || value === 'attribute' || value === 'isa' || value === 'textbox';
 
 const isCardinality = (value: unknown): value is Cardinality =>
   value === '1' || value === 'N' || value === 'M';
@@ -65,6 +65,12 @@ const normalizeNode = (value: unknown): ERNode | null => {
         type: 'isa',
         isDisjoint: typeof value.isDisjoint === 'boolean' ? value.isDisjoint : false,
         isTotal: typeof value.isTotal === 'boolean' ? value.isTotal : false,
+      };
+    case 'textbox':
+      return {
+        ...base,
+        type: 'textbox',
+        text: typeof value.text === 'string' ? value.text : '',
       };
     default:
       return null;
