@@ -1,0 +1,875 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "e-administradores",
+      "type": "entity",
+      "label": "ADMINISTRADORES",
+      "position": {
+        "x": 361.6,
+        "y": 818.8
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-propiedades",
+      "type": "entity",
+      "label": "PROPIEDADES",
+      "position": {
+        "x": 965.5,
+        "y": 1504.2
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-consorcios",
+      "type": "entity",
+      "label": "CONSORCIOS",
+      "position": {
+        "x": 958.2,
+        "y": 1139.8
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-viviendas",
+      "type": "entity",
+      "label": "VIVIENDAS",
+      "position": {
+        "x": 783.0,
+        "y": 1750.2
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-oficinas",
+      "type": "entity",
+      "label": "OFICINAS",
+      "position": {
+        "x": 1188.3,
+        "y": 1751.4
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-locales",
+      "type": "entity",
+      "label": "LOCALES",
+      "position": {
+        "x": 978.7,
+        "y": 1749.6
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-propietarios",
+      "type": "entity",
+      "label": "PROPIETARIOS",
+      "position": {
+        "x": 294.8,
+        "y": 1247.8
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-inquilinos",
+      "type": "entity",
+      "label": "INQUILINOS",
+      "position": {
+        "x": 1617.4,
+        "y": 1618.7
+      },
+      "isWeak": false
+    },
+    {
+      "id": "r-administran",
+      "type": "relationship",
+      "label": "administran",
+      "position": {
+        "x": 668.5,
+        "y": 886.9
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "isa-es-un",
+      "type": "isa",
+      "label": "es_un",
+      "position": {
+        "x": 957.5,
+        "y": 1619.7
+      },
+      "isDisjoint": true,
+      "isTotal": false
+    },
+    {
+      "id": "a-nombre",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 264.7,
+        "y": 700.2
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-dni",
+      "type": "attribute",
+      "label": "dni",
+      "position": {
+        "x": 397.3,
+        "y": 686.8
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-nro-colegiado",
+      "type": "attribute",
+      "label": "nro colegiado",
+      "position": {
+        "x": 567.6,
+        "y": 713.8
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-honorarios",
+      "type": "attribute",
+      "label": "honorarios",
+      "position": {
+        "x": 644.7,
+        "y": 1010.8
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-nombre-1",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 783.7,
+        "y": 1069.2
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-calle",
+      "type": "attribute",
+      "label": "calle",
+      "position": {
+        "x": 884.4,
+        "y": 1034.8
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cod-postal",
+      "type": "attribute",
+      "label": "cod postal",
+      "position": {
+        "x": 1001.8,
+        "y": 947.7
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-id",
+      "type": "attribute",
+      "label": "id",
+      "position": {
+        "x": 1027.6,
+        "y": 1052.8
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-consta-de",
+      "type": "relationship",
+      "label": "consta de",
+      "position": {
+        "x": 1053.0,
+        "y": 1343.4
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "a-portal",
+      "type": "attribute",
+      "label": "portal",
+      "position": {
+        "x": 837.6,
+        "y": 1571.0
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-planta",
+      "type": "attribute",
+      "label": "planta",
+      "position": {
+        "x": 1100.2,
+        "y": 1585.2
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-letra",
+      "type": "attribute",
+      "label": "letra",
+      "position": {
+        "x": 896.1,
+        "y": 1439.7
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-presiden",
+      "type": "relationship",
+      "label": "presiden",
+      "position": {
+        "x": 571.7,
+        "y": 1166.3
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-vocalizan",
+      "type": "relationship",
+      "label": "vocalizan",
+      "position": {
+        "x": 625.5,
+        "y": 1324.3
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-empresas",
+      "type": "entity",
+      "label": "EMPRESAS",
+      "position": {
+        "x": 1444.7,
+        "y": 425.7
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-nombre-2",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 1250.2,
+        "y": 391.2
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cuit",
+      "type": "attribute",
+      "label": "cuit",
+      "position": {
+        "x": 1316.6,
+        "y": 332.8
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-direccion",
+      "type": "attribute",
+      "label": "direccion",
+      "position": {
+        "x": 1446.0,
+        "y": 275.8
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-telefono",
+      "type": "attribute",
+      "label": "telefono",
+      "position": {
+        "x": 1552.7,
+        "y": 337.2
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-contacto",
+      "type": "attribute",
+      "label": "contacto",
+      "position": {
+        "x": 1638.2,
+        "y": 391.2
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-presta-servicio",
+      "type": "relationship",
+      "label": "presta servicio",
+      "position": {
+        "x": 1851.1,
+        "y": 465.7
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "a-nombre-servicio",
+      "type": "attribute",
+      "label": "nombre servicio",
+      "position": {
+        "x": 2170.6,
+        "y": 293.7
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-servicios",
+      "type": "entity",
+      "label": "SERVICIOS",
+      "position": {
+        "x": 2159.2,
+        "y": 422.0
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-gastos",
+      "type": "entity",
+      "label": "GASTOS",
+      "position": {
+        "x": 1672.4,
+        "y": 821.0
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-nro-r",
+      "type": "attribute",
+      "label": "nro_r",
+      "position": {
+        "x": 1669.6,
+        "y": 689.0
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-fecha",
+      "type": "attribute",
+      "label": "fecha",
+      "position": {
+        "x": 1530.1,
+        "y": 732.5
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-importe",
+      "type": "attribute",
+      "label": "importe",
+      "position": {
+        "x": 1486.2,
+        "y": 803.0
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-cobran",
+      "type": "relationship",
+      "label": "cobran",
+      "position": {
+        "x": 1946.9,
+        "y": 741.3
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-registran",
+      "type": "relationship",
+      "label": "registran",
+      "position": {
+        "x": 1551.7,
+        "y": 960.2
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-bancos",
+      "type": "entity",
+      "label": "BANCOS",
+      "position": {
+        "x": 587.9,
+        "y": 377.0
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-cuentas",
+      "type": "entity",
+      "label": "CUENTAS",
+      "position": {
+        "x": 1019.7,
+        "y": 650.0
+      },
+      "isWeak": true
+    },
+    {
+      "id": "r-proveen",
+      "type": "relationship",
+      "label": "proveen",
+      "position": {
+        "x": 884.7,
+        "y": 498.8
+      },
+      "isIdentifying": true
+    },
+    {
+      "id": "r-relaci-n",
+      "type": "relationship",
+      "label": "Relación",
+      "position": {
+        "x": 1264.0,
+        "y": 811.2
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-ingresos",
+      "type": "entity",
+      "label": "INGRESOS",
+      "position": {
+        "x": 1771.0,
+        "y": 1187.8
+      },
+      "isWeak": false
+    },
+    {
+      "id": "e-localidades",
+      "type": "entity",
+      "label": "LOCALIDADES",
+      "position": {
+        "x": 400.8,
+        "y": 1625.8
+      },
+      "isWeak": false
+    },
+    {
+      "id": "r-vive-en",
+      "type": "relationship",
+      "label": "vive_en",
+      "position": {
+        "x": 345.4,
+        "y": 1480.5
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-se-ubica-en",
+      "type": "relationship",
+      "label": "se_ubica_en",
+      "position": {
+        "x": 658.0,
+        "y": 1515.4
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-habitan",
+      "type": "relationship",
+      "label": "habitan",
+      "position": {
+        "x": 1327.9,
+        "y": 1518.0
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-registran1",
+      "type": "relationship",
+      "label": "registran1",
+      "position": {
+        "x": 1462.2,
+        "y": 1213.4
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "a-idp",
+      "type": "attribute",
+      "label": "idp",
+      "position": {
+        "x": 805.9,
+        "y": 1472.5
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "txt-O99",
+      "type": "textbox",
+      "label": "- Hay cobertura",
+      "text": "- Hay cobertura\n- No hay solapamiento",
+      "position": {
+        "x": 1064.8,
+        "y": 1636.2
+      }
+    },
+    {
+      "id": "txt-O100",
+      "type": "textbox",
+      "label": "NOTAS:",
+      "text": "NOTAS:\nEsta propuesta de solución no está completa y podría haber alternativas de solución,\npero de acuerdo al escenario dado, no pueden faltar, por ejemplo, la jerarquía de clases \npara las propiedades ni CUENTAS como entidad débil de BANCOS. Tomar nota de los \nargumentos para esta representación.",
+      "position": {
+        "x": 1616.8,
+        "y": 1331.7
+      }
+    }
+  ],
+  "aggregations": [
+    {
+      "id": "agg-O45",
+      "memberIds": [
+        "e-empresas",
+        "a-nombre-2",
+        "a-cuit",
+        "a-direccion",
+        "a-telefono",
+        "a-contacto",
+        "r-presta-servicio",
+        "a-nombre-servicio",
+        "e-servicios"
+      ],
+      "label": "Agrupacion"
+    }
+  ],
+  "connections": [
+    {
+      "id": "c-O14",
+      "sourceId": "e-administradores",
+      "targetId": "r-administran",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O15",
+      "sourceId": "e-consorcios",
+      "targetId": "r-administran",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O16",
+      "sourceId": "a-nombre",
+      "targetId": "e-administradores",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O17",
+      "sourceId": "a-dni",
+      "targetId": "e-administradores",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O18",
+      "sourceId": "a-nro-colegiado",
+      "targetId": "e-administradores",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O19",
+      "sourceId": "a-honorarios",
+      "targetId": "r-administran",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O20",
+      "sourceId": "r-cobran",
+      "targetId": "agg-O45",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O21",
+      "sourceId": "e-propiedades",
+      "targetId": "isa-es-un",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O22",
+      "sourceId": "e-viviendas",
+      "targetId": "isa-es-un",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O23",
+      "sourceId": "e-locales",
+      "targetId": "isa-es-un",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O24",
+      "sourceId": "e-oficinas",
+      "targetId": "isa-es-un",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O29",
+      "sourceId": "a-nombre-1",
+      "targetId": "e-consorcios",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O30",
+      "sourceId": "a-calle",
+      "targetId": "e-consorcios",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O31",
+      "sourceId": "a-cod-postal",
+      "targetId": "e-consorcios",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O32",
+      "sourceId": "a-id",
+      "targetId": "e-consorcios",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O34",
+      "sourceId": "e-consorcios",
+      "targetId": "r-consta-de",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O35",
+      "sourceId": "e-propiedades",
+      "targetId": "r-consta-de",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O41",
+      "sourceId": "e-propietarios",
+      "targetId": "r-presiden",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O42",
+      "sourceId": "e-consorcios",
+      "targetId": "r-presiden",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O43",
+      "sourceId": "e-propietarios",
+      "targetId": "r-vocalizan",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O44",
+      "sourceId": "e-consorcios",
+      "targetId": "r-vocalizan",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O52",
+      "sourceId": "a-nombre-2",
+      "targetId": "e-empresas",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O53",
+      "sourceId": "a-cuit",
+      "targetId": "e-empresas",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O54",
+      "sourceId": "a-direccion",
+      "targetId": "e-empresas",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O55",
+      "sourceId": "a-telefono",
+      "targetId": "e-empresas",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O56",
+      "sourceId": "a-contacto",
+      "targetId": "e-empresas",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O58",
+      "sourceId": "e-empresas",
+      "targetId": "r-presta-servicio",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O60",
+      "sourceId": "a-nombre-servicio",
+      "targetId": "e-servicios",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O62",
+      "sourceId": "e-servicios",
+      "targetId": "r-presta-servicio",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O69",
+      "sourceId": "e-gastos",
+      "targetId": "r-cobran",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O70",
+      "sourceId": "e-consorcios",
+      "targetId": "r-registran",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O71",
+      "sourceId": "e-gastos",
+      "targetId": "r-registran",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O76",
+      "sourceId": "e-bancos",
+      "targetId": "r-proveen",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O77",
+      "sourceId": "e-cuentas",
+      "targetId": "r-proveen",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O78",
+      "sourceId": "r-relaci-n",
+      "targetId": "e-cuentas",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O79",
+      "sourceId": "e-consorcios",
+      "targetId": "r-relaci-n",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O84",
+      "sourceId": "e-propietarios",
+      "targetId": "r-vive-en",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O85",
+      "sourceId": "e-localidades",
+      "targetId": "r-vive-en",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O86",
+      "sourceId": "e-localidades",
+      "targetId": "r-se-ubica-en",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O87",
+      "sourceId": "e-consorcios",
+      "targetId": "r-se-ubica-en",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O89",
+      "sourceId": "e-propiedades",
+      "targetId": "r-habitan",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O90",
+      "sourceId": "e-inquilinos",
+      "targetId": "r-habitan",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O92",
+      "sourceId": "e-propiedades",
+      "targetId": "r-registran1",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O93",
+      "sourceId": "e-ingresos",
+      "targetId": "r-registran1",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O94",
+      "sourceId": "a-portal",
+      "targetId": "e-propiedades",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O95",
+      "sourceId": "a-planta",
+      "targetId": "e-propiedades",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O96",
+      "sourceId": "a-letra",
+      "targetId": "e-propiedades",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c-O98",
+      "sourceId": "a-idp",
+      "targetId": "e-propiedades",
+      "isTotalParticipation": false
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Auditar proyecto
 
-Ejecutá una auditoría del proyecto actual contra la plantilla claude-kit.
+Ejecutá una auditoría del proyecto actual contra la plantilla dotforge.
 
 ## Steps
 
@@ -12,7 +12,7 @@ Ejecutá una auditoría del proyecto actual contra la plantilla claude-kit.
    - `*.db` o `*.sqlite` o notebooks → data-analysis
    - `docker-compose*` o `Dockerfile*` → docker-deploy
 
-2. Leer el checklist de auditoría: `~/Documents/GitHub/claude-kit/audit/checklist.md`
+2. Leer el checklist de auditoría: `$DOTFORGE_DIR/audit/checklist.md`
 
 3. Evaluar cada item del checklist contra el proyecto actual:
    - ¿Existe CLAUDE.md? ¿Tiene >20 líneas útiles?
@@ -22,7 +22,7 @@ Ejecutá una auditoría del proyecto actual contra la plantilla claude-kit.
    - ¿Los comandos build/test están documentados?
    - Items recomendados del checklist
 
-4. Calcular score según `~/Documents/GitHub/claude-kit/audit/scoring.md`
+4. Calcular score según `$DOTFORGE_DIR/audit/scoring.md`
 
 5. Generar reporte con formato:
 ```

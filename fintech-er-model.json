@@ -1,0 +1,2703 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "e-usuario",
+      "type": "entity",
+      "label": "USUARIO",
+      "position": {
+        "x": 1200,
+        "y": 300
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-usr-cod",
+      "type": "attribute",
+      "label": "codigo",
+      "position": {
+        "x": 1040,
+        "y": 140
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-usr-mail",
+      "type": "attribute",
+      "label": "email",
+      "position": {
+        "x": 1200,
+        "y": 120
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-usr-tel",
+      "type": "attribute",
+      "label": "telefono",
+      "position": {
+        "x": 1360,
+        "y": 140
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-usr-falta",
+      "type": "attribute",
+      "label": "fecha_alta",
+      "position": {
+        "x": 1500,
+        "y": 250
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-usr-fcon",
+      "type": "attribute",
+      "label": "fecha_ult_conexion",
+      "position": {
+        "x": 1500,
+        "y": 350
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-usr-est",
+      "type": "attribute",
+      "label": "estado",
+      "position": {
+        "x": 900,
+        "y": 250
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-usr-nval",
+      "type": "attribute",
+      "label": "nivel_validacion",
+      "position": {
+        "x": 900,
+        "y": 350
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "isa-usr",
+      "type": "isa",
+      "label": "es_un",
+      "position": {
+        "x": 1200,
+        "y": 460
+      },
+      "isDisjoint": true,
+      "isTotal": true
+    },
+    {
+      "id": "e-pf",
+      "type": "entity",
+      "label": "PERSONA_FISICA",
+      "position": {
+        "x": 750,
+        "y": 620
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-pf-dni",
+      "type": "attribute",
+      "label": "dni",
+      "position": {
+        "x": 500,
+        "y": 540
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pf-cuil",
+      "type": "attribute",
+      "label": "cuil",
+      "position": {
+        "x": 620,
+        "y": 500
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pf-nom",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 500,
+        "y": 700
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pf-ape",
+      "type": "attribute",
+      "label": "apellido",
+      "position": {
+        "x": 620,
+        "y": 760
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pf-fnac",
+      "type": "attribute",
+      "label": "fecha_nacimiento",
+      "position": {
+        "x": 380,
+        "y": 640
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pf-gen",
+      "type": "attribute",
+      "label": "genero",
+      "position": {
+        "x": 380,
+        "y": 720
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pf-nac",
+      "type": "attribute",
+      "label": "nacionalidad",
+      "position": {
+        "x": 380,
+        "y": 580
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pf-dir",
+      "type": "attribute",
+      "label": "direccion",
+      "position": {
+        "x": 750,
+        "y": 800
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-pj",
+      "type": "entity",
+      "label": "PERSONA_JURIDICA",
+      "position": {
+        "x": 1650,
+        "y": 620
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-pj-cuit",
+      "type": "attribute",
+      "label": "cuit",
+      "position": {
+        "x": 1820,
+        "y": 500
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pj-rs",
+      "type": "attribute",
+      "label": "razon_social",
+      "position": {
+        "x": 1820,
+        "y": 580
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pj-nf",
+      "type": "attribute",
+      "label": "nombre_fantasia",
+      "position": {
+        "x": 1820,
+        "y": 660
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pj-fc",
+      "type": "attribute",
+      "label": "fecha_constitucion",
+      "position": {
+        "x": 1820,
+        "y": 740
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pj-act",
+      "type": "attribute",
+      "label": "actividad_economica",
+      "position": {
+        "x": 1650,
+        "y": 800
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pj-dom",
+      "type": "attribute",
+      "label": "domicilio_fiscal",
+      "position": {
+        "x": 1500,
+        "y": 740
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-designa",
+      "type": "relationship",
+      "label": "designa",
+      "position": {
+        "x": 1200,
+        "y": 620
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "a-des-rol",
+      "type": "attribute",
+      "label": "rol",
+      "position": {
+        "x": 1100,
+        "y": 560
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-des-fdes",
+      "type": "attribute",
+      "label": "fecha_desde",
+      "position": {
+        "x": 1300,
+        "y": 560
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-cuenta",
+      "type": "entity",
+      "label": "CUENTA",
+      "position": {
+        "x": 300,
+        "y": 1100
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-cta-cvu",
+      "type": "attribute",
+      "label": "cvu",
+      "position": {
+        "x": 140,
+        "y": 980
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cta-ali",
+      "type": "attribute",
+      "label": "alias",
+      "position": {
+        "x": 140,
+        "y": 1060
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cta-mon",
+      "type": "attribute",
+      "label": "moneda",
+      "position": {
+        "x": 140,
+        "y": 1140
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cta-sd",
+      "type": "attribute",
+      "label": "saldo_disponible",
+      "position": {
+        "x": 140,
+        "y": 1220
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cta-sb",
+      "type": "attribute",
+      "label": "saldo_bloqueado",
+      "position": {
+        "x": 460,
+        "y": 1240
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cta-fa",
+      "type": "attribute",
+      "label": "fecha_apertura",
+      "position": {
+        "x": 460,
+        "y": 960
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cta-est",
+      "type": "attribute",
+      "label": "estado",
+      "position": {
+        "x": 460,
+        "y": 1040
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-tiene-cta",
+      "type": "relationship",
+      "label": "tiene_cuenta",
+      "position": {
+        "x": 700,
+        "y": 800
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-tx",
+      "type": "entity",
+      "label": "TRANSACCION",
+      "position": {
+        "x": 1100,
+        "y": 1200
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-tx-cod",
+      "type": "attribute",
+      "label": "codigo",
+      "position": {
+        "x": 940,
+        "y": 1080
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-tx-fh",
+      "type": "attribute",
+      "label": "fecha_hora",
+      "position": {
+        "x": 940,
+        "y": 1160
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-tx-mon",
+      "type": "attribute",
+      "label": "monto",
+      "position": {
+        "x": 940,
+        "y": 1240
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-tx-mn",
+      "type": "attribute",
+      "label": "moneda",
+      "position": {
+        "x": 940,
+        "y": 1320
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-tx-des",
+      "type": "attribute",
+      "label": "descripcion",
+      "position": {
+        "x": 1100,
+        "y": 1060
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-tx-est",
+      "type": "attribute",
+      "label": "estado",
+      "position": {
+        "x": 1260,
+        "y": 1080
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-tx-ref",
+      "type": "attribute",
+      "label": "ref_externa",
+      "position": {
+        "x": 1260,
+        "y": 1160
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-realiza",
+      "type": "relationship",
+      "label": "realiza",
+      "position": {
+        "x": 700,
+        "y": 1100
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "isa-tx",
+      "type": "isa",
+      "label": "es_un",
+      "position": {
+        "x": 1100,
+        "y": 1400
+      },
+      "isDisjoint": true,
+      "isTotal": true
+    },
+    {
+      "id": "e-tr",
+      "type": "entity",
+      "label": "TRANSFERENCIA",
+      "position": {
+        "x": 350,
+        "y": 1600
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-tr-cbu",
+      "type": "attribute",
+      "label": "cbu_externo",
+      "position": {
+        "x": 150,
+        "y": 1500
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-tr-ndest",
+      "type": "attribute",
+      "label": "nombre_destinatario",
+      "position": {
+        "x": 150,
+        "y": 1580
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-tr-cudest",
+      "type": "attribute",
+      "label": "cuit_destinatario",
+      "position": {
+        "x": 150,
+        "y": 1660
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-tr-mot",
+      "type": "attribute",
+      "label": "motivo",
+      "position": {
+        "x": 150,
+        "y": 1740
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-ps",
+      "type": "entity",
+      "label": "PAGO_SERVICIO",
+      "position": {
+        "x": 750,
+        "y": 1600
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-ps-comp",
+      "type": "attribute",
+      "label": "codigo_comprobante",
+      "position": {
+        "x": 750,
+        "y": 1740
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ps-per",
+      "type": "attribute",
+      "label": "periodo",
+      "position": {
+        "x": 630,
+        "y": 1720
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ps-fv",
+      "type": "attribute",
+      "label": "fecha_vencimiento",
+      "position": {
+        "x": 870,
+        "y": 1720
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-rec",
+      "type": "entity",
+      "label": "RECARGA",
+      "position": {
+        "x": 1100,
+        "y": 1600
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-rec-med",
+      "type": "attribute",
+      "label": "medio",
+      "position": {
+        "x": 1020,
+        "y": 1720
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-rec-cost",
+      "type": "attribute",
+      "label": "costo",
+      "position": {
+        "x": 1180,
+        "y": 1720
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-oa",
+      "type": "entity",
+      "label": "OPERACION_ACTIVO",
+      "position": {
+        "x": 1500,
+        "y": 1600
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-oa-tipo",
+      "type": "attribute",
+      "label": "tipo_op",
+      "position": {
+        "x": 1420,
+        "y": 1720
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-oa-can",
+      "type": "attribute",
+      "label": "cantidad",
+      "position": {
+        "x": 1500,
+        "y": 1740
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-oa-pre",
+      "type": "attribute",
+      "label": "precio_unitario",
+      "position": {
+        "x": 1580,
+        "y": 1720
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-oa-com",
+      "type": "attribute",
+      "label": "comision",
+      "position": {
+        "x": 1680,
+        "y": 1660
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-qr",
+      "type": "entity",
+      "label": "PAGO_QR",
+      "position": {
+        "x": 1900,
+        "y": 1600
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-qr-pv",
+      "type": "attribute",
+      "label": "punto_venta",
+      "position": {
+        "x": 2000,
+        "y": 1500
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-qr-cop",
+      "type": "attribute",
+      "label": "codigo_operacion",
+      "position": {
+        "x": 2050,
+        "y": 1600
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-servicio",
+      "type": "entity",
+      "label": "SERVICIO",
+      "position": {
+        "x": 2400,
+        "y": 900
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-srv-cod",
+      "type": "attribute",
+      "label": "codigo",
+      "position": {
+        "x": 2540,
+        "y": 760
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-srv-nom",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 2540,
+        "y": 840
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-srv-emp",
+      "type": "attribute",
+      "label": "empresa_proveedora",
+      "position": {
+        "x": 2540,
+        "y": 920
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-srv-cat",
+      "type": "attribute",
+      "label": "categoria",
+      "position": {
+        "x": 2540,
+        "y": 1000
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-srv-cadh",
+      "type": "attribute",
+      "label": "codigo_adhesion",
+      "position": {
+        "x": 2400,
+        "y": 1040
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-pago-srv",
+      "type": "relationship",
+      "label": "corresponde_a",
+      "position": {
+        "x": 1100,
+        "y": 1900
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-adhiere",
+      "type": "relationship",
+      "label": "adhiere",
+      "position": {
+        "x": 2000,
+        "y": 500
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "a-adh-fa",
+      "type": "attribute",
+      "label": "fecha_adhesion",
+      "position": {
+        "x": 1900,
+        "y": 380
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-adh-cc",
+      "type": "attribute",
+      "label": "codigo_cliente",
+      "position": {
+        "x": 2000,
+        "y": 360
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-adh-ali",
+      "type": "attribute",
+      "label": "alias",
+      "position": {
+        "x": 2100,
+        "y": 380
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-adh-deb",
+      "type": "attribute",
+      "label": "debito_automatico",
+      "position": {
+        "x": 2200,
+        "y": 440
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-activo",
+      "type": "entity",
+      "label": "ACTIVO",
+      "position": {
+        "x": 2400,
+        "y": 1500
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-act-tik",
+      "type": "attribute",
+      "label": "ticker",
+      "position": {
+        "x": 2540,
+        "y": 1360
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-act-nom",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 2540,
+        "y": 1440
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-act-tipo",
+      "type": "attribute",
+      "label": "tipo",
+      "position": {
+        "x": 2540,
+        "y": 1520
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-act-mer",
+      "type": "attribute",
+      "label": "mercado",
+      "position": {
+        "x": 2540,
+        "y": 1600
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-act-mc",
+      "type": "attribute",
+      "label": "moneda_cotizacion",
+      "position": {
+        "x": 2540,
+        "y": 1680
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-cot",
+      "type": "entity",
+      "label": "COTIZACION",
+      "position": {
+        "x": 2800,
+        "y": 1800
+      },
+      "isWeak": true
+    },
+    {
+      "id": "a-cot-f",
+      "type": "attribute",
+      "label": "fecha",
+      "position": {
+        "x": 2960,
+        "y": 1700
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cot-h",
+      "type": "attribute",
+      "label": "hora",
+      "position": {
+        "x": 2960,
+        "y": 1780
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cot-pa",
+      "type": "attribute",
+      "label": "precio_apertura",
+      "position": {
+        "x": 2960,
+        "y": 1860
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cot-pc",
+      "type": "attribute",
+      "label": "precio_cierre",
+      "position": {
+        "x": 2960,
+        "y": 1940
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cot-max",
+      "type": "attribute",
+      "label": "max",
+      "position": {
+        "x": 2800,
+        "y": 1960
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cot-min",
+      "type": "attribute",
+      "label": "min",
+      "position": {
+        "x": 2640,
+        "y": 1900
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cot-vol",
+      "type": "attribute",
+      "label": "volumen",
+      "position": {
+        "x": 2640,
+        "y": 1820
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-cot",
+      "type": "relationship",
+      "label": "tiene_cotizacion",
+      "position": {
+        "x": 2600,
+        "y": 1700
+      },
+      "isIdentifying": true
+    },
+    {
+      "id": "r-opera",
+      "type": "relationship",
+      "label": "opera_sobre",
+      "position": {
+        "x": 1900,
+        "y": 1800
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-tenencia",
+      "type": "relationship",
+      "label": "tiene_tenencia",
+      "position": {
+        "x": 2200,
+        "y": 200
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "a-ten-can",
+      "type": "attribute",
+      "label": "cantidad",
+      "position": {
+        "x": 2080,
+        "y": 80
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ten-pp",
+      "type": "attribute",
+      "label": "precio_promedio",
+      "position": {
+        "x": 2200,
+        "y": 60
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ten-fu",
+      "type": "attribute",
+      "label": "fecha_ult_op",
+      "position": {
+        "x": 2320,
+        "y": 80
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-qr-com",
+      "type": "relationship",
+      "label": "paga_a",
+      "position": {
+        "x": 1900,
+        "y": 1100
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-tr-dest",
+      "type": "relationship",
+      "label": "destino_interno",
+      "position": {
+        "x": 100,
+        "y": 1500
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-prest",
+      "type": "entity",
+      "label": "PRESTAMO",
+      "position": {
+        "x": 200,
+        "y": 1900
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-pr-cod",
+      "type": "attribute",
+      "label": "codigo",
+      "position": {
+        "x": 40,
+        "y": 1780
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pr-fs",
+      "type": "attribute",
+      "label": "fecha_solicitud",
+      "position": {
+        "x": 40,
+        "y": 1860
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pr-ms",
+      "type": "attribute",
+      "label": "monto_solicitado",
+      "position": {
+        "x": 40,
+        "y": 1940
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pr-mo",
+      "type": "attribute",
+      "label": "monto_otorgado",
+      "position": {
+        "x": 40,
+        "y": 2020
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pr-tna",
+      "type": "attribute",
+      "label": "tna",
+      "position": {
+        "x": 360,
+        "y": 1780
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pr-cft",
+      "type": "attribute",
+      "label": "cft",
+      "position": {
+        "x": 360,
+        "y": 1860
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pr-plz",
+      "type": "attribute",
+      "label": "plazo_cuotas",
+      "position": {
+        "x": 360,
+        "y": 1940
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pr-est",
+      "type": "attribute",
+      "label": "estado",
+      "position": {
+        "x": 360,
+        "y": 2020
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pr-mr",
+      "type": "attribute",
+      "label": "motivo_rechazo",
+      "position": {
+        "x": 200,
+        "y": 2080
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-solicita",
+      "type": "relationship",
+      "label": "solicita",
+      "position": {
+        "x": 200,
+        "y": 1100
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-cuota",
+      "type": "entity",
+      "label": "CUOTA",
+      "position": {
+        "x": 200,
+        "y": 2300
+      },
+      "isWeak": true
+    },
+    {
+      "id": "a-cu-nro",
+      "type": "attribute",
+      "label": "nro",
+      "position": {
+        "x": 40,
+        "y": 2200
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cu-fv",
+      "type": "attribute",
+      "label": "fecha_vencimiento",
+      "position": {
+        "x": 40,
+        "y": 2280
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cu-cap",
+      "type": "attribute",
+      "label": "monto_capital",
+      "position": {
+        "x": 40,
+        "y": 2360
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cu-int",
+      "type": "attribute",
+      "label": "monto_interes",
+      "position": {
+        "x": 360,
+        "y": 2200
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cu-tot",
+      "type": "attribute",
+      "label": "monto_total",
+      "position": {
+        "x": 360,
+        "y": 2280
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cu-est",
+      "type": "attribute",
+      "label": "estado",
+      "position": {
+        "x": 360,
+        "y": 2360
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-genera",
+      "type": "relationship",
+      "label": "genera",
+      "position": {
+        "x": 200,
+        "y": 2100
+      },
+      "isIdentifying": true
+    },
+    {
+      "id": "r-paga-cu",
+      "type": "relationship",
+      "label": "pagada_por",
+      "position": {
+        "x": 700,
+        "y": 2300
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "a-pc-fp",
+      "type": "attribute",
+      "label": "fecha_pago",
+      "position": {
+        "x": 700,
+        "y": 2420
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pc-mp",
+      "type": "attribute",
+      "label": "monto_pago",
+      "position": {
+        "x": 820,
+        "y": 2380
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-disp",
+      "type": "entity",
+      "label": "DISPOSITIVO",
+      "position": {
+        "x": 1500,
+        "y": 2100
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-disp-id",
+      "type": "attribute",
+      "label": "id",
+      "position": {
+        "x": 1340,
+        "y": 1980
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-disp-tipo",
+      "type": "attribute",
+      "label": "tipo",
+      "position": {
+        "x": 1340,
+        "y": 2060
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-disp-mod",
+      "type": "attribute",
+      "label": "modelo",
+      "position": {
+        "x": 1340,
+        "y": 2140
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-disp-fpl",
+      "type": "attribute",
+      "label": "fecha_primer_login",
+      "position": {
+        "x": 1340,
+        "y": 2220
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-disp-fuu",
+      "type": "attribute",
+      "label": "fecha_ult_uso",
+      "position": {
+        "x": 1500,
+        "y": 2280
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-tiene-disp",
+      "type": "relationship",
+      "label": "tiene_dispositivo",
+      "position": {
+        "x": 1200,
+        "y": 2100
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-sesion",
+      "type": "entity",
+      "label": "SESION",
+      "position": {
+        "x": 1800,
+        "y": 2100
+      },
+      "isWeak": true
+    },
+    {
+      "id": "a-ses-fi",
+      "type": "attribute",
+      "label": "fecha_inicio",
+      "position": {
+        "x": 1980,
+        "y": 1980
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ses-fc",
+      "type": "attribute",
+      "label": "fecha_cierre",
+      "position": {
+        "x": 1980,
+        "y": 2060
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ses-ip",
+      "type": "attribute",
+      "label": "ip",
+      "position": {
+        "x": 1980,
+        "y": 2140
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ses-geo",
+      "type": "attribute",
+      "label": "geolocalizacion",
+      "position": {
+        "x": 1980,
+        "y": 2220
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ses-fin",
+      "type": "attribute",
+      "label": "finalizacion",
+      "position": {
+        "x": 1800,
+        "y": 2280
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-abre-ses",
+      "type": "relationship",
+      "label": "abre_sesion",
+      "position": {
+        "x": 1700,
+        "y": 2100
+      },
+      "isIdentifying": true
+    },
+    {
+      "id": "e-alerta",
+      "type": "entity",
+      "label": "ALERTA",
+      "position": {
+        "x": 2200,
+        "y": 2300
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-al-cod",
+      "type": "attribute",
+      "label": "codigo",
+      "position": {
+        "x": 2360,
+        "y": 2180
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-al-tipo",
+      "type": "attribute",
+      "label": "tipo_alerta",
+      "position": {
+        "x": 2360,
+        "y": 2260
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-al-fh",
+      "type": "attribute",
+      "label": "fecha_hora",
+      "position": {
+        "x": 2360,
+        "y": 2340
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-al-sev",
+      "type": "attribute",
+      "label": "severidad",
+      "position": {
+        "x": 2360,
+        "y": 2420
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-al-des",
+      "type": "attribute",
+      "label": "descripcion",
+      "position": {
+        "x": 2200,
+        "y": 2460
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-al-mar",
+      "type": "attribute",
+      "label": "marcada",
+      "position": {
+        "x": 2040,
+        "y": 2400
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-rec-al",
+      "type": "relationship",
+      "label": "recibe_alerta",
+      "position": {
+        "x": 2200,
+        "y": 1500
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-al-tx",
+      "type": "relationship",
+      "label": "vinculada_a_tx",
+      "position": {
+        "x": 2050,
+        "y": 2150
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-al-ses",
+      "type": "relationship",
+      "label": "vinculada_a_ses",
+      "position": {
+        "x": 2000,
+        "y": 2200
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "txt-usr",
+      "type": "textbox",
+      "label": "USUARIO es_un: total, disjoint",
+      "text": "USUARIO es_un: total, disjoint\n→ PERSONA_FISICA | PERSONA_JURIDICA",
+      "position": {
+        "x": 2700,
+        "y": 300
+      }
+    },
+    {
+      "id": "txt-tx",
+      "type": "textbox",
+      "label": "TRANSACCION es_un: total, disjoint",
+      "text": "TRANSACCION es_un: total, disjoint\n5 subtipos: TRANSFERENCIA, PAGO_SERVICIO,\nRECARGA, OPERACION_ACTIVO, PAGO_QR",
+      "position": {
+        "x": 2700,
+        "y": 1100
+      }
+    },
+    {
+      "id": "txt-weak",
+      "type": "textbox",
+      "label": "Entidades débiles:",
+      "text": "Entidades débiles:\n• COTIZACION (depende de ACTIVO)\n• CUOTA (depende de PRESTAMO)\n• SESION (depende de DISPOSITIVO)",
+      "position": {
+        "x": 2700,
+        "y": 2200
+      }
+    },
+    {
+      "id": "txt-pjcom",
+      "type": "textbox",
+      "label": "PAGO_QR.paga_a apunta a PERSONA_JURIDICA",
+      "text": "PAGO_QR.paga_a apunta a PERSONA_JURIDICA\n(comercios = personas jurídicas)",
+      "position": {
+        "x": 2700,
+        "y": 1500
+      }
+    }
+  ],
+  "aggregations": [],
+  "connections": [
+    {
+      "id": "c1",
+      "sourceId": "e-usuario",
+      "targetId": "a-usr-cod",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c2",
+      "sourceId": "e-usuario",
+      "targetId": "a-usr-mail",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c3",
+      "sourceId": "e-usuario",
+      "targetId": "a-usr-tel",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c4",
+      "sourceId": "e-usuario",
+      "targetId": "a-usr-falta",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c5",
+      "sourceId": "e-usuario",
+      "targetId": "a-usr-fcon",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c6",
+      "sourceId": "e-usuario",
+      "targetId": "a-usr-est",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c7",
+      "sourceId": "e-usuario",
+      "targetId": "a-usr-nval",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c8",
+      "sourceId": "e-usuario",
+      "targetId": "isa-usr",
+      "isTotalParticipation": true
+    },
+    {
+      "id": "c9",
+      "sourceId": "e-pf",
+      "targetId": "a-pf-dni",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c10",
+      "sourceId": "e-pf",
+      "targetId": "a-pf-cuil",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c11",
+      "sourceId": "e-pf",
+      "targetId": "a-pf-nom",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c12",
+      "sourceId": "e-pf",
+      "targetId": "a-pf-ape",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c13",
+      "sourceId": "e-pf",
+      "targetId": "a-pf-fnac",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c14",
+      "sourceId": "e-pf",
+      "targetId": "a-pf-gen",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c15",
+      "sourceId": "e-pf",
+      "targetId": "a-pf-nac",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c16",
+      "sourceId": "e-pf",
+      "targetId": "a-pf-dir",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c17",
+      "sourceId": "isa-usr",
+      "targetId": "e-pf",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c18",
+      "sourceId": "e-pj",
+      "targetId": "a-pj-cuit",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c19",
+      "sourceId": "e-pj",
+      "targetId": "a-pj-rs",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c20",
+      "sourceId": "e-pj",
+      "targetId": "a-pj-nf",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c21",
+      "sourceId": "e-pj",
+      "targetId": "a-pj-fc",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c22",
+      "sourceId": "e-pj",
+      "targetId": "a-pj-act",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c23",
+      "sourceId": "e-pj",
+      "targetId": "a-pj-dom",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c24",
+      "sourceId": "isa-usr",
+      "targetId": "e-pj",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c25",
+      "sourceId": "r-designa",
+      "targetId": "a-des-rol",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c26",
+      "sourceId": "r-designa",
+      "targetId": "a-des-fdes",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c27",
+      "sourceId": "e-pj",
+      "targetId": "r-designa",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c28",
+      "sourceId": "r-designa",
+      "targetId": "e-pf",
+      "isTotalParticipation": false,
+      "cardinality": "M",
+      "role": "firmante"
+    },
+    {
+      "id": "c29",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-cvu",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c30",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-ali",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c31",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-mon",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c32",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-sd",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c33",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-sb",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c34",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-fa",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c35",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-est",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c36",
+      "sourceId": "e-usuario",
+      "targetId": "r-tiene-cta",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c37",
+      "sourceId": "r-tiene-cta",
+      "targetId": "e-cuenta",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c38",
+      "sourceId": "e-tx",
+      "targetId": "a-tx-cod",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c39",
+      "sourceId": "e-tx",
+      "targetId": "a-tx-fh",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c40",
+      "sourceId": "e-tx",
+      "targetId": "a-tx-mon",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c41",
+      "sourceId": "e-tx",
+      "targetId": "a-tx-mn",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c42",
+      "sourceId": "e-tx",
+      "targetId": "a-tx-des",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c43",
+      "sourceId": "e-tx",
+      "targetId": "a-tx-est",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c44",
+      "sourceId": "e-tx",
+      "targetId": "a-tx-ref",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c45",
+      "sourceId": "e-cuenta",
+      "targetId": "r-realiza",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c46",
+      "sourceId": "r-realiza",
+      "targetId": "e-tx",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c47",
+      "sourceId": "e-tx",
+      "targetId": "isa-tx",
+      "isTotalParticipation": true
+    },
+    {
+      "id": "c48",
+      "sourceId": "e-tr",
+      "targetId": "a-tr-cbu",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c49",
+      "sourceId": "e-tr",
+      "targetId": "a-tr-ndest",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c50",
+      "sourceId": "e-tr",
+      "targetId": "a-tr-cudest",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c51",
+      "sourceId": "e-tr",
+      "targetId": "a-tr-mot",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c52",
+      "sourceId": "isa-tx",
+      "targetId": "e-tr",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c53",
+      "sourceId": "e-ps",
+      "targetId": "a-ps-comp",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c54",
+      "sourceId": "e-ps",
+      "targetId": "a-ps-per",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c55",
+      "sourceId": "e-ps",
+      "targetId": "a-ps-fv",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c56",
+      "sourceId": "isa-tx",
+      "targetId": "e-ps",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c57",
+      "sourceId": "e-rec",
+      "targetId": "a-rec-med",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c58",
+      "sourceId": "e-rec",
+      "targetId": "a-rec-cost",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c59",
+      "sourceId": "isa-tx",
+      "targetId": "e-rec",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c60",
+      "sourceId": "e-oa",
+      "targetId": "a-oa-tipo",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c61",
+      "sourceId": "e-oa",
+      "targetId": "a-oa-can",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c62",
+      "sourceId": "e-oa",
+      "targetId": "a-oa-pre",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c63",
+      "sourceId": "e-oa",
+      "targetId": "a-oa-com",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c64",
+      "sourceId": "isa-tx",
+      "targetId": "e-oa",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c65",
+      "sourceId": "e-qr",
+      "targetId": "a-qr-pv",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c66",
+      "sourceId": "e-qr",
+      "targetId": "a-qr-cop",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c67",
+      "sourceId": "isa-tx",
+      "targetId": "e-qr",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c68",
+      "sourceId": "e-servicio",
+      "targetId": "a-srv-cod",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c69",
+      "sourceId": "e-servicio",
+      "targetId": "a-srv-nom",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c70",
+      "sourceId": "e-servicio",
+      "targetId": "a-srv-emp",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c71",
+      "sourceId": "e-servicio",
+      "targetId": "a-srv-cat",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c72",
+      "sourceId": "e-servicio",
+      "targetId": "a-srv-cadh",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c73",
+      "sourceId": "e-ps",
+      "targetId": "r-pago-srv",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c74",
+      "sourceId": "r-pago-srv",
+      "targetId": "e-servicio",
+      "isTotalParticipation": true,
+      "cardinality": "1"
+    },
+    {
+      "id": "c75",
+      "sourceId": "r-adhiere",
+      "targetId": "a-adh-fa",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c76",
+      "sourceId": "r-adhiere",
+      "targetId": "a-adh-cc",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c77",
+      "sourceId": "r-adhiere",
+      "targetId": "a-adh-ali",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c78",
+      "sourceId": "r-adhiere",
+      "targetId": "a-adh-deb",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c79",
+      "sourceId": "e-usuario",
+      "targetId": "r-adhiere",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c80",
+      "sourceId": "r-adhiere",
+      "targetId": "e-servicio",
+      "isTotalParticipation": false,
+      "cardinality": "M"
+    },
+    {
+      "id": "c81",
+      "sourceId": "e-activo",
+      "targetId": "a-act-tik",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c82",
+      "sourceId": "e-activo",
+      "targetId": "a-act-nom",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c83",
+      "sourceId": "e-activo",
+      "targetId": "a-act-tipo",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c84",
+      "sourceId": "e-activo",
+      "targetId": "a-act-mer",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c85",
+      "sourceId": "e-activo",
+      "targetId": "a-act-mc",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c86",
+      "sourceId": "e-cot",
+      "targetId": "a-cot-f",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c87",
+      "sourceId": "e-cot",
+      "targetId": "a-cot-h",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c88",
+      "sourceId": "e-cot",
+      "targetId": "a-cot-pa",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c89",
+      "sourceId": "e-cot",
+      "targetId": "a-cot-pc",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c90",
+      "sourceId": "e-cot",
+      "targetId": "a-cot-max",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c91",
+      "sourceId": "e-cot",
+      "targetId": "a-cot-min",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c92",
+      "sourceId": "e-cot",
+      "targetId": "a-cot-vol",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c93",
+      "sourceId": "e-activo",
+      "targetId": "r-cot",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c94",
+      "sourceId": "r-cot",
+      "targetId": "e-cot",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c95",
+      "sourceId": "e-oa",
+      "targetId": "r-opera",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c96",
+      "sourceId": "r-opera",
+      "targetId": "e-activo",
+      "isTotalParticipation": true,
+      "cardinality": "1"
+    },
+    {
+      "id": "c97",
+      "sourceId": "r-tenencia",
+      "targetId": "a-ten-can",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c98",
+      "sourceId": "r-tenencia",
+      "targetId": "a-ten-pp",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c99",
+      "sourceId": "r-tenencia",
+      "targetId": "a-ten-fu",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c100",
+      "sourceId": "e-usuario",
+      "targetId": "r-tenencia",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c101",
+      "sourceId": "r-tenencia",
+      "targetId": "e-activo",
+      "isTotalParticipation": false,
+      "cardinality": "M"
+    },
+    {
+      "id": "c102",
+      "sourceId": "e-qr",
+      "targetId": "r-qr-com",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c103",
+      "sourceId": "r-qr-com",
+      "targetId": "e-pj",
+      "isTotalParticipation": false,
+      "cardinality": "1",
+      "role": "comercio"
+    },
+    {
+      "id": "c104",
+      "sourceId": "e-tr",
+      "targetId": "r-tr-dest",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c105",
+      "sourceId": "r-tr-dest",
+      "targetId": "e-cuenta",
+      "isTotalParticipation": false,
+      "cardinality": "1",
+      "role": "destino"
+    },
+    {
+      "id": "c106",
+      "sourceId": "e-prest",
+      "targetId": "a-pr-cod",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c107",
+      "sourceId": "e-prest",
+      "targetId": "a-pr-fs",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c108",
+      "sourceId": "e-prest",
+      "targetId": "a-pr-ms",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c109",
+      "sourceId": "e-prest",
+      "targetId": "a-pr-mo",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c110",
+      "sourceId": "e-prest",
+      "targetId": "a-pr-tna",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c111",
+      "sourceId": "e-prest",
+      "targetId": "a-pr-cft",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c112",
+      "sourceId": "e-prest",
+      "targetId": "a-pr-plz",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c113",
+      "sourceId": "e-prest",
+      "targetId": "a-pr-est",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c114",
+      "sourceId": "e-prest",
+      "targetId": "a-pr-mr",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c115",
+      "sourceId": "e-usuario",
+      "targetId": "r-solicita",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c116",
+      "sourceId": "r-solicita",
+      "targetId": "e-prest",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c117",
+      "sourceId": "e-cuota",
+      "targetId": "a-cu-nro",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c118",
+      "sourceId": "e-cuota",
+      "targetId": "a-cu-fv",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c119",
+      "sourceId": "e-cuota",
+      "targetId": "a-cu-cap",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c120",
+      "sourceId": "e-cuota",
+      "targetId": "a-cu-int",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c121",
+      "sourceId": "e-cuota",
+      "targetId": "a-cu-tot",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c122",
+      "sourceId": "e-cuota",
+      "targetId": "a-cu-est",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c123",
+      "sourceId": "e-prest",
+      "targetId": "r-genera",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c124",
+      "sourceId": "r-genera",
+      "targetId": "e-cuota",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c125",
+      "sourceId": "r-paga-cu",
+      "targetId": "a-pc-fp",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c126",
+      "sourceId": "r-paga-cu",
+      "targetId": "a-pc-mp",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c127",
+      "sourceId": "e-cuota",
+      "targetId": "r-paga-cu",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c128",
+      "sourceId": "r-paga-cu",
+      "targetId": "e-tx",
+      "isTotalParticipation": false,
+      "cardinality": "M"
+    },
+    {
+      "id": "c129",
+      "sourceId": "e-disp",
+      "targetId": "a-disp-id",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c130",
+      "sourceId": "e-disp",
+      "targetId": "a-disp-tipo",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c131",
+      "sourceId": "e-disp",
+      "targetId": "a-disp-mod",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c132",
+      "sourceId": "e-disp",
+      "targetId": "a-disp-fpl",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c133",
+      "sourceId": "e-disp",
+      "targetId": "a-disp-fuu",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c134",
+      "sourceId": "e-usuario",
+      "targetId": "r-tiene-disp",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c135",
+      "sourceId": "r-tiene-disp",
+      "targetId": "e-disp",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c136",
+      "sourceId": "e-sesion",
+      "targetId": "a-ses-fi",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c137",
+      "sourceId": "e-sesion",
+      "targetId": "a-ses-fc",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c138",
+      "sourceId": "e-sesion",
+      "targetId": "a-ses-ip",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c139",
+      "sourceId": "e-sesion",
+      "targetId": "a-ses-geo",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c140",
+      "sourceId": "e-sesion",
+      "targetId": "a-ses-fin",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c141",
+      "sourceId": "e-disp",
+      "targetId": "r-abre-ses",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c142",
+      "sourceId": "r-abre-ses",
+      "targetId": "e-sesion",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c143",
+      "sourceId": "e-alerta",
+      "targetId": "a-al-cod",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c144",
+      "sourceId": "e-alerta",
+      "targetId": "a-al-tipo",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c145",
+      "sourceId": "e-alerta",
+      "targetId": "a-al-fh",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c146",
+      "sourceId": "e-alerta",
+      "targetId": "a-al-sev",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c147",
+      "sourceId": "e-alerta",
+      "targetId": "a-al-des",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c148",
+      "sourceId": "e-alerta",
+      "targetId": "a-al-mar",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c149",
+      "sourceId": "e-usuario",
+      "targetId": "r-rec-al",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c150",
+      "sourceId": "r-rec-al",
+      "targetId": "e-alerta",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c151",
+      "sourceId": "e-alerta",
+      "targetId": "r-al-tx",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c152",
+      "sourceId": "r-al-tx",
+      "targetId": "e-tx",
+      "isTotalParticipation": false,
+      "cardinality": "1",
+      "role": "alerta_tx"
+    },
+    {
+      "id": "c153",
+      "sourceId": "e-alerta",
+      "targetId": "r-al-ses",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c154",
+      "sourceId": "r-al-ses",
+      "targetId": "e-sesion",
+      "isTotalParticipation": false,
+      "cardinality": "1",
+      "role": "alerta_ses"
+    }
+  ]
+}

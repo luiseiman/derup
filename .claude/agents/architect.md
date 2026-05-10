@@ -1,1 +1,1 @@
-/Users/luiseiman/Documents/GitHub/claude-kit/agents/architect.md
+/Users/luiseiman/Documents/GitHub/dotforge/agents/architect.md

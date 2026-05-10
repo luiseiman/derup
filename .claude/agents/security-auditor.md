@@ -1,1 +1,1 @@
-/Users/luiseiman/Documents/GitHub/claude-kit/agents/security-auditor.md
+/Users/luiseiman/Documents/GitHub/dotforge/agents/security-auditor.md

@@ -1,0 +1,1412 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "e-admin",
+      "type": "entity",
+      "label": "ADMINISTRADOR",
+      "position": {
+        "x": 200,
+        "y": 300
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-adm-nombre",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 80,
+        "y": 180
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-adm-dni",
+      "type": "attribute",
+      "label": "dni",
+      "position": {
+        "x": 200,
+        "y": 150
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-adm-col",
+      "type": "attribute",
+      "label": "nro_colegiado",
+      "position": {
+        "x": 340,
+        "y": 180
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-consorcio",
+      "type": "entity",
+      "label": "CONSORCIO",
+      "position": {
+        "x": 800,
+        "y": 300
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-cons-codigo",
+      "type": "attribute",
+      "label": "codigo",
+      "position": {
+        "x": 680,
+        "y": 150
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cons-nombre",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 800,
+        "y": 140
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cons-calle",
+      "type": "attribute",
+      "label": "calle",
+      "position": {
+        "x": 920,
+        "y": 150
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cons-cp",
+      "type": "attribute",
+      "label": "codigo_postal",
+      "position": {
+        "x": 680,
+        "y": 440
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cons-loc",
+      "type": "attribute",
+      "label": "localidad",
+      "position": {
+        "x": 920,
+        "y": 440
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-administra",
+      "type": "relationship",
+      "label": "administra",
+      "position": {
+        "x": 500,
+        "y": 300
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "a-adm-hon",
+      "type": "attribute",
+      "label": "honorarios_anuales",
+      "position": {
+        "x": 500,
+        "y": 180
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-empresa",
+      "type": "entity",
+      "label": "EMPRESA",
+      "position": {
+        "x": 1500,
+        "y": 300
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-emp-cuit",
+      "type": "attribute",
+      "label": "cuit",
+      "position": {
+        "x": 1380,
+        "y": 150
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-emp-nombre",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 1500,
+        "y": 140
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-emp-dir",
+      "type": "attribute",
+      "label": "direccion",
+      "position": {
+        "x": 1620,
+        "y": 150
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-emp-tel",
+      "type": "attribute",
+      "label": "telefono",
+      "position": {
+        "x": 1380,
+        "y": 440
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-emp-contact",
+      "type": "attribute",
+      "label": "persona_contacto",
+      "position": {
+        "x": 1620,
+        "y": 440
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-sector",
+      "type": "entity",
+      "label": "SECTOR",
+      "position": {
+        "x": 1850,
+        "y": 300
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-sec-id",
+      "type": "attribute",
+      "label": "id_sector",
+      "position": {
+        "x": 1850,
+        "y": 160
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-sec-nombre",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 1980,
+        "y": 250
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-pertenece",
+      "type": "relationship",
+      "label": "pertenece",
+      "position": {
+        "x": 1700,
+        "y": 300
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-contrata",
+      "type": "relationship",
+      "label": "contrata",
+      "position": {
+        "x": 1150,
+        "y": 300
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-propiedad",
+      "type": "entity",
+      "label": "PROPIEDAD",
+      "position": {
+        "x": 800,
+        "y": 700
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-prop-portal",
+      "type": "attribute",
+      "label": "nro_portal",
+      "position": {
+        "x": 650,
+        "y": 560
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-prop-planta",
+      "type": "attribute",
+      "label": "planta",
+      "position": {
+        "x": 800,
+        "y": 550
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-prop-letra",
+      "type": "attribute",
+      "label": "letra",
+      "position": {
+        "x": 950,
+        "y": 560
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-prop-pct",
+      "type": "attribute",
+      "label": "porcentaje_participacion",
+      "position": {
+        "x": 980,
+        "y": 760
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-consta",
+      "type": "relationship",
+      "label": "consta_de",
+      "position": {
+        "x": 800,
+        "y": 500
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "isa-prop",
+      "type": "isa",
+      "label": "es_un",
+      "position": {
+        "x": 800,
+        "y": 870
+      },
+      "isDisjoint": true,
+      "isTotal": true
+    },
+    {
+      "id": "e-vivienda",
+      "type": "entity",
+      "label": "VIVIENDA",
+      "position": {
+        "x": 550,
+        "y": 1000
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-viv-hab",
+      "type": "attribute",
+      "label": "nro_habitaciones",
+      "position": {
+        "x": 430,
+        "y": 1100
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-local",
+      "type": "entity",
+      "label": "LOCAL",
+      "position": {
+        "x": 800,
+        "y": 1000
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-loc-tipo",
+      "type": "attribute",
+      "label": "tipo_comercio",
+      "position": {
+        "x": 720,
+        "y": 1120
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-loc-horario",
+      "type": "attribute",
+      "label": "horario",
+      "position": {
+        "x": 880,
+        "y": 1120
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-oficina",
+      "type": "entity",
+      "label": "OFICINA",
+      "position": {
+        "x": 1050,
+        "y": 1000
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-of-act",
+      "type": "attribute",
+      "label": "actividad",
+      "position": {
+        "x": 1170,
+        "y": 1100
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-propietario",
+      "type": "entity",
+      "label": "PROPIETARIO",
+      "position": {
+        "x": 200,
+        "y": 700
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-pro-dni",
+      "type": "attribute",
+      "label": "dni",
+      "position": {
+        "x": 80,
+        "y": 580
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pro-nombre",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 200,
+        "y": 560
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pro-apellido",
+      "type": "attribute",
+      "label": "apellido",
+      "position": {
+        "x": 340,
+        "y": 580
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pro-dir",
+      "type": "attribute",
+      "label": "direccion",
+      "position": {
+        "x": 60,
+        "y": 780
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-pro-tel",
+      "type": "attribute",
+      "label": "telefono",
+      "position": {
+        "x": 60,
+        "y": 700
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-posee",
+      "type": "relationship",
+      "label": "posee",
+      "position": {
+        "x": 500,
+        "y": 700
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-habita-prop",
+      "type": "relationship",
+      "label": "habita",
+      "position": {
+        "x": 500,
+        "y": 830
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-inquilino",
+      "type": "entity",
+      "label": "INQUILINO",
+      "position": {
+        "x": 1400,
+        "y": 700
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-inq-dni",
+      "type": "attribute",
+      "label": "dni",
+      "position": {
+        "x": 1280,
+        "y": 580
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-inq-nombre",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 1400,
+        "y": 560
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-inq-apellido",
+      "type": "attribute",
+      "label": "apellido",
+      "position": {
+        "x": 1520,
+        "y": 580
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-inq-tel",
+      "type": "attribute",
+      "label": "telefono",
+      "position": {
+        "x": 1560,
+        "y": 700
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-habita-inq",
+      "type": "relationship",
+      "label": "alquila",
+      "position": {
+        "x": 1150,
+        "y": 700
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-preside",
+      "type": "relationship",
+      "label": "preside",
+      "position": {
+        "x": 400,
+        "y": 440
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-vocal",
+      "type": "relationship",
+      "label": "es_vocal",
+      "position": {
+        "x": 600,
+        "y": 440
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-banco",
+      "type": "entity",
+      "label": "BANCO",
+      "position": {
+        "x": 1200,
+        "y": 1350
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-ban-cod",
+      "type": "attribute",
+      "label": "codigo_banco",
+      "position": {
+        "x": 1080,
+        "y": 1230
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ban-nombre",
+      "type": "attribute",
+      "label": "nombre",
+      "position": {
+        "x": 1200,
+        "y": 1210
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ban-contact",
+      "type": "attribute",
+      "label": "persona_contacto",
+      "position": {
+        "x": 1320,
+        "y": 1230
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "e-cuenta",
+      "type": "entity",
+      "label": "CUENTA",
+      "position": {
+        "x": 800,
+        "y": 1350
+      },
+      "isWeak": true
+    },
+    {
+      "id": "a-cta-sucur",
+      "type": "attribute",
+      "label": "codigo_sucursal",
+      "position": {
+        "x": 640,
+        "y": 1230
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cta-dig",
+      "type": "attribute",
+      "label": "digitos_control",
+      "position": {
+        "x": 760,
+        "y": 1210
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cta-nro",
+      "type": "attribute",
+      "label": "nro_cuenta",
+      "position": {
+        "x": 900,
+        "y": 1230
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-cta-saldo",
+      "type": "attribute",
+      "label": "saldo",
+      "position": {
+        "x": 640,
+        "y": 1460
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": true
+    },
+    {
+      "id": "r-banco-cuenta",
+      "type": "relationship",
+      "label": "posee",
+      "position": {
+        "x": 1000,
+        "y": 1350
+      },
+      "isIdentifying": true
+    },
+    {
+      "id": "r-tiene-cta",
+      "type": "relationship",
+      "label": "tiene_cuenta",
+      "position": {
+        "x": 800,
+        "y": 1100
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-ingreso",
+      "type": "entity",
+      "label": "INGRESO",
+      "position": {
+        "x": 300,
+        "y": 1350
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-ing-nro",
+      "type": "attribute",
+      "label": "nro_recibo",
+      "position": {
+        "x": 180,
+        "y": 1230
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ing-fecha",
+      "type": "attribute",
+      "label": "fecha",
+      "position": {
+        "x": 300,
+        "y": 1210
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ing-imp",
+      "type": "attribute",
+      "label": "importe",
+      "position": {
+        "x": 420,
+        "y": 1230
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-ing-cob",
+      "type": "attribute",
+      "label": "cobrado",
+      "position": {
+        "x": 160,
+        "y": 1460
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-reg-ing",
+      "type": "relationship",
+      "label": "registra_ing",
+      "position": {
+        "x": 550,
+        "y": 1350
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-paga",
+      "type": "relationship",
+      "label": "paga",
+      "position": {
+        "x": 300,
+        "y": 1100
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "e-gasto",
+      "type": "entity",
+      "label": "GASTO",
+      "position": {
+        "x": 1700,
+        "y": 1350
+      },
+      "isWeak": false
+    },
+    {
+      "id": "a-gas-nro",
+      "type": "attribute",
+      "label": "nro_recibo",
+      "position": {
+        "x": 1580,
+        "y": 1230
+      },
+      "isKey": true,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-gas-fecha",
+      "type": "attribute",
+      "label": "fecha",
+      "position": {
+        "x": 1700,
+        "y": 1210
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "a-gas-imp",
+      "type": "attribute",
+      "label": "importe",
+      "position": {
+        "x": 1820,
+        "y": 1230
+      },
+      "isKey": false,
+      "isMultivalued": false,
+      "isDerived": false
+    },
+    {
+      "id": "r-reg-gas",
+      "type": "relationship",
+      "label": "registra_gas",
+      "position": {
+        "x": 1450,
+        "y": 1350
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "r-cobra",
+      "type": "relationship",
+      "label": "cobra",
+      "position": {
+        "x": 1700,
+        "y": 1100
+      },
+      "isIdentifying": false
+    },
+    {
+      "id": "txt-isa",
+      "type": "textbox",
+      "label": "PROPIEDAD es_un: disjoint, total",
+      "text": "PROPIEDAD es_un: disjoint, total\n(toda propiedad es vivienda, local u oficina)",
+      "position": {
+        "x": 400,
+        "y": 1200
+      }
+    },
+    {
+      "id": "txt-weak",
+      "type": "textbox",
+      "label": "CUENTA es entidad débil de BANCO",
+      "text": "CUENTA es entidad débil de BANCO\nKey = codigo_banco + (codigo_sucursal, digitos_control, nro_cuenta)",
+      "position": {
+        "x": 1100,
+        "y": 1500
+      }
+    }
+  ],
+  "aggregations": [],
+  "connections": [
+    {
+      "id": "c1",
+      "sourceId": "e-admin",
+      "targetId": "a-adm-nombre",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c2",
+      "sourceId": "e-admin",
+      "targetId": "a-adm-dni",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c3",
+      "sourceId": "e-admin",
+      "targetId": "a-adm-col",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c4",
+      "sourceId": "e-consorcio",
+      "targetId": "a-cons-codigo",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c5",
+      "sourceId": "e-consorcio",
+      "targetId": "a-cons-nombre",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c6",
+      "sourceId": "e-consorcio",
+      "targetId": "a-cons-calle",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c7",
+      "sourceId": "e-consorcio",
+      "targetId": "a-cons-cp",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c8",
+      "sourceId": "e-consorcio",
+      "targetId": "a-cons-loc",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c9",
+      "sourceId": "e-admin",
+      "targetId": "r-administra",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c10",
+      "sourceId": "r-administra",
+      "targetId": "e-consorcio",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c11",
+      "sourceId": "r-administra",
+      "targetId": "a-adm-hon",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c12",
+      "sourceId": "e-empresa",
+      "targetId": "a-emp-cuit",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c13",
+      "sourceId": "e-empresa",
+      "targetId": "a-emp-nombre",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c14",
+      "sourceId": "e-empresa",
+      "targetId": "a-emp-dir",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c15",
+      "sourceId": "e-empresa",
+      "targetId": "a-emp-tel",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c16",
+      "sourceId": "e-empresa",
+      "targetId": "a-emp-contact",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c17",
+      "sourceId": "e-sector",
+      "targetId": "a-sec-id",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c18",
+      "sourceId": "e-sector",
+      "targetId": "a-sec-nombre",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c19",
+      "sourceId": "e-empresa",
+      "targetId": "r-pertenece",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c20",
+      "sourceId": "r-pertenece",
+      "targetId": "e-sector",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c21",
+      "sourceId": "e-consorcio",
+      "targetId": "r-contrata",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c22",
+      "sourceId": "r-contrata",
+      "targetId": "e-empresa",
+      "isTotalParticipation": false,
+      "cardinality": "M"
+    },
+    {
+      "id": "c23",
+      "sourceId": "e-propiedad",
+      "targetId": "a-prop-portal",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c24",
+      "sourceId": "e-propiedad",
+      "targetId": "a-prop-planta",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c25",
+      "sourceId": "e-propiedad",
+      "targetId": "a-prop-letra",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c26",
+      "sourceId": "e-propiedad",
+      "targetId": "a-prop-pct",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c27",
+      "sourceId": "e-consorcio",
+      "targetId": "r-consta",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c28",
+      "sourceId": "r-consta",
+      "targetId": "e-propiedad",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c29",
+      "sourceId": "e-propiedad",
+      "targetId": "isa-prop",
+      "isTotalParticipation": true
+    },
+    {
+      "id": "c30",
+      "sourceId": "e-vivienda",
+      "targetId": "a-viv-hab",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c31",
+      "sourceId": "isa-prop",
+      "targetId": "e-vivienda",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c32",
+      "sourceId": "e-local",
+      "targetId": "a-loc-tipo",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c33",
+      "sourceId": "e-local",
+      "targetId": "a-loc-horario",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c34",
+      "sourceId": "isa-prop",
+      "targetId": "e-local",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c35",
+      "sourceId": "e-oficina",
+      "targetId": "a-of-act",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c36",
+      "sourceId": "isa-prop",
+      "targetId": "e-oficina",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c37",
+      "sourceId": "e-propietario",
+      "targetId": "a-pro-dni",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c38",
+      "sourceId": "e-propietario",
+      "targetId": "a-pro-nombre",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c39",
+      "sourceId": "e-propietario",
+      "targetId": "a-pro-apellido",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c40",
+      "sourceId": "e-propietario",
+      "targetId": "a-pro-dir",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c41",
+      "sourceId": "e-propietario",
+      "targetId": "a-pro-tel",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c42",
+      "sourceId": "e-propietario",
+      "targetId": "r-posee",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c43",
+      "sourceId": "r-posee",
+      "targetId": "e-propiedad",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c44",
+      "sourceId": "e-propietario",
+      "targetId": "r-habita-prop",
+      "isTotalParticipation": false,
+      "cardinality": "1",
+      "role": "habitante"
+    },
+    {
+      "id": "c45",
+      "sourceId": "r-habita-prop",
+      "targetId": "e-propiedad",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c46",
+      "sourceId": "e-inquilino",
+      "targetId": "a-inq-dni",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c47",
+      "sourceId": "e-inquilino",
+      "targetId": "a-inq-nombre",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c48",
+      "sourceId": "e-inquilino",
+      "targetId": "a-inq-apellido",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c49",
+      "sourceId": "e-inquilino",
+      "targetId": "a-inq-tel",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c50",
+      "sourceId": "e-inquilino",
+      "targetId": "r-habita-inq",
+      "isTotalParticipation": false,
+      "cardinality": "N"
+    },
+    {
+      "id": "c51",
+      "sourceId": "r-habita-inq",
+      "targetId": "e-propiedad",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c52",
+      "sourceId": "e-propietario",
+      "targetId": "r-preside",
+      "isTotalParticipation": false,
+      "cardinality": "1",
+      "role": "presidente"
+    },
+    {
+      "id": "c53",
+      "sourceId": "r-preside",
+      "targetId": "e-consorcio",
+      "isTotalParticipation": true,
+      "cardinality": "1"
+    },
+    {
+      "id": "c54",
+      "sourceId": "e-propietario",
+      "targetId": "r-vocal",
+      "isTotalParticipation": false,
+      "cardinality": "N",
+      "role": "vocal"
+    },
+    {
+      "id": "c55",
+      "sourceId": "r-vocal",
+      "targetId": "e-consorcio",
+      "isTotalParticipation": false,
+      "cardinality": "M"
+    },
+    {
+      "id": "c56",
+      "sourceId": "e-banco",
+      "targetId": "a-ban-cod",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c57",
+      "sourceId": "e-banco",
+      "targetId": "a-ban-nombre",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c58",
+      "sourceId": "e-banco",
+      "targetId": "a-ban-contact",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c59",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-sucur",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c60",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-dig",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c61",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-nro",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c62",
+      "sourceId": "e-cuenta",
+      "targetId": "a-cta-saldo",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c63",
+      "sourceId": "e-banco",
+      "targetId": "r-banco-cuenta",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c64",
+      "sourceId": "r-banco-cuenta",
+      "targetId": "e-cuenta",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c65",
+      "sourceId": "e-consorcio",
+      "targetId": "r-tiene-cta",
+      "isTotalParticipation": true,
+      "cardinality": "1"
+    },
+    {
+      "id": "c66",
+      "sourceId": "r-tiene-cta",
+      "targetId": "e-cuenta",
+      "isTotalParticipation": true,
+      "cardinality": "1"
+    },
+    {
+      "id": "c67",
+      "sourceId": "e-ingreso",
+      "targetId": "a-ing-nro",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c68",
+      "sourceId": "e-ingreso",
+      "targetId": "a-ing-fecha",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c69",
+      "sourceId": "e-ingreso",
+      "targetId": "a-ing-imp",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c70",
+      "sourceId": "e-ingreso",
+      "targetId": "a-ing-cob",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c71",
+      "sourceId": "e-cuenta",
+      "targetId": "r-reg-ing",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c72",
+      "sourceId": "r-reg-ing",
+      "targetId": "e-ingreso",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c73",
+      "sourceId": "e-propietario",
+      "targetId": "r-paga",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c74",
+      "sourceId": "r-paga",
+      "targetId": "e-ingreso",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c75",
+      "sourceId": "e-gasto",
+      "targetId": "a-gas-nro",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c76",
+      "sourceId": "e-gasto",
+      "targetId": "a-gas-fecha",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c77",
+      "sourceId": "e-gasto",
+      "targetId": "a-gas-imp",
+      "isTotalParticipation": false
+    },
+    {
+      "id": "c78",
+      "sourceId": "e-cuenta",
+      "targetId": "r-reg-gas",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c79",
+      "sourceId": "r-reg-gas",
+      "targetId": "e-gasto",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    },
+    {
+      "id": "c80",
+      "sourceId": "e-empresa",
+      "targetId": "r-cobra",
+      "isTotalParticipation": false,
+      "cardinality": "1"
+    },
+    {
+      "id": "c81",
+      "sourceId": "r-cobra",
+      "targetId": "e-gasto",
+      "isTotalParticipation": true,
+      "cardinality": "N"
+    }
+  ]
+}

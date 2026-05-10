@@ -37,11 +37,12 @@ Reglas tecnicas por proyecto. Las reglas de comportamiento (comunicacion, planif
 - Solo modificar archivos estrictamente necesarios
 - No agregar features no solicitadas
 
-## Prompt Language
+## Language
 - All Claude-consumed content (rules, agent prompts, skill steps, system prompts) MUST be in English
-- User-facing content (docs, CLAUDE.md project descriptions, changelog) may be in Spanish
+- Responses, explanations, and processing output MUST be in Spanish (castellano)
+- Technical terms and code identifiers keep their original form
 - Prompts must be compact: high information density, no filler words, no hedging
-- One instruction per line, imperative mood, no "please" or "you should consider"
+- One instruction per line, imperative mood
 - If a rule can be expressed in fewer words without losing meaning, rewrite it shorter
 
 ## Context Continuity

@@ -1,0 +1,229 @@
+{
+  "version": 1,
+  "nodes": [
+    {"id":"e-usuario","type":"entity","label":"Usuario","position":{"x":150,"y":300},"isWeak":false},
+    {"id":"a-usuario-id","type":"attribute","label":"id_usuario","position":{"x":50,"y":220},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-usuario-nombre","type":"attribute","label":"nombre","position":{"x":150,"y":200},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-usuario-email","type":"attribute","label":"email","position":{"x":250,"y":220},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-usuario-fechaalta","type":"attribute","label":"fecha_alta","position":{"x":50,"y":380},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-usuario-estado","type":"attribute","label":"estado","position":{"x":250,"y":380},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"e-plan","type":"entity","label":"PlanSuscripcion","position":{"x":650,"y":100},"isWeak":false},
+    {"id":"a-plan-id","type":"attribute","label":"id_plan","position":{"x":550,"y":30},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-plan-nombre","type":"attribute","label":"nombre","position":{"x":650,"y":20},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-plan-precio","type":"attribute","label":"precio","position":{"x":750,"y":30},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-plan-maxdisp","type":"attribute","label":"max_dispositivos","position":{"x":830,"y":80},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-plan-calidad","type":"attribute","label":"calidad_video","position":{"x":830,"y":130},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-plan-descargas","type":"attribute","label":"permite_descargas","position":{"x":750,"y":170},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"e-suscripcion","type":"entity","label":"Suscripcion","position":{"x":420,"y":300},"isWeak":false},
+    {"id":"a-susc-id","type":"attribute","label":"id_suscripcion","position":{"x":420,"y":210},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-susc-fechainicio","type":"attribute","label":"fecha_inicio","position":{"x":330,"y":230},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-susc-fechafin","type":"attribute","label":"fecha_fin","position":{"x":510,"y":230},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-susc-estado","type":"attribute","label":"estado","position":{"x":510,"y":380},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"r-tiene-susc","type":"relationship","label":"Tiene","position":{"x":280,"y":300},"isIdentifying":false},
+
+    {"id":"r-corresponde-plan","type":"relationship","label":"Corresponde","position":{"x":550,"y":200},"isIdentifying":false},
+
+    {"id":"e-dispositivo","type":"entity","label":"Dispositivo","position":{"x":150,"y":550},"isWeak":false},
+    {"id":"a-disp-id","type":"attribute","label":"id_dispositivo","position":{"x":50,"y":480},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-disp-tipo","type":"attribute","label":"tipo_dispositivo","position":{"x":250,"y":480},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-disp-nombre","type":"attribute","label":"nombre_dispositivo","position":{"x":50,"y":620},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-disp-so","type":"attribute","label":"sistema_operativo","position":{"x":150,"y":640},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-disp-fecha","type":"attribute","label":"fecha_registro","position":{"x":260,"y":620},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"r-registra","type":"relationship","label":"Registra","position":{"x":150,"y":430},"isIdentifying":false},
+
+    {"id":"e-contenido","type":"entity","label":"Contenido","position":{"x":750,"y":500},"isWeak":false},
+    {"id":"a-cont-id","type":"attribute","label":"id_contenido","position":{"x":650,"y":420},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-cont-titulo","type":"attribute","label":"titulo","position":{"x":750,"y":410},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-cont-desc","type":"attribute","label":"descripcion","position":{"x":850,"y":420},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-cont-anio","type":"attribute","label":"anio_lanzamiento","position":{"x":650,"y":580},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-cont-duracion","type":"attribute","label":"duracion","position":{"x":850,"y":580},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-cont-clasif","type":"attribute","label":"clasificacion_edad","position":{"x":900,"y":500},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"isa-contenido","type":"isa","label":"d,t","position":{"x":750,"y":650},"isDisjoint":true,"isTotal":true},
+
+    {"id":"e-pelicula","type":"entity","label":"Pelicula","position":{"x":650,"y":750},"isWeak":false},
+    {"id":"a-peli-duracion","type":"attribute","label":"duracion_minutos","position":{"x":550,"y":750},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"e-serie","type":"entity","label":"Serie","position":{"x":850,"y":750},"isWeak":false},
+    {"id":"a-serie-temp","type":"attribute","label":"cantidad_temporadas","position":{"x":960,"y":750},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"e-episodio","type":"entity","label":"Episodio","position":{"x":850,"y":920},"isWeak":true},
+    {"id":"a-ep-id","type":"attribute","label":"id_episodio","position":{"x":750,"y":860},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-ep-titulo","type":"attribute","label":"titulo","position":{"x":850,"y":840},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-ep-numtemp","type":"attribute","label":"num_temporada","position":{"x":960,"y":860},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-ep-numep","type":"attribute","label":"num_episodio","position":{"x":960,"y":920},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-ep-duracion","type":"attribute","label":"duracion","position":{"x":960,"y":980},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-ep-desc","type":"attribute","label":"descripcion","position":{"x":750,"y":980},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"r-tiene-ep","type":"relationship","label":"Tiene_Ep","position":{"x":850,"y":840},"isIdentifying":true},
+
+    {"id":"e-genero","type":"entity","label":"Genero","position":{"x":1100,"y":400},"isWeak":false},
+    {"id":"a-gen-id","type":"attribute","label":"id_genero","position":{"x":1100,"y":330},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-gen-nombre","type":"attribute","label":"nombre","position":{"x":1200,"y":370},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"r-clasifica","type":"relationship","label":"Clasifica","position":{"x":950,"y":400},"isIdentifying":false},
+
+    {"id":"e-persona","type":"entity","label":"Persona","position":{"x":1100,"y":600},"isWeak":false},
+    {"id":"a-per-id","type":"attribute","label":"id_persona","position":{"x":1100,"y":530},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-per-nombre","type":"attribute","label":"nombre","position":{"x":1200,"y":560},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-per-apellido","type":"attribute","label":"apellido","position":{"x":1200,"y":610},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-per-fecha","type":"attribute","label":"fecha_nacimiento","position":{"x":1200,"y":660},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-per-nac","type":"attribute","label":"nacionalidad","position":{"x":1100,"y":680},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"r-actuacion","type":"relationship","label":"Actuacion","position":{"x":950,"y":550},"isIdentifying":false},
+    {"id":"a-act-personaje","type":"attribute","label":"personaje","position":{"x":1020,"y":510},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"r-direccion","type":"relationship","label":"Direccion","position":{"x":950,"y":650},"isIdentifying":false},
+
+    {"id":"e-lista","type":"entity","label":"ListaReproduccion","position":{"x":420,"y":550},"isWeak":false},
+    {"id":"a-lista-id","type":"attribute","label":"id_lista","position":{"x":340,"y":490},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-lista-nombre","type":"attribute","label":"nombre","position":{"x":420,"y":480},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-lista-fecha","type":"attribute","label":"fecha_creacion","position":{"x":500,"y":490},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-lista-visib","type":"attribute","label":"visibilidad","position":{"x":500,"y":620},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"r-crea-lista","type":"relationship","label":"Crea","position":{"x":280,"y":550},"isIdentifying":false},
+
+    {"id":"r-contiene","type":"relationship","label":"Contiene","position":{"x":580,"y":550},"isIdentifying":false},
+
+    {"id":"e-recomendacion","type":"entity","label":"Recomendacion","position":{"x":150,"y":750},"isWeak":false},
+    {"id":"a-rec-id","type":"attribute","label":"id_recomendacion","position":{"x":50,"y":690},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-rec-mensaje","type":"attribute","label":"mensaje","position":{"x":250,"y":690},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-rec-fecha","type":"attribute","label":"fecha_envio","position":{"x":50,"y":810},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"r-envia","type":"relationship","label":"Envia","position":{"x":150,"y":680},"isIdentifying":false},
+    {"id":"r-recibe","type":"relationship","label":"Recibe","position":{"x":150,"y":820},"isIdentifying":false},
+    {"id":"r-recomienda-cont","type":"relationship","label":"Recomienda","position":{"x":400,"y":750},"isIdentifying":false},
+
+    {"id":"e-visualizacion","type":"entity","label":"Visualizacion","position":{"x":450,"y":430},"isWeak":false},
+    {"id":"a-vis-id","type":"attribute","label":"id_visualizacion","position":{"x":370,"y":400},"isKey":true,"isMultivalued":false,"isDerived":false},
+    {"id":"a-vis-inicio","type":"attribute","label":"fecha_hora_inicio","position":{"x":550,"y":400},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-vis-fin","type":"attribute","label":"fecha_hora_fin","position":{"x":550,"y":460},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-vis-progreso","type":"attribute","label":"progreso","position":{"x":370,"y":465},"isKey":false,"isMultivalued":false,"isDerived":false},
+    {"id":"a-vis-completado","type":"attribute","label":"completado","position":{"x":450,"y":480},"isKey":false,"isMultivalued":false,"isDerived":false},
+
+    {"id":"r-ve-usuario","type":"relationship","label":"Ve","position":{"x":300,"y":400},"isIdentifying":false},
+    {"id":"r-ve-contenido","type":"relationship","label":"Visualiza","position":{"x":600,"y":470},"isIdentifying":false},
+    {"id":"r-ve-dispositivo","type":"relationship","label":"Desde","position":{"x":300,"y":500},"isIdentifying":false}
+  ],
+  "aggregations": [],
+  "connections": [
+    {"id":"c-usr-id","sourceId":"e-usuario","targetId":"a-usuario-id","isTotalParticipation":false},
+    {"id":"c-usr-nombre","sourceId":"e-usuario","targetId":"a-usuario-nombre","isTotalParticipation":false},
+    {"id":"c-usr-email","sourceId":"e-usuario","targetId":"a-usuario-email","isTotalParticipation":false},
+    {"id":"c-usr-fechaalta","sourceId":"e-usuario","targetId":"a-usuario-fechaalta","isTotalParticipation":false},
+    {"id":"c-usr-estado","sourceId":"e-usuario","targetId":"a-usuario-estado","isTotalParticipation":false},
+
+    {"id":"c-plan-id","sourceId":"e-plan","targetId":"a-plan-id","isTotalParticipation":false},
+    {"id":"c-plan-nombre","sourceId":"e-plan","targetId":"a-plan-nombre","isTotalParticipation":false},
+    {"id":"c-plan-precio","sourceId":"e-plan","targetId":"a-plan-precio","isTotalParticipation":false},
+    {"id":"c-plan-maxdisp","sourceId":"e-plan","targetId":"a-plan-maxdisp","isTotalParticipation":false},
+    {"id":"c-plan-calidad","sourceId":"e-plan","targetId":"a-plan-calidad","isTotalParticipation":false},
+    {"id":"c-plan-descargas","sourceId":"e-plan","targetId":"a-plan-descargas","isTotalParticipation":false},
+
+    {"id":"c-susc-id","sourceId":"e-suscripcion","targetId":"a-susc-id","isTotalParticipation":false},
+    {"id":"c-susc-fi","sourceId":"e-suscripcion","targetId":"a-susc-fechainicio","isTotalParticipation":false},
+    {"id":"c-susc-ff","sourceId":"e-suscripcion","targetId":"a-susc-fechafin","isTotalParticipation":false},
+    {"id":"c-susc-estado","sourceId":"e-suscripcion","targetId":"a-susc-estado","isTotalParticipation":false},
+
+    {"id":"c-usr-tiene-susc","sourceId":"e-usuario","targetId":"r-tiene-susc","cardinality":"1","isTotalParticipation":false},
+    {"id":"c-susc-tiene-usr","sourceId":"r-tiene-susc","targetId":"e-suscripcion","cardinality":"N","isTotalParticipation":true},
+
+    {"id":"c-susc-corresp","sourceId":"e-suscripcion","targetId":"r-corresponde-plan","cardinality":"N","isTotalParticipation":true},
+    {"id":"c-plan-corresp","sourceId":"r-corresponde-plan","targetId":"e-plan","cardinality":"1","isTotalParticipation":false},
+
+    {"id":"c-disp-id","sourceId":"e-dispositivo","targetId":"a-disp-id","isTotalParticipation":false},
+    {"id":"c-disp-tipo","sourceId":"e-dispositivo","targetId":"a-disp-tipo","isTotalParticipation":false},
+    {"id":"c-disp-nombre","sourceId":"e-dispositivo","targetId":"a-disp-nombre","isTotalParticipation":false},
+    {"id":"c-disp-so","sourceId":"e-dispositivo","targetId":"a-disp-so","isTotalParticipation":false},
+    {"id":"c-disp-fecha","sourceId":"e-dispositivo","targetId":"a-disp-fecha","isTotalParticipation":false},
+
+    {"id":"c-usr-registra","sourceId":"e-usuario","targetId":"r-registra","cardinality":"1","isTotalParticipation":false},
+    {"id":"c-disp-registra","sourceId":"r-registra","targetId":"e-dispositivo","cardinality":"N","isTotalParticipation":true},
+
+    {"id":"c-cont-id","sourceId":"e-contenido","targetId":"a-cont-id","isTotalParticipation":false},
+    {"id":"c-cont-titulo","sourceId":"e-contenido","targetId":"a-cont-titulo","isTotalParticipation":false},
+    {"id":"c-cont-desc","sourceId":"e-contenido","targetId":"a-cont-desc","isTotalParticipation":false},
+    {"id":"c-cont-anio","sourceId":"e-contenido","targetId":"a-cont-anio","isTotalParticipation":false},
+    {"id":"c-cont-dur","sourceId":"e-contenido","targetId":"a-cont-duracion","isTotalParticipation":false},
+    {"id":"c-cont-clasif","sourceId":"e-contenido","targetId":"a-cont-clasif","isTotalParticipation":false},
+
+    {"id":"c-cont-isa","sourceId":"e-contenido","targetId":"isa-contenido","isTotalParticipation":true},
+    {"id":"c-isa-peli","sourceId":"isa-contenido","targetId":"e-pelicula","isTotalParticipation":false},
+    {"id":"c-isa-serie","sourceId":"isa-contenido","targetId":"e-serie","isTotalParticipation":false},
+
+    {"id":"c-peli-dur","sourceId":"e-pelicula","targetId":"a-peli-duracion","isTotalParticipation":false},
+    {"id":"c-serie-temp","sourceId":"e-serie","targetId":"a-serie-temp","isTotalParticipation":false},
+
+    {"id":"c-ep-id","sourceId":"e-episodio","targetId":"a-ep-id","isTotalParticipation":false},
+    {"id":"c-ep-titulo","sourceId":"e-episodio","targetId":"a-ep-titulo","isTotalParticipation":false},
+    {"id":"c-ep-numtemp","sourceId":"e-episodio","targetId":"a-ep-numtemp","isTotalParticipation":false},
+    {"id":"c-ep-numep","sourceId":"e-episodio","targetId":"a-ep-numep","isTotalParticipation":false},
+    {"id":"c-ep-dur","sourceId":"e-episodio","targetId":"a-ep-duracion","isTotalParticipation":false},
+    {"id":"c-ep-desc","sourceId":"e-episodio","targetId":"a-ep-desc","isTotalParticipation":false},
+
+    {"id":"c-serie-tieneep","sourceId":"e-serie","targetId":"r-tiene-ep","cardinality":"1","isTotalParticipation":false},
+    {"id":"c-ep-tieneep","sourceId":"r-tiene-ep","targetId":"e-episodio","cardinality":"N","isTotalParticipation":true},
+
+    {"id":"c-gen-id","sourceId":"e-genero","targetId":"a-gen-id","isTotalParticipation":false},
+    {"id":"c-gen-nombre","sourceId":"e-genero","targetId":"a-gen-nombre","isTotalParticipation":false},
+
+    {"id":"c-cont-clasifica","sourceId":"e-contenido","targetId":"r-clasifica","cardinality":"N","isTotalParticipation":false},
+    {"id":"c-gen-clasifica","sourceId":"r-clasifica","targetId":"e-genero","cardinality":"M","isTotalParticipation":false},
+
+    {"id":"c-per-id","sourceId":"e-persona","targetId":"a-per-id","isTotalParticipation":false},
+    {"id":"c-per-nombre","sourceId":"e-persona","targetId":"a-per-nombre","isTotalParticipation":false},
+    {"id":"c-per-apellido","sourceId":"e-persona","targetId":"a-per-apellido","isTotalParticipation":false},
+    {"id":"c-per-fecha","sourceId":"e-persona","targetId":"a-per-fecha","isTotalParticipation":false},
+    {"id":"c-per-nac","sourceId":"e-persona","targetId":"a-per-nac","isTotalParticipation":false},
+
+    {"id":"c-cont-act","sourceId":"e-contenido","targetId":"r-actuacion","cardinality":"N","isTotalParticipation":false},
+    {"id":"c-per-act","sourceId":"r-actuacion","targetId":"e-persona","cardinality":"M","isTotalParticipation":false},
+    {"id":"c-act-personaje","sourceId":"r-actuacion","targetId":"a-act-personaje","isTotalParticipation":false},
+
+    {"id":"c-cont-dir","sourceId":"e-contenido","targetId":"r-direccion","cardinality":"N","isTotalParticipation":false},
+    {"id":"c-per-dir","sourceId":"r-direccion","targetId":"e-persona","cardinality":"M","isTotalParticipation":false},
+
+    {"id":"c-lista-id","sourceId":"e-lista","targetId":"a-lista-id","isTotalParticipation":false},
+    {"id":"c-lista-nombre","sourceId":"e-lista","targetId":"a-lista-nombre","isTotalParticipation":false},
+    {"id":"c-lista-fecha","sourceId":"e-lista","targetId":"a-lista-fecha","isTotalParticipation":false},
+    {"id":"c-lista-visib","sourceId":"e-lista","targetId":"a-lista-visib","isTotalParticipation":false},
+
+    {"id":"c-usr-crea","sourceId":"e-usuario","targetId":"r-crea-lista","cardinality":"1","isTotalParticipation":false},
+    {"id":"c-lista-crea","sourceId":"r-crea-lista","targetId":"e-lista","cardinality":"N","isTotalParticipation":true},
+
+    {"id":"c-lista-contiene","sourceId":"e-lista","targetId":"r-contiene","cardinality":"N","isTotalParticipation":false},
+    {"id":"c-cont-contiene","sourceId":"r-contiene","targetId":"e-contenido","cardinality":"M","isTotalParticipation":false},
+
+    {"id":"c-rec-id","sourceId":"e-recomendacion","targetId":"a-rec-id","isTotalParticipation":false},
+    {"id":"c-rec-mensaje","sourceId":"e-recomendacion","targetId":"a-rec-mensaje","isTotalParticipation":false},
+    {"id":"c-rec-fecha","sourceId":"e-recomendacion","targetId":"a-rec-fecha","isTotalParticipation":false},
+
+    {"id":"c-usr-envia","sourceId":"e-usuario","targetId":"r-envia","cardinality":"1","isTotalParticipation":false,"role":"emisor"},
+    {"id":"c-rec-envia","sourceId":"r-envia","targetId":"e-recomendacion","cardinality":"N","isTotalParticipation":true},
+
+    {"id":"c-usr-recibe","sourceId":"e-usuario","targetId":"r-recibe","cardinality":"1","isTotalParticipation":false,"role":"receptor"},
+    {"id":"c-rec-recibe","sourceId":"r-recibe","targetId":"e-recomendacion","cardinality":"N","isTotalParticipation":true},
+
+    {"id":"c-rec-cont","sourceId":"e-recomendacion","targetId":"r-recomienda-cont","cardinality":"N","isTotalParticipation":true},
+    {"id":"c-cont-rec","sourceId":"r-recomienda-cont","targetId":"e-contenido","cardinality":"1","isTotalParticipation":false},
+
+    {"id":"c-vis-id","sourceId":"e-visualizacion","targetId":"a-vis-id","isTotalParticipation":false},
+    {"id":"c-vis-inicio","sourceId":"e-visualizacion","targetId":"a-vis-inicio","isTotalParticipation":false},
+    {"id":"c-vis-fin","sourceId":"e-visualizacion","targetId":"a-vis-fin","isTotalParticipation":false},
+    {"id":"c-vis-progreso","sourceId":"e-visualizacion","targetId":"a-vis-progreso","isTotalParticipation":false},
+    {"id":"c-vis-completado","sourceId":"e-visualizacion","targetId":"a-vis-completado","isTotalParticipation":false},
+
+    {"id":"c-usr-ve","sourceId":"e-usuario","targetId":"r-ve-usuario","cardinality":"1","isTotalParticipation":false},
+    {"id":"c-vis-ve-usr","sourceId":"r-ve-usuario","targetId":"e-visualizacion","cardinality":"N","isTotalParticipation":true},
+
+    {"id":"c-vis-cont","sourceId":"e-visualizacion","targetId":"r-ve-contenido","cardinality":"N","isTotalParticipation":true},
+    {"id":"c-cont-vis","sourceId":"r-ve-contenido","targetId":"e-contenido","cardinality":"1","isTotalParticipation":false},
+
+    {"id":"c-vis-disp","sourceId":"e-visualizacion","targetId":"r-ve-dispositivo","cardinality":"N","isTotalParticipation":true},
+    {"id":"c-disp-vis","sourceId":"r-ve-dispositivo","targetId":"e-dispositivo","cardinality":"1","isTotalParticipation":false}
+  ]
+}

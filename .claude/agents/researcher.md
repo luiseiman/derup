@@ -1,1 +1,1 @@
-/Users/luiseiman/Documents/GitHub/claude-kit/agents/researcher.md
+/Users/luiseiman/Documents/GitHub/dotforge/agents/researcher.md

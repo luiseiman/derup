@@ -1,17 +1,18 @@
 {
-  "claude_kit_version": "1.2.0",
-  "synced_at": "2026-03-19",
+  "dotforge_version": "3.7.1",
+  "synced_at": "2026-05-05",
+  "stacks": [],
   "files": {
     ".claude/settings.json": {
       "hash": "sha256:78a0904545d221529086f6cbefe168f650d0891f8e50810b0905e9b9c33d3434",
       "source": "template + stack/react-vite-ts + local"
     },
     ".claude/rules/_common.md": {
-      "hash": "sha256:0513899e7eab679c396c3950d811f80920b7da57668c23cea04b8bc9a839d646",
+      "hash": "sha256:ce5ad6ad30e66c16a522677eb31b14896d4eac02245d5e967045f601e20d7154",
       "source": "template/rules/_common.md"
     },
     ".claude/rules/agents.md": {
-      "hash": "sha256:16867ec6149350739ae9f7f28981c763f413b21b27317cc87150cbd426e77e77",
+      "hash": "sha256:d70781eded51b5f57f22b41f5d1f8080ffb759eff52a7be49359ad7283ecd69e",
       "source": "template/rules/agents.md"
     },
     ".claude/rules/frontend.md": {
@@ -19,12 +20,12 @@
       "source": "local (no gestionado)"
     },
     ".claude/hooks/block-destructive.sh": {
-      "hash": "sha256:742850c463ebe9045ef50049ecae53581354761762a51ed6c9a3f2b6a44fd179",
-      "source": "local (preservado)"
+      "hash": "sha256:6afa1601d5c8e54dc07971c7fd60c647446fd572d5df42b4ef7a6d56ac1a7177",
+      "source": "template"
     },
     ".claude/hooks/lint-on-save.sh": {
-      "hash": "sha256:c157b4e09117954b803461ad75c2b044cb787499db20711c0242b5702f012d6d",
-      "source": "local (preservado)"
+      "hash": "sha256:e9c8fbdc353c77e5968e98d752d751e61c6e8c15725efcf093405f6c3f40411f",
+      "source": "template"
     },
     ".claude/commands/audit.md": {
       "hash": "sha256:56339ba8e4c261779cdf4415922c5431ff1d1525d97f4c602a5b2bdb4b756cd3",
@@ -45,6 +46,60 @@
     "CLAUDE.md": {
       "hash": "sha256:01cb250cddaacc68ece3d73682e15207193226e728d64dfebd5b379b7a876689",
       "source": "local (no gestionado)"
+    },
+    ".claude/hooks/detect-stack-drift.sh": {
+      "hash": "sha256:e2bf0a4c3abd76de01ba93d3414bb290ff4ebe1d660a122a972c20144af22ac4",
+      "source": "template"
+    },
+    ".claude/hooks/check-updates.sh": {
+      "hash": "sha256:a84499d35c389e02219dffdf9c7b2f3e32e0d5ce54f33c916b3ca211f65deed9",
+      "source": "template"
+    },
+    ".claude/hooks/session-report.sh": {
+      "hash": "sha256:eecf50069e62325f1129d573daf20369a78f9e8c911f32595742507919f642cf",
+      "source": "template"
+    },
+    ".claude/hooks/tool-latency.sh": {
+      "hash": "sha256:3e0e3c5662b3a995af2df56654ff823692ccdec606a56e17484658e12ea31812",
+      "source": "template"
+    },
+    ".claude/hooks/post-compact.sh": {
+      "hash": "sha256:1bbecd1d96724fb7514d696490203298aec6eac22f94b8b4d257899e13770134",
+      "source": "template"
+    },
+    ".claude/hooks/warn-missing-test.sh": {
+      "hash": "sha256:ebc67668f27718d236f4f330a6119148f7fe42893e352b46145090a70002f47c",
+      "source": "template"
+    },
+    ".claude/hooks/permission-denied.sh": {
+      "hash": "sha256:37184513dccbdd474c691c2ab38cd678a93863def4fba78087ebde11afb20302",
+      "source": "template"
+    },
+    ".claude/hooks/session-restore.sh": {
+      "hash": "sha256:4ca9134ea89c5b61043ed0414d2372e5fda7a2028e21ace9744c5b2877f81755",
+      "source": "template"
+    },
+    ".claude/rules/domain-learning.md": {
+      "hash": "sha256:e6deaee0bce007dc4cad7410a0e8ae1d6dcb1d4740c51f137da736fcada3ce8f",
+      "source": "template+stacks"
+    },
+    ".claude/rules/memory.md": {
+      "hash": "sha256:e23010b0df4735da86f9b47075e660058d2f402a0ff5086eeeb78319a82d2a89",
+      "source": "template+stacks"
+    },
+    ".claude/hooks/session-startup.sh": {
+      "hash": "sha256:5f061069dc023e1d8ada558b871188f3700f75e722cf2b25d0a00b6e64d7bc16",
+      "source": "template"
+    },
+    ".claude/hooks/pre-session-check.sh": {
+      "hash": "sha256:7f584357a6a2491231c1551423b9849b747a08b9d94ba3d9c2fd487933dc5534",
+      "source": "template"
+    },
+    ".claude/hooks/pre-compact-warning.sh": {
+      "hash": "sha256:1d3ae32448785dd9cc2a3677f4bc27bc155a2bbd10f36d4ef9e84cb90f8223e1",
+      "source": "template"
     }
-  }
+  },
+  "sync_method": "additive",
+  "sync_note": "Settings.json + CLAUDE.md + domain/ NOT touched. Run interactive /forge sync per-project for full merge."
 }
