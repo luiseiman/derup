@@ -21,6 +21,23 @@ import { generateDiagramSVG, svgToPng, downloadDataUrl } from './utils/exportSVG
 type AIProvider = 'gemini' | 'grok' | 'ollama' | 'openclaw' | 'openai';
 type AIConnectivityStatus = 'unknown' | 'checking' | 'connected' | 'disconnected' | 'missing-key';
 
+const SNAPSHOT_KEY = 'derup.snapshot.v1';
+
+/**
+ * Lee el snapshot guardado en localStorage al iniciar la app, para que el
+ * canvas restaure tal cual quedó (nodos+posiciones, conexiones, agregaciones,
+ * zoom y pan). Devuelve null si no hay snapshot o está corrupto.
+ */
+const loadInitialSnapshot = () => {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    if (!raw) return null;
+    return parseDiagramSnapshot(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Presets de atributos por defecto para entidades comunes en educación.
  */
@@ -86,25 +103,29 @@ function findFreePosition(
 }
 
 function App() {
-  const [nodes, setNodes] = useState<ERNode[]>([
+  // Restaurar el diagrama exactamente como quedó la última vez (posiciones,
+  // conexiones, agregaciones, zoom, pan). Si no hay snapshot, usar el demo.
+  const initialSnapshot = useMemo(() => loadInitialSnapshot(), []);
+
+  const [nodes, setNodes] = useState<ERNode[]>(() => initialSnapshot?.nodes ?? [
     { id: '1', type: 'entity', position: { x: 100, y: 100 }, label: 'Student', isWeak: false },
     { id: '2', type: 'entity', position: { x: 400, y: 100 }, label: 'Course', isWeak: false },
     { id: '3', type: 'relationship', position: { x: 250, y: 100 }, label: 'Enrolled', isIdentifying: false },
     { id: '4', type: 'attribute', position: { x: 100, y: 200 }, label: 'Name', isKey: false, isMultivalued: false, isDerived: false }
   ]);
 
-  const [connections, setConnections] = useState<Connection[]>([
+  const [connections, setConnections] = useState<Connection[]>(() => initialSnapshot?.connections ?? [
     { id: 'c1', sourceId: '1', targetId: '3', isTotalParticipation: false, cardinality: 'M' },
     { id: 'c2', sourceId: '3', targetId: '2', isTotalParticipation: false, cardinality: 'N' },
     { id: 'c3', sourceId: '1', targetId: '4', isTotalParticipation: false }
   ]);
 
-  const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(() => initialSnapshot?.view?.scale ?? 1);
+  const [offset, setOffset] = useState(() => initialSnapshot?.view?.offset ?? { x: 0, y: 0 });
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const [selectedConnectionIds, setSelectedConnectionIds] = useState<Set<string>>(new Set());
   const [selectedAggregationIds, setSelectedAggregationIds] = useState<Set<string>>(new Set());
-  const [aggregations, setAggregations] = useState<Aggregation[]>([]);
+  const [aggregations, setAggregations] = useState<Aggregation[]>(() => initialSnapshot?.aggregations ?? []);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectionMode, setSelectionMode] = useState(true);
   const [lastSelectedNodeId, setLastSelectedNodeId] = useState<string | null>(null);
@@ -165,6 +186,7 @@ function App() {
   const [lastScenarioText, setLastScenarioText] = useState('');
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const batchQueueRef = useRef<AICommand[]>([]);
+  const batchContinueRef = useRef(false);
   const [batchTick, setBatchTick] = useState(0);
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
@@ -180,8 +202,6 @@ function App() {
   const snapshotTimerRef = useRef<number | null>(null);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
-
-  const SNAPSHOT_KEY = 'derup.snapshot.v1';
 
   const currentView: DiagramView = { scale, offset };
 
@@ -399,8 +419,13 @@ function App() {
     setBatchProgress({ current: total - remaining, total });
 
     if (cmd.type === 'chat') {
-      // treat chat commands in batch as final summary
-      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: cmd.message }]);
+      // Check for auto-continuation signal
+      if (cmd.message === 'CONTINUE') {
+        // Don't show CONTINUE to user — trigger next round automatically
+        batchContinueRef.current = true;
+      } else {
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: cmd.message }]);
+      }
     } else {
       const { nodes: nextNodes, connections: nextConns, ok, message } = applyCommandToState(cmd, nodesRef.current, connectionsRef.current);
       setNodes(nextNodes);
@@ -414,7 +439,13 @@ function App() {
       setTimeout(() => setBatchTick(t => t + 1), 120);
     } else {
       setBatchProgress(null);
-      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: 'Correcciones aplicadas.' }]);
+      if (batchContinueRef.current) {
+        batchContinueRef.current = false;
+        // Auto-continue: ask AI to generate remaining commands
+        triggerAIContinuation();
+      } else {
+        setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: 'Correcciones aplicadas.' }]);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batchTick]);
@@ -439,7 +470,7 @@ function App() {
         window.clearTimeout(snapshotTimerRef.current);
       }
     };
-  }, [nodes, aggregations, connections, scale, offset, SNAPSHOT_KEY]);
+  }, [nodes, aggregations, connections, scale, offset]);
 
   const applySnapshot = (snapshot: { nodes: ERNode[]; aggregations: Aggregation[]; connections: Connection[]; view?: DiagramView }) => {
     setNodes(snapshot.nodes);
@@ -3353,7 +3384,10 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `You are the ER modeling assistant of derup. Apply Ramakrishnan & Gehrke theory strictly.\n` +
     `Respond with valid JSON only, no markdown.\n` +
     `Single operation → one JSON object: {"type":"..."}.\n` +
-    `Multiple corrections (fix errors, apply review findings, batch changes) → JSON array: [{"type":"..."},{"type":"..."},...]. Max 20 commands. Last element may be {"type":"chat","message":"summary in Spanish"}.\n\n` +
+    `Multiple operations (scenarios, batch changes, reviews) → JSON array: [{"type":"..."},{"type":"..."},...].\n` +
+    `COMPLEX SCENARIOS: When the user describes a full data model, generate ALL commands needed — entities, attributes, connections, ISA, weak entities, etc. There is NO command limit. Generate as many commands as needed to model the entire scenario completely.\n` +
+    `If you cannot fit everything, add as last element: {"type":"chat","message":"CONTINUE"} — the system will automatically ask you to continue.\n` +
+    `Otherwise, add as last element: {"type":"chat","message":"summary in Spanish"}.\n\n` +
     `${ER_RAMAKRISHNAN_THEORY}\n\n` +
     `DECISION HEURISTICS (apply before choosing command type):\n` +
     `- Weak entity? → set-entity-weakness isWeak:true. NOTE: identifying relationship ≠ recursive relationship.\n` +
@@ -3432,6 +3466,44 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- add-attributes and replace-attributes work for BOTH entities and relationships — put the relationship name in entityName.\n` +
     `- To add attributes to a relationship (e.g. Detalle_comprobante): {"type":"add-attributes","entityName":"Detalle_comprobante","attributes":["precio","descuento","total"],"keyAttributes":[]}\n` +
     `- To replace/fix attributes of a weak entity (e.g. remove wrong key, add correct partial key): use replace-attributes with the correct attributes and keyAttributes list.\n`;
+
+  const triggerAIContinuation = async () => {
+    setAiStatus('thinking');
+    setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: 'Continuando con el modelo...' }]);
+    try {
+      const recentHistory = chatMessages.slice(-8).map(m => ({ role: m.role, text: m.text }));
+      const systemPrompt = buildAISystemPrompt(recentHistory);
+      const continuePrompt = 'Continue generating the remaining commands for the scenario. The diagram already has the entities and connections shown in the current diagram state. Generate ONLY the missing elements (entities, attributes, connections, ISA, etc.) that have not been created yet. Do NOT recreate existing elements.';
+      const aiText = aiProvider === 'openai'
+        ? await requestAIText(continuePrompt, undefined, systemPrompt)
+        : await requestAIText(systemPrompt + '\n\n' + continuePrompt);
+      const aiResponseText = aiText ?? '';
+      if (aiResponseText) {
+        const batch = parseAICommandBatch(aiResponseText);
+        if (batch && batch.length > 0) {
+          batchQueueRef.current = batch;
+          setBatchProgress({ current: 0, total: batch.length });
+          setTimeout(() => setBatchTick(t => t + 1), 80);
+          return;
+        }
+        const singleCmd = parseAICommandJson(aiResponseText);
+        if (singleCmd) {
+          if (singleCmd.type === 'chat') {
+            setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: singleCmd.message }]);
+          } else {
+            const { nodes: nextNodes, connections: nextConns, message } = applyCommandToState(singleCmd, nodesRef.current, connectionsRef.current);
+            setNodes(nextNodes);
+            setConnections(nextConns);
+            setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: message }]);
+          }
+        }
+      }
+    } catch (error) {
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `Error al continuar: ${describeAIError(error, aiProvider)}` }]);
+    } finally {
+      setAiStatus('idle');
+    }
+  };
 
   const getSelectedEntity = () => {
     if (selectedNodeIds.size === 1) {
