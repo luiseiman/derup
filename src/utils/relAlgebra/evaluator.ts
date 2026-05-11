@@ -18,6 +18,10 @@ export interface EvalResult {
   result: Relation | null;
   // All bindings introduced via `:=`, in order of appearance.
   derived: Map<string, Relation>;
+  // Per-AST-node intermediate results, keyed by node identity. Used by the UI
+  // to render an execution tree where each node shows its row count and the
+  // user can click to see the intermediate relation.
+  trace: Map<RelExpr, Relation>;
 }
 
 /**
@@ -33,11 +37,12 @@ export interface EvalResult {
 export function evaluate(program: Program, env: Map<string, Relation>): EvalResult {
   const local = new Map(env);
   const derived = new Map<string, Relation>();
+  const trace = new Map<RelExpr, Relation>();
   let last: Relation | null = null;
 
   for (const stmt of program.statements) {
     if (stmt.kind === 'assign') {
-      const rel = evalExpr(stmt.expr, local);
+      const rel = evalExpr(stmt.expr, local, trace);
       if (local.has(stmt.name) && !derived.has(stmt.name)) {
         // Name collides with a base table — that's a hard error.
         throw new RAError(
@@ -49,44 +54,52 @@ export function evaluate(program: Program, env: Map<string, Relation>): EvalResu
       derived.set(stmt.name, rel);
       last = rel;
     } else {
-      last = evalExpr(stmt.expr, local);
+      last = evalExpr(stmt.expr, local, trace);
     }
   }
-  return { result: last, derived };
+  return { result: last, derived, trace };
 }
 
-function evalExpr(expr: RelExpr, env: Map<string, Relation>): Relation {
+function evalExpr(expr: RelExpr, env: Map<string, Relation>, trace: Map<RelExpr, Relation>): Relation {
+  let rel: Relation;
   switch (expr.kind) {
     case 'ref': {
       const r = env.get(expr.name);
       if (!r) throw new RAError(`Relación '${expr.name}' no encontrada.`, expr.pos);
-      return r;
+      rel = r;
+      break;
     }
     case 'select':
-      return doSelect(evalExpr(expr.child, env), expr.condition);
+      rel = doSelect(evalExpr(expr.child, env, trace), expr.condition);
+      break;
     case 'project':
-      return doProject(evalExpr(expr.child, env), expr.columns, expr.pos);
+      rel = doProject(evalExpr(expr.child, env, trace), expr.columns, expr.pos);
+      break;
     case 'rename':
-      return doRename(evalExpr(expr.child, env), expr.alias, expr.columnMap, expr.pos);
+      rel = doRename(evalExpr(expr.child, env, trace), expr.alias, expr.columnMap, expr.pos);
+      break;
     case 'binary': {
-      const L = evalExpr(expr.left, env);
-      const R = evalExpr(expr.right, env);
+      const L = evalExpr(expr.left, env, trace);
+      const R = evalExpr(expr.right, env, trace);
       const Lname = relNameOf(expr.left);
       const Rname = relNameOf(expr.right);
       switch (expr.op) {
-        case 'cross': return doCross(L, R, Lname, Rname);
-        case 'join': return doNaturalJoin(L, R);
+        case 'cross': rel = doCross(L, R, Lname, Rname); break;
+        case 'join':  rel = doNaturalJoin(L, R); break;
         case 'theta': {
-          // Ramakrishnan: R ⋈_c S ≡ σ_c (R × S)
           const cross = doCross(L, R, Lname, Rname);
-          return doSelect(cross, expr.condition!);
+          rel = doSelect(cross, expr.condition!);
+          break;
         }
-        case 'union': return doUnion(L, R, expr.pos);
-        case 'intersect': return doIntersect(L, R, expr.pos);
-        case 'difference': return doDifference(L, R, expr.pos);
+        case 'union':      rel = doUnion(L, R, expr.pos); break;
+        case 'intersect':  rel = doIntersect(L, R, expr.pos); break;
+        case 'difference': rel = doDifference(L, R, expr.pos); break;
       }
+      break;
     }
   }
+  trace.set(expr, rel!);
+  return rel!;
 }
 
 /** Returns the original relation name if expr is a simple reference, else undefined. */

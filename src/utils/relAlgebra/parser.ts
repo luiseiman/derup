@@ -151,12 +151,22 @@ class Parser {
 
   private parseSelect(): RelExpr {
     const start = this.consume(); // σ
-    // The condition can be written as σ_{cond}(R) OR σ{cond}(R)
-    if (this.match('UNDERSCORE')) this.consume();
-    this.expect('LBRACE', "Se esperaba '{' después de σ.");
+    // Two accepted forms:
+    //   classic    : σ_{cond}(R)  or  σ{cond}(R)
+    //   simplified : σ cond (R)        (RelaX / textbook style)
+    if (this.match('UNDERSCORE') || this.match('LBRACE')) {
+      if (this.match('UNDERSCORE')) this.consume();
+      this.expect('LBRACE', "Se esperaba '{' después de σ.");
+      const condition = this.parseCondition();
+      this.expect('RBRACE', "Se esperaba '}' cerrando la condición.");
+      this.expect('LPAREN', "Se esperaba '(' después de la condición.");
+      const child = this.parseRelExpr();
+      this.expect('RPAREN');
+      return { kind: 'select', condition, child, pos: start.pos };
+    }
+    // Simplified: parse condition greedily until '(' appears (top-level).
     const condition = this.parseCondition();
-    this.expect('RBRACE', "Se esperaba '}' cerrando la condición.");
-    this.expect('LPAREN', "Se esperaba '(' después de la condición.");
+    this.expect('LPAREN', "Se esperaba '(' rodeando la relación.");
     const child = this.parseRelExpr();
     this.expect('RPAREN');
     return { kind: 'select', condition, child, pos: start.pos };
@@ -164,15 +174,21 @@ class Parser {
 
   private parseProject(): RelExpr {
     const start = this.consume(); // π
-    if (this.match('UNDERSCORE')) this.consume();
-    this.expect('LBRACE', "Se esperaba '{' después de π.");
-    const columns: string[] = [this.parseQualifiedIdent()];
-    while (this.match('COMMA')) {
-      this.consume();
-      columns.push(this.parseQualifiedIdent());
+    if (this.match('UNDERSCORE') || this.match('LBRACE')) {
+      if (this.match('UNDERSCORE')) this.consume();
+      this.expect('LBRACE', "Se esperaba '{' después de π.");
+      const cols: string[] = [this.parseQualifiedIdent()];
+      while (this.match('COMMA')) { this.consume(); cols.push(this.parseQualifiedIdent()); }
+      this.expect('RBRACE', "Se esperaba '}' cerrando la lista de columnas.");
+      this.expect('LPAREN');
+      const child = this.parseRelExpr();
+      this.expect('RPAREN');
+      return { kind: 'project', columns: cols, child, pos: start.pos };
     }
-    this.expect('RBRACE', "Se esperaba '}' cerrando la lista de columnas.");
-    this.expect('LPAREN');
+    // Simplified: π col1, col2 (R)
+    const columns: string[] = [this.parseQualifiedIdent()];
+    while (this.match('COMMA')) { this.consume(); columns.push(this.parseQualifiedIdent()); }
+    this.expect('LPAREN', "Se esperaba '(' rodeando la relación.");
     const child = this.parseRelExpr();
     this.expect('RPAREN');
     return { kind: 'project', columns, child, pos: start.pos };
@@ -191,12 +207,12 @@ class Parser {
 
   private parseRename(): RelExpr {
     const start = this.consume(); // ρ
-    if (this.match('UNDERSCORE')) this.consume();
-    this.expect('LBRACE', "Se esperaba '{' después de ρ.");
-
-    // Two forms:
-    //   ρ_{NuevoNombre}(R)
-    //   ρ_{a → a1, b → b1}(R)
+    const classic = this.match('UNDERSCORE') || this.match('LBRACE');
+    if (classic) {
+      if (this.match('UNDERSCORE')) this.consume();
+      this.expect('LBRACE', "Se esperaba '{' después de ρ.");
+    }
+    // Body of ρ: either NewName, or "a → b" (possibly comma-separated list).
     const first = this.expect('IDENT', 'Se esperaba un identificador.');
     let alias: string | undefined;
     let columnMap: Record<string, string> | undefined;
@@ -216,8 +232,8 @@ class Parser {
       alias = first.text;
     }
 
-    this.expect('RBRACE');
-    this.expect('LPAREN');
+    if (classic) this.expect('RBRACE');
+    this.expect('LPAREN', "Se esperaba '(' rodeando la relación.");
     const child = this.parseRelExpr();
     this.expect('RPAREN');
     return { kind: 'rename', alias, columnMap, child, pos: start.pos };

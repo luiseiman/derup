@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RelationalTable } from '../../utils/relationalSchema';
-import type { ColumnType, Relation, Value } from '../../utils/relAlgebra/types';
+import type { ColumnType, Program, RelExpr, Relation, Value } from '../../utils/relAlgebra/types';
 import { RAError } from '../../utils/relAlgebra/types';
 import { parse } from '../../utils/relAlgebra/parser';
 import { evaluate } from '../../utils/relAlgebra/evaluator';
 import { parseCSV, relationToCSV } from '../../utils/relAlgebra/csvLoader';
 import { generateSampleRelation } from '../../utils/relAlgebra/sampleData';
 import AlgebraPreview from './AlgebraPreview';
+import AlgebraTree from './AlgebraTree';
 import './AlgebraView.css';
 
 interface AlgebraViewProps {
@@ -126,6 +127,12 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
   const [errorPos, setErrorPos] = useState<{ line: number; column: number } | null>(null);
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
 
+  // Last successful execution — kept for tree visualization and intermediate-result drill-down.
+  const [lastProgram, setLastProgram] = useState<Program | null>(null);
+  const [lastTrace, setLastTrace] = useState<Map<RelExpr, Relation>>(new Map());
+  const [selectedTreeNode, setSelectedTreeNode] = useState<RelExpr | null>(null);
+  const [queryMs, setQueryMs] = useState<number | null>(null);
+
   // CRUD modal state — name of the relation being edited and a working copy.
   const [editingRelation, setEditingRelation] = useState<string | null>(null);
   const [editBuffer, setEditBuffer] = useState<Relation | null>(null);
@@ -162,14 +169,18 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     setErrorPos(null);
     try {
       const program = parse(query);
-      // Build env: schema tables + imported relations + previously derived.
-      // If an imported relation shares a name with a schema table, imported wins.
       const env = new Map<string, Relation>();
       tablesData.forEach((rel, name) => env.set(name, rel));
       importedRelations.forEach((rel, name) => env.set(name, rel));
-      const { result: r, derived: d } = evaluate(program, env);
+      const t0 = performance.now();
+      const { result: r, derived: d, trace } = evaluate(program, env);
+      const t1 = performance.now();
       setDerived(d);
       setResult(r);
+      setLastProgram(program);
+      setLastTrace(trace);
+      setSelectedTreeNode(null);
+      setQueryMs(Math.max(1, Math.round(t1 - t0)));
     } catch (e) {
       if (e instanceof RAError) {
         setError(e.message);
@@ -178,6 +189,10 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         setError(e instanceof Error ? e.message : String(e));
       }
       setResult(null);
+      setLastProgram(null);
+      setLastTrace(new Map());
+      setSelectedTreeNode(null);
+      setQueryMs(null);
     }
   }, [query, tablesData, importedRelations]);
 
@@ -477,6 +492,10 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     setError(null);
     setErrorPos(null);
     setDerived(new Map());
+    setLastProgram(null);
+    setLastTrace(new Map());
+    setSelectedTreeNode(null);
+    setQueryMs(null);
   };
 
   // ---- derived helpers ----
@@ -714,7 +733,18 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         <div className="algebra-panel">
           <div className="algebra-panel-header">
             <span>Resultado</span>
-            {result && <span>{result.rows.length} filas · {result.columns.length} columnas</span>}
+            <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              {queryMs !== null && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{queryMs} ms</span>}
+              {selectedTreeNode && result && (
+                <button
+                  className="algebra-btn"
+                  style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                  onClick={() => { setSelectedTreeNode(null); setResult(lastTrace.get(lastProgram?.statements.slice(-1)[0]?.expr as RelExpr) ?? result); }}
+                  title="Volver al resultado final"
+                >↺ final</button>
+              )}
+              {result && <span>{result.rows.length} filas · {result.columns.length} columnas</span>}
+            </span>
           </div>
           <div className="algebra-panel-body">
             {error && (
@@ -734,6 +764,17 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
                   Podés cargar CSVs propios o generar datos demo.
                 </div>
               </div>
+            )}
+            {!error && result && lastProgram && lastTrace.size > 0 && (
+              <AlgebraTree
+                program={lastProgram}
+                trace={lastTrace}
+                selectedNode={selectedTreeNode}
+                onSelectNode={(node, rel) => {
+                  setSelectedTreeNode(node);
+                  setResult(rel);
+                }}
+              />
             )}
             {!error && result && (
               <table className="ra-result-table">
