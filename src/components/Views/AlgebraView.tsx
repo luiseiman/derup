@@ -512,6 +512,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     label: string;      // what shows in the chip
     hint?: string;      // small badge (relation name for columns, etc.)
     kind: 'relation' | 'column' | 'operator';
+    // Padding policy at insertion time. Defaults: relation/column → 'name';
+    // operator → 'binary' (pad both sides); exceptions ('(' ',' '.') override.
+    pad?: 'name' | 'binary' | 'comma' | 'lparen' | 'punct';
   };
 
   /** Map of all known relations to their columns, used to drive suggestions. */
@@ -669,7 +672,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         // Comparison complete → suggest AND / OR (extend) or the relation arg opener.
         out.push({ text: '∧', label: '∧', kind: 'operator', hint: 'Y lógico (AND)' });
         out.push({ text: '∨', label: '∨', kind: 'operator', hint: 'O lógico (OR)' });
-        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación' });
+        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación', pad: 'lparen' });
         return out;
       }
       return out;
@@ -692,8 +695,8 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         return out;
       }
       if (last.kind === 'IDENT') {
-        out.push({ text: ',', label: ',', kind: 'operator', hint: 'agregar otra columna' });
-        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación' });
+        out.push({ text: ',', label: ',', kind: 'operator', hint: 'agregar otra columna', pad: 'comma' });
+        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación', pad: 'lparen' });
         return out;
       }
       return out;
@@ -711,7 +714,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
       }
       if (last?.kind === 'IDENT') {
         out.push({ text: '→', label: '→', kind: 'operator', hint: 'renombrar a' });
-        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación' });
+        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación', pad: 'lparen' });
         return out;
       }
       return out;
@@ -759,11 +762,53 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
   // Reset selection index when suggestions list changes
   useEffect(() => { setAcIndex(0); }, [suggestions.length, currentWord]);
 
-  /** Replace the current word at the caret with the suggestion's text and
-   *  pad accordingly (relations/columns get a trailing space; operators don't). */
+  /**
+   * Insert a suggestion in place of the partial word the user is typing,
+   * with context-aware padding so tokens don't run into each other.
+   *
+   * Pad policy per suggestion type:
+   *   name   (relation, column) → pad before AND after if neighbours aren't boundaries
+   *   binary (= ≠ < > ≤ ≥ ∧ ∨ ⋈ ⨯ ÷ ∪ ∩ − → and σ π ρ)
+   *                              → pad before AND after if neighbours aren't boundaries
+   *   comma  (',')               → pad after only (",")
+   *   lparen ('(')                → pad before only ("X (")
+   *   punct  ('.')                → no padding
+   *
+   * Each pad is suppressed when the adjacent char is whitespace or a natural
+   * boundary, so repeated clicks don't accumulate double spaces.
+   */
   const acceptSuggestion = useCallback((s: Suggestion) => {
-    const padAfter = s.kind === 'relation' || s.kind === 'column';
-    const insert = s.text + (padAfter ? ' ' : '');
+    // Default pad based on suggestion kind
+    const pad: 'name' | 'binary' | 'comma' | 'lparen' | 'punct' = s.pad ??
+      (s.kind === 'relation' || s.kind === 'column' ? 'name' : 'binary');
+
+    const before = wordStart > 0 ? query[wordStart - 1] : '';
+    const after = caretPos < query.length ? query[caretPos] : '';
+
+    const isOpenBoundary = (c: string) =>
+      c === '' || /\s/.test(c) || c === '(' || c === '{' || c === ',' || c === '_';
+    const isCloseBoundary = (c: string) =>
+      c === '' || /\s/.test(c) || c === ')' || c === '}' || c === ',' || c === ';' || c === '.';
+
+    let padBefore = false;
+    let padAfter = false;
+    switch (pad) {
+      case 'name':
+      case 'binary':
+        padBefore = !isOpenBoundary(before);
+        padAfter = !isCloseBoundary(after);
+        break;
+      case 'comma':
+        padAfter = !isCloseBoundary(after);
+        break;
+      case 'lparen':
+        padBefore = !isOpenBoundary(before);
+        break;
+      case 'punct':
+        break;
+    }
+
+    const insert = (padBefore ? ' ' : '') + s.text + (padAfter ? ' ' : '');
     setQuery(prev => prev.slice(0, wordStart) + insert + prev.slice(caretPos));
     const newCaret = wordStart + insert.length;
     requestAnimationFrame(() => {
@@ -774,7 +819,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         setCaretPos(newCaret);
       }
     });
-  }, [wordStart, caretPos]);
+  }, [wordStart, caretPos, query]);
 
   const updateCaret = () => {
     const ta = editorRef.current;
