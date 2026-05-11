@@ -221,9 +221,9 @@
   overflow: auto;
 }
 
-.ra-editor:focus {
-  background: rgba(255, 254, 249, 0.4);
-}
+/* No :focus background here — the textarea sits ABOVE the highlight overlay,
+   so any non-zero alpha background would act as a veil that washes out the
+   coloured spans underneath. The visible caret already indicates focus. */
 
 /* Make text selection visible despite transparent text. */
 .ra-editor::selection {
