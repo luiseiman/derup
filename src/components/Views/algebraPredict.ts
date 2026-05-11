@@ -26,6 +26,11 @@ export interface Suggestion {
   /** When set, caret jumps to this offset within `text` instead of the end
    *  (used by templates with placeholders to land the user on the first hole). */
   caretOffset?: number;
+  /** Alternative names this suggestion responds to during prefix filtering.
+   *  Letting σ also match "sel"/"select", π match "proj"/"project", ⋈ match
+   *  "join", etc. — so a user typing the ASCII keyword still finds the
+   *  Unicode operator. */
+  aliases?: string[];
 }
 
 /**
@@ -120,11 +125,17 @@ export function predictNext(
   const candidates = suggestionsFor(frame, ctx, word, scopeRelation);
 
   if (!tail) return candidates.slice(0, 12);
-  // Strict prefix filter — when the user is typing a word, we don't show
-  // candidates that don't continue what they're typing (showing "= ≠ <" while
-  // they're typing a column name is misleading).
-  const exact = candidates.filter(s => s.label.toLowerCase().startsWith(tail));
-  return exact.slice(0, 12);
+  // Strict prefix filter — a candidate matches when its label OR any of its
+  // ASCII aliases starts with the typed word. The alias path is what lets
+  // typing "sel" find σ (label "σ", alias "select"), "join" find ⋈, etc.
+  const matches = candidates.filter(s => {
+    if (s.label.toLowerCase().startsWith(tail)) return true;
+    if (s.aliases) {
+      for (const a of s.aliases) if (a.toLowerCase().startsWith(tail)) return true;
+    }
+    return false;
+  });
+  return matches.slice(0, 12);
 }
 
 const BODY_MODES: Set<Mode> = new Set([
@@ -309,6 +320,28 @@ function walk(tokens: Token[]): Frame {
   return top();
 }
 
+/** ASCII alias lookup so a user typing "sel"/"select" finds σ, "proj"/"project"
+ *  finds π, "join" finds ⋈, etc. Keyed by the Unicode glyph. */
+const ALIASES: Record<string, string[]> = {
+  'σ': ['select', 'seleccion', 'selección'],
+  'π': ['project', 'proyeccion', 'proyección'],
+  'ρ': ['rename', 'renombrar'],
+  '⋈': ['join', 'junta'],
+  '⨯': ['cross', 'producto', 'x'],
+  '÷': ['division', 'división', 'div'],
+  '∪': ['union', 'unión'],
+  '∩': ['intersect', 'interseccion', 'intersección'],
+  '−': ['difference', 'diferencia', 'minus'],
+  '∧': ['and', 'y'],
+  '∨': ['or', 'o'],
+  '¬': ['not', 'no'],
+  '≠': ['neq', '!='],
+  '≤': ['leq', '<='],
+  '≥': ['geq', '>='],
+  '→': ['arrow', '->'],
+};
+const aliasesFor = (glyph: string): string[] | undefined => ALIASES[glyph];
+
 /** Build the suggestion list for the current state. */
 function suggestionsFor(
   frame: Frame,
@@ -345,24 +378,24 @@ function suggestionsFor(
     case 'EXPECT_REL_REF': {
       // Templates only at the very start (no partial word typed yet)
       if (word === '' && frame.mode === 'START_REL') {
-        push({ text: 'σ COL = VAL (REL)', label: 'σ COL = VAL (REL)', hint: 'selección', kind: 'template', pad: 'none', caretOffset: 2 });
-        push({ text: 'π COL (REL)', label: 'π COL (REL)', hint: 'proyección', kind: 'template', pad: 'none', caretOffset: 2 });
-        push({ text: 'R := EXPR', label: 'R := EXPR', hint: 'asignación', kind: 'template', pad: 'none', caretOffset: 0 });
+        push({ text: 'σ COL = VAL (REL)', label: 'σ COL = VAL (REL)', hint: 'selección', kind: 'template', pad: 'none', caretOffset: 2, aliases: ['select', 'σ', ...aliasesFor('σ') ?? []] });
+        push({ text: 'π COL (REL)', label: 'π COL (REL)', hint: 'proyección', kind: 'template', pad: 'none', caretOffset: 2, aliases: ['project', 'π', ...aliasesFor('π') ?? []] });
+        push({ text: 'R := EXPR', label: 'R := EXPR', hint: 'asignación', kind: 'template', pad: 'none', caretOffset: 0, aliases: ['assign', ':='] });
       }
-      push({ text: 'σ', label: 'σ', hint: 'selección', kind: 'operator', pad: 'binary' });
-      push({ text: 'π', label: 'π', hint: 'proyección', kind: 'operator', pad: 'binary' });
-      push({ text: 'ρ', label: 'ρ', hint: 'renombrar', kind: 'operator', pad: 'binary' });
+      push({ text: 'σ', label: 'σ', hint: 'selección', kind: 'operator', pad: 'binary', aliases: aliasesFor('σ') });
+      push({ text: 'π', label: 'π', hint: 'proyección', kind: 'operator', pad: 'binary', aliases: aliasesFor('π') });
+      push({ text: 'ρ', label: 'ρ', hint: 'renombrar', kind: 'operator', pad: 'binary', aliases: aliasesFor('ρ') });
       relations();
       break;
     }
 
     case 'AFTER_REL': {
-      push({ text: '⋈', label: '⋈', hint: 'junta natural', kind: 'operator', pad: 'binary' });
-      push({ text: '⨯', label: '⨯', hint: 'producto cartesiano', kind: 'operator', pad: 'binary' });
-      push({ text: '÷', label: '÷', hint: 'división', kind: 'operator', pad: 'binary' });
-      push({ text: '∪', label: '∪', hint: 'unión', kind: 'operator', pad: 'binary' });
-      push({ text: '∩', label: '∩', hint: 'intersección', kind: 'operator', pad: 'binary' });
-      push({ text: '−', label: '−', hint: 'diferencia', kind: 'operator', pad: 'binary' });
+      push({ text: '⋈', label: '⋈', hint: 'junta natural', kind: 'operator', pad: 'binary', aliases: aliasesFor('⋈') });
+      push({ text: '⨯', label: '⨯', hint: 'producto cartesiano', kind: 'operator', pad: 'binary', aliases: aliasesFor('⨯') });
+      push({ text: '÷', label: '÷', hint: 'división', kind: 'operator', pad: 'binary', aliases: aliasesFor('÷') });
+      push({ text: '∪', label: '∪', hint: 'unión', kind: 'operator', pad: 'binary', aliases: aliasesFor('∪') });
+      push({ text: '∩', label: '∩', hint: 'intersección', kind: 'operator', pad: 'binary', aliases: aliasesFor('∩') });
+      push({ text: '−', label: '−', hint: 'diferencia', kind: 'operator', pad: 'binary', aliases: aliasesFor('−') });
       push({ text: ';', label: ';', hint: 'siguiente sentencia', kind: 'keyword', pad: 'punct' });
       break;
     }
@@ -371,17 +404,17 @@ function suggestionsFor(
     case 'COND_OPERAND': {
       // Need a column (left operand) — show all columns.
       allColumns('columna');
-      push({ text: '¬', label: '¬', hint: 'NOT lógico', kind: 'operator', pad: 'binary' });
+      push({ text: '¬', label: '¬', hint: 'NOT lógico', kind: 'operator', pad: 'binary', aliases: aliasesFor('¬') });
       break;
     }
 
     case 'COND_AFTER_COL': {
       push({ text: '=',  label: '=',  hint: 'igual',            kind: 'operator', pad: 'binary' });
-      push({ text: '≠',  label: '≠',  hint: 'distinto',         kind: 'operator', pad: 'binary' });
+      push({ text: '≠',  label: '≠',  hint: 'distinto',         kind: 'operator', pad: 'binary', aliases: aliasesFor('≠') });
       push({ text: '<',  label: '<',  hint: 'menor',            kind: 'operator', pad: 'binary' });
       push({ text: '>',  label: '>',  hint: 'mayor',            kind: 'operator', pad: 'binary' });
-      push({ text: '≤',  label: '≤',  hint: 'menor o igual',    kind: 'operator', pad: 'binary' });
-      push({ text: '≥',  label: '≥',  hint: 'mayor o igual',    kind: 'operator', pad: 'binary' });
+      push({ text: '≤',  label: '≤',  hint: 'menor o igual',    kind: 'operator', pad: 'binary', aliases: aliasesFor('≤') });
+      push({ text: '≥',  label: '≥',  hint: 'mayor o igual',    kind: 'operator', pad: 'binary', aliases: aliasesFor('≥') });
       break;
     }
 
@@ -397,8 +430,8 @@ function suggestionsFor(
     }
 
     case 'COND_DONE': {
-      push({ text: '∧', label: '∧', hint: 'Y lógico (AND)', kind: 'operator', pad: 'binary' });
-      push({ text: '∨', label: '∨', hint: 'O lógico (OR)',  kind: 'operator', pad: 'binary' });
+      push({ text: '∧', label: '∧', hint: 'Y lógico (AND)', kind: 'operator', pad: 'binary', aliases: aliasesFor('∧') });
+      push({ text: '∨', label: '∨', hint: 'O lógico (OR)',  kind: 'operator', pad: 'binary', aliases: aliasesFor('∨') });
       push({ text: ')', label: ')', hint: 'cerrar grupo',    kind: 'keyword',  pad: 'punct' });
       push({ text: '(', label: '(', hint: 'abrir relación',  kind: 'keyword',  pad: 'lparen' });
       break;
@@ -427,7 +460,7 @@ function suggestionsFor(
     }
 
     case 'RENAME_FIRST': {
-      push({ text: '→', label: '→', hint: 'renombrar a', kind: 'operator', pad: 'binary' });
+      push({ text: '→', label: '→', hint: 'renombrar a', kind: 'operator', pad: 'binary', aliases: aliasesFor('→') });
       push({ text: '(', label: '(', hint: 'abrir relación', kind: 'keyword', pad: 'lparen' });
       break;
     }
