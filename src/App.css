@@ -299,6 +299,31 @@
 }
 
 /* ========== CHAT PANEL ========== */
+.chat-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+}
+.chat-mode-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.chat-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.7rem;
+  border: 1px solid;
+}
+.chat-mode-chip.mode-er       { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+.chat-mode-chip.mode-schema   { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+.chat-mode-chip.mode-sql      { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+.chat-mode-chip.mode-algebra  { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
+
 .chat-panel {
   flex: 1;
   display: flex;

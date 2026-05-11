@@ -3381,7 +3381,98 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     return `\nConversación reciente:\n${lines}\n`;
   };
 
-  const buildAISystemPrompt = (recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
+  // -------------- Domain-aware prompts (view-scoped chat) --------------
+
+  /** Compact list of relational tables with column types and PK/FK markers. */
+  const buildRelationalSchemaSummary = (): string => {
+    if (!relationalSchema || relationalSchema.tables.length === 0) return '(no hay tablas en el esquema)';
+    return relationalSchema.tables.map(t => {
+      const cols = t.columns.filter(c => !c.isDerived).map(c => {
+        const flags = [c.isPrimaryKey ? 'PK' : null, c.isForeignKey ? `FK→${c.referencedTable}` : null].filter(Boolean).join(',');
+        return flags ? `${c.name}(${flags})` : c.name;
+      }).join(', ');
+      return `  ${t.name}: ${cols}`;
+    }).join('\n');
+  };
+
+  /** Read the algebra tab's state from localStorage to enrich the prompt. */
+  const buildAlgebraStateSummary = (): { query: string; relations: string } => {
+    try {
+      const raw = localStorage.getItem('derup.algebra.v1');
+      if (!raw) return { query: '', relations: '' };
+      const parsed = JSON.parse(raw) as {
+        query?: string;
+        tablesData?: Record<string, { columns: { name: string; type: string }[]; rows: unknown[][] }>;
+        importedRelations?: Record<string, { columns: { name: string; type: string }[]; rows: unknown[][] }>;
+      };
+      const loaded: string[] = [];
+      const fmt = (name: string, r: { columns: { name: string; type: string }[]; rows: unknown[][] }) =>
+        `  ${name} (${r.rows.length} filas): ${r.columns.map(c => `${c.name}:${c.type}`).join(', ')}`;
+      Object.entries(parsed.tablesData ?? {}).forEach(([n, r]) => loaded.push(fmt(n, r)));
+      Object.entries(parsed.importedRelations ?? {}).forEach(([n, r]) => loaded.push(fmt(n, r)));
+      return { query: parsed.query ?? '', relations: loaded.join('\n') };
+    } catch { return { query: '', relations: '' }; }
+  };
+
+  const buildSchemaPrompt = (recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
+    `Sos un experto en modelo relacional ayudando al usuario en la pestaña "Esquema Relacional" de derup.\n` +
+    `La pestaña deriva automáticamente las tablas a partir del diagrama ER. Aplicá teoría de Codd / Ramakrishnan & Gehrke.\n\n` +
+    `RESPUESTA: SIEMPRE devolvé JSON exactamente con esta forma — nada más:\n` +
+    `{"type":"chat","message":"tu respuesta en castellano"}\n\n` +
+    `No emitas comandos de mutación de ER (add-entity, connect-entities, etc.) en esta pestaña — esas pertenecen a la pestaña ER.\n\n` +
+    `Esquema relacional actual:\n${buildRelationalSchemaSummary()}\n\n` +
+    `Temas para ayudar al usuario: justificación de cada tabla derivada del ER, normalización (1FN, 2FN, 3FN, BCNF, 4FN), dependencias funcionales, claves candidatas/foráneas, decomposición sin pérdida, denormalización con tradeoffs, integridad referencial.\n` +
+    buildRecentHistory(recentMessages);
+
+  const buildSQLPrompt = (recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string =>
+    `Sos un experto en SQL ayudando al usuario en la pestaña "SQL DDL" de derup.\n` +
+    `derup generó este DDL a partir del esquema relacional:\n\`\`\`sql\n${(sqlDDL || '-- (vacío)').slice(0, 4000)}\n\`\`\`\n\n` +
+    `RESPUESTA: SIEMPRE devolvé JSON exactamente con esta forma — nada más:\n` +
+    `{"type":"chat","message":"tu respuesta en castellano"}\n\n` +
+    `No emitas comandos de mutación de ER en esta pestaña.\n\n` +
+    `Podés ayudar con: revisión del DDL (tipos, constraints, ON DELETE), índices recomendados según el patrón de queries, queries de ejemplo (SELECT/JOIN/GROUP/HAVING), traducción de queries en castellano a SQL, optimización (planes de ejecución, sargability), portabilidad entre dialectos (PostgreSQL/MySQL/SQLite/Oracle).\n` +
+    `Cuando muestres SQL, usá bloques con \`\`\`sql ... \`\`\` dentro del campo message.\n` +
+    buildRecentHistory(recentMessages);
+
+  const buildAlgebraPrompt = (recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string => {
+    const { query, relations } = buildAlgebraStateSummary();
+    return `Sos un experto/tutor en álgebra relacional ayudando al usuario en la pestaña "Álgebra" de derup. Aplicá teoría de Ramakrishnan & Gehrke Cap 4 estrictamente.\n\n` +
+      `RESPUESTA: SIEMPRE devolvé JSON exactamente con esta forma — nada más:\n` +
+      `{"type":"chat","message":"tu respuesta en castellano"}\n\n` +
+      `No emitas comandos de mutación de ER en esta pestaña.\n\n` +
+      `RELACIONES DISPONIBLES (del esquema + importadas como CSV):\n${relations || buildRelationalSchemaSummary()}\n\n` +
+      (query ? `CONSULTA ACTUAL EN EL EDITOR DEL USUARIO:\n\`\`\`\n${query.slice(0, 2000)}\n\`\`\`\n\n` : '') +
+      `OPERADORES SOPORTADOS POR derup (mostrá ambas sintaxis cuando enseñes — Unicode primero, ASCII en paréntesis):\n` +
+      `  σ_{cond}(R)  o  σ cond (R)   — selección (también ASCII: select_{cond}(R) o select cond (R))\n` +
+      `  π_{c1,c2}(R) o  π c1,c2 (R)  — proyección (also project)\n` +
+      `  ρ_{NewName}(R) o ρ NewName (R) — renombrar relación (also rename)\n` +
+      `  ρ_{a→a1,b→b1}(R)              — renombrar columnas\n` +
+      `  R ⋈ S                          — junta natural (also join)\n` +
+      `  R ⋈_{cond} S                   — theta join (also join_{cond})\n` +
+      `  R ⨯ S                          — producto cartesiano (also cross)\n` +
+      `  R ÷ S                          — división (also division)\n` +
+      `  R ∪ S, R ∩ S, R − S            — unión, intersección, diferencia (also union, intersect, difference)\n` +
+      `  R := σ_{...}(...)              — asignación a relación derivada (reusable en queries siguientes)\n` +
+      `  Conectores lógicos en condiciones: ∧ ∨ ¬ (and / or / not)\n` +
+      `  Comparadores: = ≠ < > ≤ ≥ (también != <= >=)\n` +
+      `  Cualificación de columnas: R.col cuando hay colisiones tras ⨯ o θ-join\n\n` +
+      `CONVENCIONES DE CARDINALIDAD: derup usa convención de PARTICIPACIÓN (De Miguel/Piattini): la cardinalidad pegada a una entidad describe cuántas veces ESA entidad participa en la relación (no la del otro lado).\n\n` +
+      `UNION-COMPATIBILITY (∪ ∩ −): igual aridad + mismos dominios por posición; los NOMBRES de columna pueden diferir (toma los del operando izquierdo).\n\n` +
+      `DIVISIÓN (R ÷ S): S debe ser subconjunto ESTRICTO del esquema de R (al menos una columna en R que no esté en S, mismos tipos por nombre).\n\n` +
+      `Temas para ayudar: explicar operadores con ejemplos, traducir consultas en castellano al álgebra, depurar consultas erróneas del usuario, mostrar el árbol de ejecución paso a paso, sugerir equivalencias y optimizaciones (push-down de σ, asociatividad de ⋈, etc.), conversión SQL ↔ álgebra.\n` +
+      `Cuando muestres consultas de álgebra, encerralas en \`\`\` ... \`\`\` para que se vea con la fuente correcta.\n` +
+      buildRecentHistory(recentMessages);
+  };
+
+  const buildAISystemPrompt = (
+    recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>,
+    view: 'er' | 'schema' | 'sql' | 'algebra' = 'er',
+  ): string => {
+    if (view === 'schema') return buildSchemaPrompt(recentMessages);
+    if (view === 'sql') return buildSQLPrompt(recentMessages);
+    if (view === 'algebra') return buildAlgebraPrompt(recentMessages);
+    // 'er' → existing full prompt below
+    return (
     `You are the ER modeling assistant of derup. Apply Ramakrishnan & Gehrke theory strictly.\n` +
     `Respond with valid JSON only, no markdown.\n` +
     `Single operation → one JSON object: {"type":"..."}.\n` +
@@ -3466,14 +3557,16 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- NEVER use descriptive phrases like "own attributes of X" as an attribute name.\n` +
     `- add-attributes and replace-attributes work for BOTH entities and relationships — put the relationship name in entityName.\n` +
     `- To add attributes to a relationship (e.g. Detalle_comprobante): {"type":"add-attributes","entityName":"Detalle_comprobante","attributes":["precio","descuento","total"],"keyAttributes":[]}\n` +
-    `- To replace/fix attributes of a weak entity (e.g. remove wrong key, add correct partial key): use replace-attributes with the correct attributes and keyAttributes list.\n`;
+    `- To replace/fix attributes of a weak entity (e.g. remove wrong key, add correct partial key): use replace-attributes with the correct attributes and keyAttributes list.\n`
+    );
+  };
 
   const triggerAIContinuation = async () => {
     setAiStatus('thinking');
     setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: 'Continuando con el modelo...' }]);
     try {
       const recentHistory = chatMessages.slice(-8).map(m => ({ role: m.role, text: m.text }));
-      const systemPrompt = buildAISystemPrompt(recentHistory);
+      const systemPrompt = buildAISystemPrompt(recentHistory, canvasView);
       const continuePrompt = 'Continue generating the remaining commands for the scenario. The diagram already has the entities and connections shown in the current diagram state. Generate ONLY the missing elements (entities, attributes, connections, ISA, etc.) that have not been created yet. Do NOT recreate existing elements.';
       const aiText = aiProvider === 'openai'
         ? await requestAIText(continuePrompt, undefined, systemPrompt)
@@ -3938,7 +4031,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
         })();
 
         const recentHistory = chatMessages.slice(-8).map(m => ({ role: m.role, text: m.text }));
-        const systemPrompt = buildAISystemPrompt(recentHistory);
+        const systemPrompt = buildAISystemPrompt(recentHistory, canvasView);
         const userPrompt = `User: ${resolvedText}`;
         // For providers that support separate instructions (ChatGPT), send systemPrompt separately
         // For others, concatenate into a single prompt
@@ -5128,6 +5221,15 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
 
           {activeTab === 'chat' && (
           <div className="sidebar-tab-content chat-panel">
+            <div className="chat-mode-bar" title="El chat usa contexto y prompt específicos según la pestaña activa">
+              <span className="chat-mode-label">Modo:</span>
+              <span className={`chat-mode-chip mode-${canvasView}`}>
+                {canvasView === 'er' && 'Diagrama ER'}
+                {canvasView === 'schema' && 'Esquema Relacional'}
+                {canvasView === 'sql' && 'SQL DDL'}
+                {canvasView === 'algebra' && 'Álgebra Relacional'}
+              </span>
+            </div>
             {roomId ? (
               <div className="room-bar">
                 <span className="room-indicator">● Sala activa</span>
