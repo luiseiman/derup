@@ -211,12 +211,16 @@
   z-index: 1;
 }
 
-.ra-editor {
+.algebra-view textarea.ra-editor,
+.algebra-view textarea.ra-editor:hover,
+.algebra-view textarea.ra-editor:focus,
+.algebra-view textarea.ra-editor:active {
   position: relative;
   width: 100%;
   height: 100%;
   resize: none;
-  outline: none;
+  outline: none !important;
+  border: none !important;
   background: transparent !important;
   background-color: transparent !important;
   color: transparent !important;
@@ -229,16 +233,12 @@
   appearance: none;
   -webkit-appearance: none;
   color-scheme: light;
-}
-
-/* Belt and suspenders: never let any descendant of the wrapper occlude the
-   highlight overlay with a hover background. */
-.ra-editor-wrap:hover .ra-editor,
-.ra-editor:hover,
-.ra-editor:focus,
-.ra-editor:active {
-  background: transparent !important;
-  background-color: transparent !important;
+  /* Kill the global textarea transition that animates background-color from
+     white to white-on-focus and could leak through during cascade timing. */
+  transition: none !important;
+  /* Kill the global textarea box-shadow on focus (3px primary ring) — it
+     visually shifts focus into the overlay area. */
+  box-shadow: none !important;
 }
 
 /* No :focus background here — the textarea sits ABOVE the highlight overlay,
