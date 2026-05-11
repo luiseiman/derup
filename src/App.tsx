@@ -5071,6 +5071,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
 
   return (
     <div className="app-container">
+      {canvasView === 'er' && (
       <Toolbar
         items={(() => {
           const selectionCount = selectedNodeIds.size + selectedConnectionIds.size + selectedAggregationIds.size;
@@ -5167,6 +5168,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           return items;
         })()}
       />
+      )}
       <input
         ref={fileInputRef}
         type="file"
