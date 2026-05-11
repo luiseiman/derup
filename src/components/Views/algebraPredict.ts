@@ -108,22 +108,78 @@ export function predictNext(
 
   const frame = walk(tokens);
 
-  // Build the candidate set first, then filter by the partial word.
-  const candidates = suggestionsFor(frame, ctx, word);
+  // Forward scan: peek into the text AFTER the caret to find the relation
+  // argument of the σ/π/ρ whose body we're currently in. When found, restrict
+  // column suggestions to that relation's columns instead of showing every
+  // column from every loaded relation.
+  const scopeRelation = isBodyMode(frame.mode) ? findScopeRelation(query, caretPos, ctx) : null;
 
-  // Mid-word: rank candidates whose label starts with the word.
   const wordLower = word.toLowerCase();
   const tail = wordLower.includes('.') ? wordLower.split('.').pop() ?? '' : wordLower;
 
-  let filtered = candidates;
-  if (tail) {
-    const exact = candidates.filter(s => s.label.toLowerCase().startsWith(tail));
-    if (exact.length > 0) filtered = exact;
-    // If nothing matches the prefix, keep showing all candidates so the
-    // user can see what's structurally valid; their typo will be obvious.
-  }
+  const candidates = suggestionsFor(frame, ctx, word, scopeRelation);
 
-  return filtered.slice(0, 12);
+  if (!tail) return candidates.slice(0, 12);
+  // Strict prefix filter — when the user is typing a word, we don't show
+  // candidates that don't continue what they're typing (showing "= ≠ <" while
+  // they're typing a column name is misleading).
+  const exact = candidates.filter(s => s.label.toLowerCase().startsWith(tail));
+  return exact.slice(0, 12);
+}
+
+const BODY_MODES: Set<Mode> = new Set([
+  'IN_SELECT_START', 'COND_OPERAND', 'COND_AFTER_COL', 'COND_AFTER_CMP', 'COND_DONE',
+  'IN_PROJECT_START', 'PROJECT_AFTER_COL',
+  'IN_RENAME_START', 'RENAME_FIRST', 'RENAME_AFTER_ARROW', 'RENAME_AFTER_PAIR',
+]);
+function isBodyMode(m: Mode): boolean { return BODY_MODES.has(m); }
+
+/**
+ * Look at the text AFTER the caret and find the relation reference that
+ * sits inside the parenthesised argument of the current σ/π/ρ. Returns the
+ * relation name if we can recognise it; null otherwise.
+ *
+ * Algorithm: scan the suffix one token at a time, tracking paren depth from
+ * 0. The first IDENT we encounter inside the first balanced (…) at depth 1
+ * is taken as the scope relation. Robust to:
+ *   - σ a = 3 (works)      → works
+ *   - σ_{a = 3}(works)      → works (we treat any IDENT inside parens)
+ *   - σ a = 3 (π eid (emp)) → emp (recurses via the same heuristic when the
+ *     immediate child is again a σ/π/ρ)
+ */
+function findScopeRelation(query: string, caretPos: number, ctx: PredictContext): string | null {
+  const suffix = query.slice(caretPos);
+  let suffixTokens: Token[] = [];
+  try { suffixTokens = tokenize(suffix).filter(t => t.kind !== 'EOF'); }
+  catch { return null; }
+
+  let depth = 0;
+  let inParenArg = false;
+  for (let i = 0; i < suffixTokens.length; i++) {
+    const t = suffixTokens[i];
+    if (t.kind === 'LPAREN' || t.kind === 'LBRACE') {
+      // Skip the brace-form body — we want the first top-level paren AFTER
+      // the closing brace.
+      if (t.kind === 'LPAREN' && depth === 0) inParenArg = true;
+      depth++;
+      continue;
+    }
+    if (t.kind === 'RPAREN' || t.kind === 'RBRACE') {
+      depth--;
+      if (depth === 0) inParenArg = false;
+      continue;
+    }
+    if (!inParenArg) continue;
+    if (t.kind === 'IDENT') {
+      const name = t.text;
+      // Skip if it's the LHS of a comparison inside the paren body
+      // (rare nested case); only accept names that are known relations.
+      if (ctx.relations.includes(name) || ctx.derivedRelations.includes(name)) {
+        return name;
+      }
+    }
+  }
+  return null;
 }
 
 /** Walk tokens left-to-right, return the final state. Unexpected tokens trip
@@ -254,7 +310,12 @@ function walk(tokens: Token[]): Frame {
 }
 
 /** Build the suggestion list for the current state. */
-function suggestionsFor(frame: Frame, ctx: PredictContext, word: string): Suggestion[] {
+function suggestionsFor(
+  frame: Frame,
+  ctx: PredictContext,
+  word: string,
+  scopeRelation: string | null = null,
+): Suggestion[] {
   const out: Suggestion[] = [];
 
   // Helpers
@@ -263,8 +324,21 @@ function suggestionsFor(frame: Frame, ctx: PredictContext, word: string): Sugges
     ctx.relations.forEach(r => push({ text: r, label: r, hint, kind: 'relation' }));
     ctx.derivedRelations.forEach(r => push({ text: r, label: r, hint: 'derivada', kind: 'relation' }));
   };
-  const allColumns = (hint?: string) =>
+  /** Columns visible from the current parser position. If we know which
+   *  relation the σ/π/ρ body operates on, restrict to its columns only —
+   *  this keeps the chip list and the ghost suggestion focused on what
+   *  actually exists in scope instead of every column from every loaded
+   *  relation. */
+  const allColumns = (hint?: string) => {
+    if (scopeRelation) {
+      const cols = ctx.columnsByRel.get(scopeRelation);
+      if (cols && cols.length > 0) {
+        cols.forEach(c => push({ text: c, label: c, hint: hint ?? scopeRelation, kind: 'column' }));
+        return;
+      }
+    }
     ctx.allColumns.forEach(c => push({ text: c, label: c, hint, kind: 'column' }));
+  };
 
   switch (frame.mode) {
     case 'START_REL':
@@ -312,9 +386,11 @@ function suggestionsFor(frame: Frame, ctx: PredictContext, word: string): Sugges
     }
 
     case 'COND_AFTER_CMP': {
-      // RHS of a comparison — suggest sample values from the column AND other columns.
+      // RHS of a comparison — suggest sample values from the LHS column.
+      // If we know the relation in scope, prefer that relation's column
+      // exact match (so values are real for THIS query, not from elsewhere).
       const col = frame.lastCmpCol ?? '';
-      const samples = sampleValuesForColumn(col, ctx);
+      const samples = sampleValuesForColumn(col, ctx, scopeRelation);
       samples.forEach(v => push({ text: v, label: v, hint: `valor de ${col}`, kind: 'literal', pad: 'name' }));
       allColumns('columna');
       break;
@@ -381,12 +457,15 @@ function suggestionsFor(frame: Frame, ctx: PredictContext, word: string): Sugges
   return out;
 }
 
-/** Return up to 5 sample distinct values stringified for a column. Tries to
- *  match a "rel.col" key first, otherwise picks the first relation that has
- *  the column. */
-function sampleValuesForColumn(col: string, ctx: PredictContext): string[] {
+/** Return up to 5 sample distinct values stringified for a column. When a
+ *  relation scope is known, prefer that relation's exact column; otherwise
+ *  fall back to the first relation that has a matching column name. */
+function sampleValuesForColumn(col: string, ctx: PredictContext, scopeRelation: string | null = null): string[] {
   if (!col) return [];
-  // Direct lookup by qualified key first
+  if (scopeRelation) {
+    const exact = ctx.sampleValuesByCol.get(`${scopeRelation}.${col}`);
+    if (exact && exact.length > 0) return exact.slice(0, 5);
+  }
   for (const [key, vals] of ctx.sampleValuesByCol.entries()) {
     if (key === col || key.endsWith('.' + col)) {
       return vals.slice(0, 5);
