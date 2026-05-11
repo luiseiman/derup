@@ -4,6 +4,7 @@ import type { ColumnType, Program, RelExpr, Relation, Value } from '../../utils/
 import { RAError } from '../../utils/relAlgebra/types';
 import { parse } from '../../utils/relAlgebra/parser';
 import { evaluate } from '../../utils/relAlgebra/evaluator';
+import { tokenize, type Token } from '../../utils/relAlgebra/tokenizer';
 import { parseCSV, relationToCSV } from '../../utils/relAlgebra/csvLoader';
 import { generateSampleRelation } from '../../utils/relAlgebra/sampleData';
 import AlgebraPreview from './AlgebraPreview';
@@ -536,52 +537,210 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     return { currentWord: query.slice(i, caretPos), wordStart: i };
   }, [query, caretPos]);
 
+  /**
+   * Detect what kind of construct the caret is inside by tokenizing the prefix
+   * up to the caret and walking the token stream backwards to find an
+   * unmatched σ / π / ρ operator (i.e. one whose body the caret is in).
+   */
+  type SyntaxContext =
+    | { kind: 'select-cond'; bodyTokens: Token[] }
+    | { kind: 'project-cols'; bodyTokens: Token[] }
+    | { kind: 'rename-args'; bodyTokens: Token[] }
+    | { kind: 'top' };
+
+  const syntaxContext = useMemo<SyntaxContext>(() => {
+    const prefix = query.slice(0, caretPos);
+    let tokens: Token[] = [];
+    try { tokens = tokenize(prefix).filter(t => t.kind !== 'EOF'); }
+    catch { return { kind: 'top' }; }
+
+    // Walk backwards: count parens/braces; find the last operator at top depth.
+    let depth = 0;
+    let opIdx = -1;
+    let opKind = '';
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      const t = tokens[i];
+      if (t.kind === 'RPAREN' || t.kind === 'RBRACE') { depth++; continue; }
+      if (t.kind === 'LPAREN' || t.kind === 'LBRACE') {
+        if (depth === 0) {
+          // We crossed an unmatched opening — we're inside that group, which
+          // could be the brace-form body of σ_{...}: check if the previous
+          // token (after optional UNDERSCORE) is an operator.
+          let j = i - 1;
+          if (j >= 0 && tokens[j].kind === 'UNDERSCORE') j--;
+          if (j >= 0 && (tokens[j].kind === 'OP_SELECT' || tokens[j].kind === 'OP_PROJECT' || tokens[j].kind === 'OP_RENAME')) {
+            opIdx = j;
+            opKind = tokens[j].kind;
+          }
+          break;
+        }
+        depth--; continue;
+      }
+      if (depth === 0 && (t.kind === 'OP_SELECT' || t.kind === 'OP_PROJECT' || t.kind === 'OP_RENAME')) {
+        opIdx = i;
+        opKind = t.kind;
+        break;
+      }
+    }
+    if (opIdx < 0) return { kind: 'top' };
+
+    // Check whether we've already moved past the operator's body into the
+    // relation argument: i.e. there's an LPAREN at depth 0 between the
+    // operator and the caret.
+    const after = tokens.slice(opIdx + 1);
+    let d = 0;
+    let pastBody = false;
+    for (const t of after) {
+      if (t.kind === 'LPAREN' || t.kind === 'LBRACE') {
+        if (d === 0 && t.kind === 'LPAREN' && !pastBody) {
+          // First top-level LPAREN after the operator → start of relation arg.
+          pastBody = true;
+        }
+        d++;
+      } else if (t.kind === 'RPAREN' || t.kind === 'RBRACE') {
+        d--;
+      }
+    }
+    if (pastBody && d === 0) return { kind: 'top' };
+    if (pastBody) return { kind: 'top' }; // inside the relation arg → suggest relations
+
+    const bodyTokens = after;
+    if (opKind === 'OP_SELECT') return { kind: 'select-cond', bodyTokens };
+    if (opKind === 'OP_PROJECT') return { kind: 'project-cols', bodyTokens };
+    if (opKind === 'OP_RENAME') return { kind: 'rename-args', bodyTokens };
+    return { kind: 'top' };
+  }, [query, caretPos]);
+
   /** Build context-aware suggestions for the current caret position. */
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!acVisible) return [];
-    // Find the first non-whitespace char before the word being typed.
-    let i = wordStart - 1;
-    while (i >= 0 && /\s/.test(query[i])) i--;
-    const prev = i >= 0 ? query[i] : '';
 
-    // Qualified column form: R.something → suggest R's columns only.
+    const word = currentWord.toLowerCase();
+    const tail = word.includes('.') ? word.split('.')[1] : word;
+
+    // Qualified column form R.x → only R's columns (works in any context).
     if (currentWord.includes('.')) {
-      const [rel, partial] = currentWord.split('.');
+      const [rel] = currentWord.split('.');
       const cols = acSchema.colsByRel.get(rel) ?? [];
-      const tail = partial.toLowerCase();
       return cols
         .filter(c => c.toLowerCase().startsWith(tail))
         .slice(0, 10)
         .map(c => ({ text: c, label: c, hint: rel, kind: 'column' as const }));
     }
 
-    const word = currentWord.toLowerCase();
+    // ----- Context: inside σ ... (condition body) -----
+    if (syntaxContext.kind === 'select-cond') {
+      const out: Suggestion[] = [];
+      const body = syntaxContext.bodyTokens;
+      const last = body[body.length - 1];
+
+      if (tail.length > 0) {
+        // Mid-word: suggest columns (matching prefix)
+        acSchema.allCols
+          .filter(c => c.toLowerCase().startsWith(tail))
+          .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
+        return out.slice(0, 10);
+      }
+      // Empty current word: decide based on the last token in the condition body.
+      if (!last || last.kind === 'LBRACE' || last.kind === 'UNDERSCORE' ||
+          last.kind === 'AND' || last.kind === 'OR' || last.kind === 'NOT' || last.kind === 'LPAREN') {
+        // Starting a new comparison → expect a column
+        acSchema.allCols.slice(0, 8).forEach(c =>
+          out.push({ text: c, label: c, kind: 'column', hint: 'columna' }));
+        return out;
+      }
+      if (last.kind === 'IDENT') {
+        // Just typed a column → suggest comparison operators
+        out.push({ text: '=', label: '=', kind: 'operator', hint: 'igual' });
+        out.push({ text: '≠', label: '≠', kind: 'operator', hint: 'distinto' });
+        out.push({ text: '<', label: '<', kind: 'operator', hint: 'menor' });
+        out.push({ text: '>', label: '>', kind: 'operator', hint: 'mayor' });
+        out.push({ text: '≤', label: '≤', kind: 'operator', hint: 'menor o igual' });
+        out.push({ text: '≥', label: '≥', kind: 'operator', hint: 'mayor o igual' });
+        return out;
+      }
+      if (['EQ', 'NEQ', 'LT', 'GT', 'LE', 'GE'].includes(last.kind)) {
+        // Just typed a cmp op → expect a value or column (right operand)
+        acSchema.allCols.slice(0, 8).forEach(c =>
+          out.push({ text: c, label: c, kind: 'column', hint: 'columna' }));
+        return out;
+      }
+      if (last.kind === 'STRING' || last.kind === 'NUMBER' || last.kind === 'BOOL' || last.kind === 'RPAREN') {
+        // Comparison complete → suggest AND / OR (extend) or the relation arg opener.
+        out.push({ text: '∧', label: '∧', kind: 'operator', hint: 'Y lógico (AND)' });
+        out.push({ text: '∨', label: '∨', kind: 'operator', hint: 'O lógico (OR)' });
+        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación' });
+        return out;
+      }
+      return out;
+    }
+
+    // ----- Context: inside π ... (column list) -----
+    if (syntaxContext.kind === 'project-cols') {
+      const body = syntaxContext.bodyTokens;
+      const last = body[body.length - 1];
+      const out: Suggestion[] = [];
+      if (tail.length > 0) {
+        acSchema.allCols
+          .filter(c => c.toLowerCase().startsWith(tail))
+          .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
+        return out.slice(0, 10);
+      }
+      if (!last || last.kind === 'LBRACE' || last.kind === 'UNDERSCORE' || last.kind === 'COMMA') {
+        acSchema.allCols.slice(0, 10).forEach(c =>
+          out.push({ text: c, label: c, kind: 'column', hint: 'columna' }));
+        return out;
+      }
+      if (last.kind === 'IDENT') {
+        out.push({ text: ',', label: ',', kind: 'operator', hint: 'agregar otra columna' });
+        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación' });
+        return out;
+      }
+      return out;
+    }
+
+    // ----- Context: inside ρ ... (alias or column renames) -----
+    if (syntaxContext.kind === 'rename-args') {
+      const out: Suggestion[] = [];
+      const last = syntaxContext.bodyTokens[syntaxContext.bodyTokens.length - 1];
+      if (tail.length > 0) {
+        acSchema.allCols
+          .filter(c => c.toLowerCase().startsWith(tail))
+          .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
+        return out.slice(0, 10);
+      }
+      if (last?.kind === 'IDENT') {
+        out.push({ text: '→', label: '→', kind: 'operator', hint: 'renombrar a' });
+        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación' });
+        return out;
+      }
+      return out;
+    }
+
+    // ----- Default: top-level context -----
+    // Find the first non-whitespace char before the word being typed.
+    let i = wordStart - 1;
+    while (i >= 0 && /\s/.test(query[i])) i--;
+    const prev = i >= 0 ? query[i] : '';
     const out: Suggestion[] = [];
 
-    // Boundary contexts where a new relation expression begins.
     const isFreshSlot = prev === '' || prev === '(' || prev === ',' ||
-      ['∪', '∩', '⋈', '⨯', '−', '-'].includes(prev);
+      ['∪', '∩', '⋈', '⨯', '÷', '−', '-'].includes(prev);
 
     if (isFreshSlot) {
       acSchema.relations
         .filter(r => r.toLowerCase().startsWith(word))
         .forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
       if (word === '' || 'σπρspr'.includes(word[0])) {
-        if ('σselect'.startsWith(word) || 'σ' === word) out.push({ text: 'σ', label: 'σ', kind: 'operator', hint: 'selección' });
-        if ('πproject'.startsWith(word) || 'π' === word) out.push({ text: 'π', label: 'π', kind: 'operator', hint: 'proyección' });
-        if ('ρrename'.startsWith(word) || 'ρ' === word) out.push({ text: 'ρ', label: 'ρ', kind: 'operator', hint: 'renombrar' });
+        out.push({ text: 'σ', label: 'σ', kind: 'operator', hint: 'selección' });
+        out.push({ text: 'π', label: 'π', kind: 'operator', hint: 'proyección' });
+        out.push({ text: 'ρ', label: 'ρ', kind: 'operator', hint: 'renombrar' });
       }
     } else if (prev === ')' || /[a-zA-Z0-9_]/.test(prev)) {
       if (word.length > 0) {
-        // Mid-word: filter columns + relations
-        acSchema.allCols
-          .filter(c => c.toLowerCase().startsWith(word))
-          .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
-        acSchema.relations
-          .filter(r => r.toLowerCase().startsWith(word))
-          .forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
+        acSchema.allCols.filter(c => c.toLowerCase().startsWith(word)).forEach(c => out.push({ text: c, label: c, kind: 'column' }));
+        acSchema.relations.filter(r => r.toLowerCase().startsWith(word)).forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
       } else {
-        // Empty word right after a complete expression → binary operators
         out.push({ text: '⋈', label: '⋈', kind: 'operator', hint: 'junta natural' });
         out.push({ text: '⨯', label: '⨯', kind: 'operator', hint: 'producto cartesiano' });
         out.push({ text: '÷', label: '÷', kind: 'operator', hint: 'división' });
@@ -590,17 +749,12 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         out.push({ text: '−', label: '−', kind: 'operator', hint: 'diferencia' });
       }
     } else {
-      // After comparison or other char → just filter all
-      acSchema.allCols
-        .filter(c => c.toLowerCase().startsWith(word))
-        .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
-      acSchema.relations
-        .filter(r => r.toLowerCase().startsWith(word))
-        .forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
+      acSchema.allCols.filter(c => c.toLowerCase().startsWith(word)).forEach(c => out.push({ text: c, label: c, kind: 'column' }));
+      acSchema.relations.filter(r => r.toLowerCase().startsWith(word)).forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
     }
 
     return out.slice(0, 10);
-  }, [acVisible, currentWord, wordStart, query, acSchema]);
+  }, [acVisible, currentWord, wordStart, query, acSchema, syntaxContext]);
 
   // Reset selection index when suggestions list changes
   useEffect(() => { setAcIndex(0); }, [suggestions.length, currentWord]);
