@@ -13,6 +13,7 @@ import Toolbar from './components/Toolbar/Toolbar';
 import type { ToolbarItem } from './components/Toolbar/Toolbar';
 import { RelationalSchemaView } from './components/Views/RelationalSchemaView';
 import { SQLView, registerSQLNavigate } from './components/Views/SQLView';
+import AlgebraView from './components/Views/AlgebraView';
 import { erToRelationalSchema, buildSQLDDL } from './utils/relationalSchema';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -179,7 +180,7 @@ function App() {
   const [domainMemory, setDomainMemory] = useState<Record<string, string[]>>({});
   const lastAIInteraction = useRef<{ userInput: string; aiOutput: string; commandType: string } | null>(null);
   const learningLoaded = useRef(false);
-  const [canvasView, setCanvasView] = useState<'er' | 'schema' | 'sql'>('er');
+  const [canvasView, setCanvasView] = useState<'er' | 'schema' | 'sql' | 'algebra'>('er');
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('chat');
@@ -4946,6 +4947,10 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
               className={`canvas-view-tab ${canvasView === 'sql' ? 'active' : ''}`}
               onClick={() => setCanvasView('sql')}
             >SQL DDL</button>
+            <button
+              className={`canvas-view-tab ${canvasView === 'algebra' ? 'active' : ''}`}
+              onClick={() => setCanvasView('algebra')}
+            >Álgebra</button>
             {selectedNodeIds.size > 0 && canvasView !== 'er' && (
               <span className="canvas-view-filter-badge">
                 {selectedNodeIds.size} seleccionado{selectedNodeIds.size !== 1 ? 's' : ''}
@@ -5020,6 +5025,9 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
               tables={relationalSchema.tables}
               onNavigateToNode={handleNavigateToNode}
             />
+          )}
+          {canvasView === 'algebra' && (
+            <AlgebraView tables={relationalSchema.tables} />
           )}
         </div>
         {sidebarOpen && (

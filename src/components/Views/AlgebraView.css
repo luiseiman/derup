@@ -1,0 +1,312 @@
+/* Relational Algebra view — three-column layout: tables | editor | result. */
+
+.algebra-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #f8f6ff 0%, #f0f9ff 50%, #faf5ff 100%);
+}
+
+.algebra-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.algebra-toolbar h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.algebra-toolbar-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.algebra-btn {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--panel-border);
+  background: white;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.algebra-btn:hover {
+  background: var(--primary-50);
+  border-color: var(--primary-300);
+}
+.algebra-btn.primary {
+  background: var(--primary-600);
+  color: white;
+  border-color: var(--primary-600);
+}
+.algebra-btn.primary:hover {
+  background: var(--primary-700);
+}
+.algebra-btn.danger:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+.algebra-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.algebra-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 280px 1fr 1fr;
+  gap: 8px;
+  padding: 8px;
+}
+
+.algebra-panel {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.algebra-panel-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.algebra-panel-body {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+}
+
+/* ----- Tables list (left panel) ----- */
+
+.ra-table-item {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 6px;
+  background: white;
+  overflow: hidden;
+}
+
+.ra-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--primary-50);
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  user-select: none;
+}
+.ra-table-header:hover {
+  background: var(--primary-100);
+}
+
+.ra-row-count {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: white;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+.ra-row-count.loaded {
+  color: var(--success);
+  background: #ecfdf5;
+}
+
+.ra-table-cols {
+  padding: 4px 10px 8px 10px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  border-top: 1px solid var(--panel-border);
+}
+
+.ra-col-type {
+  font-size: 0.65rem;
+  color: var(--accent);
+  margin-left: 4px;
+}
+
+.ra-table-actions {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--panel-border);
+  background: #fafafa;
+}
+.ra-table-actions .algebra-btn {
+  flex: 1;
+  font-size: 0.7rem;
+  padding: 3px 6px;
+}
+
+/* ----- Editor (center panel) ----- */
+
+.ra-editor {
+  width: 100%;
+  height: 100%;
+  border: none;
+  resize: none;
+  outline: none;
+  padding: 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  background: transparent;
+  color: var(--text-color);
+}
+
+.ra-editor:focus {
+  background: #fffef9;
+}
+
+.ra-symbols-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--panel-border);
+  background: #fafafa;
+}
+
+.ra-symbol-btn {
+  width: 30px;
+  height: 26px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+.ra-symbol-btn:hover {
+  background: var(--primary-50);
+  border-color: var(--primary-400);
+}
+
+/* ----- Result (right panel) ----- */
+
+.ra-result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.ra-result-table th,
+.ra-result-table td {
+  border: 1px solid var(--panel-border);
+  padding: 4px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ra-result-table th {
+  background: var(--primary-50);
+  font-weight: 600;
+  font-size: 0.78rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.ra-result-table tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+.ra-col-type-tag {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: var(--accent);
+  text-transform: lowercase;
+}
+
+.ra-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius-md);
+  padding: 12px;
+  color: #991b1b;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+.ra-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  gap: 8px;
+}
+
+.ra-derived-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+
+.ra-derived-name {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.ra-derived-rm {
+  background: transparent;
+  border: none;
+  color: #b91c1c;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.ra-section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 12px 0 4px 0;
+}
