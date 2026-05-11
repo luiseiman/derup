@@ -97,25 +97,32 @@ export function reverseEngineerER(rels: Map<string, Relation>): ReverseEngineerR
     else notes.push(`${name}: sin clave (tabla de unión)`);
   }
 
-  // 2) Lay entities out in a grid; attributes orbit each one.
+  // ── 2) Classify each relation as a DIMENSION (becomes an entity) or a
+  //       JUNCTION (becomes a single N:M relationship between the entities
+  //       it references). A junction is any relation that didn't get a PK
+  //       in step 1 — typically because two or more of its columns point
+  //       at other relations' PKs.
+  const dimensions = Array.from(rels.keys()).filter(n => pkByRel.has(n));
+  const junctions  = Array.from(rels.keys()).filter(n => !pkByRel.has(n));
+
+  // ── 2a) Lay out the entities first (dimensions only). Attributes orbit. ─
   const entityIdByRel = new Map<string, string>();
   const entityCenterByRel = new Map<string, { x: number; y: number }>();
-  const relList = Array.from(rels.entries());
-  relList.forEach(([name, rel], idx) => {
+  dimensions.forEach((name, idx) => {
+    const rel = rels.get(name)!;
     const cx = 280 + (idx % COLS_PER_ROW) * CELL_W;
     const cy = 280 + Math.floor(idx / COLS_PER_ROW) * CELL_H;
     const entityId = mkId();
     entityIdByRel.set(name, entityId);
     entityCenterByRel.set(name, { x: cx, y: cy });
 
-    const entityNode: EntityNode = {
+    nodes.push({
       id: entityId,
       type: 'entity',
       position: { x: cx, y: cy },
       label: name,
       isWeak: false,
-    };
-    nodes.push(entityNode);
+    } as EntityNode);
 
     const pk = pkByRel.get(name);
     const colCount = rel.columns.length || 1;
@@ -124,7 +131,7 @@ export function reverseEngineerER(rels: Map<string, Relation>): ReverseEngineerR
       const ax = Math.round(cx + Math.cos(angle) * ATTR_RADIUS_X);
       const ay = Math.round(cy + Math.sin(angle) * ATTR_RADIUS_Y);
       const aid = mkId();
-      const attr: AttributeNode = {
+      nodes.push({
         id: aid,
         type: 'attribute',
         position: { x: ax, y: ay },
@@ -132,45 +139,123 @@ export function reverseEngineerER(rels: Map<string, Relation>): ReverseEngineerR
         isKey: col.name === pk,
         isMultivalued: false,
         isDerived: false,
-      };
-      nodes.push(attr);
-      connections.push({
-        id: mkConn(),
-        sourceId: entityId,
-        targetId: aid,
-        isTotalParticipation: false,
-      });
+      } as AttributeNode);
+      connections.push({ id: mkConn(), sourceId: entityId, targetId: aid, isTotalParticipation: false });
     });
   });
 
-  // 3) Detect FK-shaped column names and wire relationships.
-  //    A column in relation A is an FK to relation B when:
-  //      - A.colName === B's PK name, OR
-  //      - A.colName === `${B}_id` or `${B}id` or `id_${B}`
-  //    Skip self-references to keep the first draft simple.
+  /** Detect which dimension a junction column points to. Returns the target
+   *  relation name, or null if the column doesn't look like an FK. */
+  const fkTargetOf = (colName: string): string | null => {
+    const lower = colName.toLowerCase();
+    for (const dimName of dimensions) {
+      const dimPk = pkByRel.get(dimName);
+      const dimLower = dimName.toLowerCase();
+      const shapes = [dimPk?.toLowerCase(), `${dimLower}_id`, `${dimLower}id`, `id_${dimLower}`].filter(Boolean) as string[];
+      if (shapes.includes(lower)) return dimName;
+    }
+    return null;
+  };
+
+  // ── 2b) Each junction becomes ONE relationship-node with the linked
+  //       entities on either side, plus its non-FK columns as attributes of
+  //       the relationship itself. ──────────────────────────────────────────
+  junctions.forEach(jName => {
+    const jRel = rels.get(jName)!;
+    const fks: { col: string; target: string }[] = [];
+    for (const col of jRel.columns) {
+      const target = fkTargetOf(col.name);
+      if (target) fks.push({ col: col.name, target });
+    }
+    if (fks.length < 2) {
+      // Doesn't look like a real junction — fall back to treating it as
+      // a standalone entity so we don't drop the data.
+      notes.push(`${jName}: posible tabla aislada (sin claves foráneas claras), se modela como entidad`);
+      const ix = entityIdByRel.size;
+      const cx = 280 + (ix % COLS_PER_ROW) * CELL_W;
+      const cy = 280 + Math.floor(ix / COLS_PER_ROW) * CELL_H;
+      const entityId = mkId();
+      entityIdByRel.set(jName, entityId);
+      entityCenterByRel.set(jName, { x: cx, y: cy });
+      nodes.push({ id: entityId, type: 'entity', position: { x: cx, y: cy }, label: jName, isWeak: false } as EntityNode);
+      jRel.columns.forEach((col, ci) => {
+        const angle = (Math.PI * 2 * ci) / jRel.columns.length - Math.PI / 2;
+        const ax = Math.round(cx + Math.cos(angle) * ATTR_RADIUS_X);
+        const ay = Math.round(cy + Math.sin(angle) * ATTR_RADIUS_Y);
+        const aid = mkId();
+        nodes.push({ id: aid, type: 'attribute', position: { x: ax, y: ay }, label: col.name, isKey: false, isMultivalued: false, isDerived: false } as AttributeNode);
+        connections.push({ id: mkConn(), sourceId: entityId, targetId: aid, isTotalParticipation: false });
+      });
+      return;
+    }
+
+    // Center the relationship-node at the centroid of its target entities.
+    const centers = fks.map(f => entityCenterByRel.get(f.target)!);
+    const cx = Math.round(centers.reduce((s, c) => s + c.x, 0) / centers.length);
+    const cy = Math.round(centers.reduce((s, c) => s + c.y, 0) / centers.length);
+    const relId = mkId();
+    nodes.push({
+      id: relId,
+      type: 'relationship',
+      position: { x: cx, y: cy },
+      label: jName,
+      isIdentifying: false,
+    } as RelationshipNode);
+
+    // Connect every linked entity to the relationship (cardinality N — the
+    // standard read for an M:N junction without further constraints).
+    fks.forEach(({ target }) => {
+      connections.push({
+        id: mkConn(),
+        sourceId: entityIdByRel.get(target)!,
+        targetId: relId,
+        cardinality: 'N',
+        isTotalParticipation: false,
+      });
+    });
+
+    // Columns that aren't FKs become attributes OF the relationship.
+    const fkCols = new Set(fks.map(f => f.col));
+    const attrCols = jRel.columns.filter(c => !fkCols.has(c.name));
+    attrCols.forEach((col, i) => {
+      const angle = (Math.PI * 2 * i) / Math.max(1, attrCols.length);
+      const ax = Math.round(cx + Math.cos(angle) * ATTR_RADIUS_X);
+      const ay = Math.round(cy + Math.sin(angle) * ATTR_RADIUS_Y) - 70;
+      const aid = mkId();
+      nodes.push({
+        id: aid,
+        type: 'attribute',
+        position: { x: ax, y: ay },
+        label: col.name,
+        isKey: false,
+        isMultivalued: false,
+        isDerived: false,
+      } as AttributeNode);
+      connections.push({ id: mkConn(), sourceId: relId, targetId: aid, isTotalParticipation: false });
+    });
+
+    notes.push(`relación N:M: ${jName} (${fks.map(f => f.target).join(' ↔ ')})${attrCols.length ? ' — atributos: ' + attrCols.map(c => c.name).join(', ') : ''}`);
+  });
+
+  // ── 3) Detect FKs between dimensions (e.g. dept.managerid → emp). These
+  //       are binary N:1 relationships. Skip the dimension's own PK and any
+  //       column already used by a junction's relationship attribution. ──
   const seenPair = new Set<string>();
-  for (const [aName, aRel] of rels) {
+  for (const aName of dimensions) {
+    const aRel = rels.get(aName)!;
     const aId = entityIdByRel.get(aName)!;
     const aCenter = entityCenterByRel.get(aName)!;
     const aPk = pkByRel.get(aName);
     for (const aCol of aRel.columns) {
-      // Skip the relation's OWN PK — it's a primary key for `a`, not a
-      // foreign key into `b`. Without this guard we'd reverse the direction.
       if (aPk && aCol.name === aPk) continue;
       const colLower = aCol.name.toLowerCase();
-      for (const [bName, _bRel] of rels) {
+      for (const bName of dimensions) {
         if (bName === aName) continue;
         const bPk = pkByRel.get(bName);
         const bLower = bName.toLowerCase();
-        const fkShapes = [
-          bPk?.toLowerCase(),
-          `${bLower}_id`,
-          `${bLower}id`,
-          `id_${bLower}`,
-        ].filter(Boolean) as string[];
+        const fkShapes = [bPk?.toLowerCase(), `${bLower}_id`, `${bLower}id`, `id_${bLower}`].filter(Boolean) as string[];
         if (!fkShapes.includes(colLower)) continue;
 
-        // Dedup: only one relationship per ordered (a → b) pair from this column.
         const pairKey = `${aName}::${aCol.name}::${bName}`;
         if (seenPair.has(pairKey)) continue;
         seenPair.add(pairKey);
@@ -180,29 +265,15 @@ export function reverseEngineerER(rels: Map<string, Relation>): ReverseEngineerR
         const midX = Math.round((aCenter.x + bCenter.x) / 2);
         const midY = Math.round((aCenter.y + bCenter.y) / 2);
         const relId = mkId();
-        const relLabel = `${aName}_${bName}`.slice(0, 40);
-        const rNode: RelationshipNode = {
+        nodes.push({
           id: relId,
           type: 'relationship',
           position: { x: midX, y: midY },
-          label: relLabel,
+          label: `${aName}_${bName}`.slice(0, 40),
           isIdentifying: false,
-        };
-        nodes.push(rNode);
-        connections.push({
-          id: mkConn(),
-          sourceId: aId,
-          targetId: relId,
-          cardinality: 'N',
-          isTotalParticipation: false,
-        });
-        connections.push({
-          id: mkConn(),
-          sourceId: relId,
-          targetId: bId,
-          cardinality: '1',
-          isTotalParticipation: false,
-        });
+        } as RelationshipNode);
+        connections.push({ id: mkConn(), sourceId: aId, targetId: relId, cardinality: 'N', isTotalParticipation: false });
+        connections.push({ id: mkConn(), sourceId: relId, targetId: bId, cardinality: '1', isTotalParticipation: false });
         notes.push(`FK: ${aName}.${aCol.name} → ${bName} (${bPk ?? '?'})`);
       }
     }
