@@ -11,6 +11,8 @@ import AlgebraTree from './AlgebraTree';
 import { highlight as highlightQuery } from './algebraHighlight';
 import { predictNext, wordAtCaret, type Suggestion as PredictSuggestion } from './algebraPredict';
 import { reverseEngineerER } from '../../utils/reverseEngineerER';
+import Splitter from '../Splitter';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 import './AlgebraView.css';
 
 interface AlgebraViewProps {
@@ -183,6 +185,14 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
   const [caretPos, setCaretPos] = useState(0);
   const [acVisible, setAcVisible] = useState(true);
   const [acIndex, setAcIndex] = useState(0);
+
+  // Column widths for the 3-panel layout (tables | consulta | resultado).
+  // The third panel takes remaining space (1fr). Persisted so the user's
+  // tweak survives a reload.
+  const [tablesPanelWidth, setTablesPanelWidth] = useLocalStorage<number>('derup.algebra.col1', 280);
+  const [editorPanelWidth, setEditorPanelWidth] = useLocalStorage<number>('derup.algebra.col2', 460);
+  const tablesDragBaseline = useRef(tablesPanelWidth);
+  const editorDragBaseline = useRef(editorPanelWidth);
 
   // CRUD modal state — name of the relation being edited and a working copy.
   const [editingRelation, setEditingRelation] = useState<string | null>(null);
@@ -921,7 +931,10 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
         </div>
       </div>
 
-      <div className="algebra-body">
+      <div
+        className="algebra-body"
+        style={{ gridTemplateColumns: `${tablesPanelWidth}px 5px ${editorPanelWidth}px 5px 1fr` }}
+      >
         {/* ===== LEFT: Tables ===== */}
         <div className="algebra-panel">
           <div className="algebra-panel-header">
@@ -1113,6 +1126,15 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
           </div>
         </div>
 
+        <Splitter
+          orientation="vertical"
+          title="Arrastrar para cambiar el ancho del panel de tablas"
+          onDragStart={() => { tablesDragBaseline.current = tablesPanelWidth; }}
+          onDrag={(delta) => {
+            const next = Math.max(180, Math.min(600, tablesDragBaseline.current + delta));
+            setTablesPanelWidth(next);
+          }}
+        />
         {/* ===== CENTER: Editor ===== */}
         <div className="algebra-panel">
           <div className="algebra-panel-header">
@@ -1245,6 +1267,15 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
           </div>
         </div>
 
+        <Splitter
+          orientation="vertical"
+          title="Arrastrar para cambiar el ancho del panel de consulta"
+          onDragStart={() => { editorDragBaseline.current = editorPanelWidth; }}
+          onDrag={(delta) => {
+            const next = Math.max(260, Math.min(900, editorDragBaseline.current + delta));
+            setEditorPanelWidth(next);
+          }}
+        />
         {/* ===== RIGHT: Result ===== */}
         <div className="algebra-panel">
           <div className="algebra-panel-header">

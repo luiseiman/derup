@@ -8,6 +8,56 @@
   background: linear-gradient(135deg, #f8f6ff 0%, #f0f9ff 50%, #faf5ff 100%);
 }
 
+/* ========== SPLITTER (resizable panel dividers) ========== */
+.splitter {
+  flex: 0 0 5px;
+  background: transparent;
+  transition: background 120ms ease;
+  user-select: none;
+  z-index: 5;
+  position: relative;
+}
+.splitter::after {
+  content: '';
+  position: absolute;
+  background: var(--panel-border);
+  transition: background 120ms ease;
+}
+.splitter:hover,
+.splitter:active {
+  background: rgba(167, 139, 250, 0.15);
+}
+.splitter:hover::after,
+.splitter:active::after {
+  background: var(--primary-500);
+}
+
+.splitter-vertical {
+  cursor: col-resize;
+  height: 100%;
+  width: 5px;
+}
+.splitter-vertical::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-0.5px);
+}
+
+.splitter-horizontal {
+  cursor: row-resize;
+  width: 100%;
+  height: 5px;
+}
+.splitter-horizontal::after {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-0.5px);
+}
+
 /* Header styles replaced by Toolbar component */
 
 /* ========== SIDEBAR TABS ========== */
@@ -203,7 +253,7 @@
 
 /* ========== SIDEBAR ========== */
 .sidebar {
-  width: clamp(240px, 28vw, 360px);
+  /* Width and flex are driven by inline style (resized via splitter). */
   border: 1px solid var(--panel-border);
   padding: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 245, 255, 0.92) 100%);
@@ -213,6 +263,7 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(10px);
+  min-width: 220px;
 }
 
 .sidebar::-webkit-scrollbar {

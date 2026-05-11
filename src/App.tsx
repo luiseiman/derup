@@ -14,6 +14,7 @@ import type { ToolbarItem } from './components/Toolbar/Toolbar';
 import { RelationalSchemaView } from './components/Views/RelationalSchemaView';
 import { SQLView, registerSQLNavigate } from './components/Views/SQLView';
 import AlgebraView from './components/Views/AlgebraView';
+import Splitter from './components/Splitter';
 import { erToRelationalSchema, buildSQLDDL } from './utils/relationalSchema';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -200,6 +201,10 @@ function App() {
   } | null>(null);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  /** Sidebar width in px, persisted across sessions. Drag the splitter on the
+   *  sidebar's left edge to resize. Clamped to a sane range. */
+  const [sidebarWidth, setSidebarWidth] = useLocalStorage<number>('derup.sidebar.width', 320);
+  const sidebarDragBaseline = useRef(sidebarWidth);
   const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('chat');
   const [lastScenarioText, setLastScenarioText] = useState('');
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
@@ -5302,7 +5307,20 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           )}
         </div>
         {sidebarOpen && (
-        <aside className="sidebar">
+        <Splitter
+          orientation="vertical"
+          title="Arrastrar para cambiar el ancho del panel lateral"
+          onDragStart={() => { sidebarDragBaseline.current = sidebarWidth; }}
+          onDrag={(delta) => {
+            // The splitter sits to the LEFT of the sidebar — moving right
+            // (positive delta) shrinks the sidebar.
+            const next = Math.max(220, Math.min(720, sidebarDragBaseline.current - delta));
+            setSidebarWidth(next);
+          }}
+        />
+        )}
+        {sidebarOpen && (
+        <aside className="sidebar" style={{ width: sidebarWidth, flex: `0 0 ${sidebarWidth}px` }}>
           <div className="sidebar-tabs">
             <button className={`sidebar-tab ${activeTab === 'properties' ? 'active' : ''}`} onClick={() => setActiveTab('properties')}>Properties</button>
             <button className={`sidebar-tab ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>Chat</button>
