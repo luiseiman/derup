@@ -62,7 +62,8 @@ type Mode =
   | 'RENAME_AFTER_ARROW'
   | 'RENAME_AFTER_PAIR'
   | 'EXPECT_REL_ARG'   // expect '(' opening the relation argument of σ/π/ρ
-  | 'EXPECT_REL_REF';  // inside parens, expect a relation reference
+  | 'EXPECT_REL_REF'   // inside parens, expect a relation reference
+  | 'ERROR_RECOVERY';  // saw a token that doesn't fit current grammar — stop transitioning until a hard reset (; or end)
 
 interface Frame {
   mode: Mode;
@@ -125,7 +126,9 @@ export function predictNext(
   return filtered.slice(0, 12);
 }
 
-/** Walk tokens left-to-right, return the final state. */
+/** Walk tokens left-to-right, return the final state. Unexpected tokens trip
+ *  the walker into ERROR_RECOVERY so we don't keep transitioning over a
+ *  malformed prefix and end up suggesting "continuations" of a broken query. */
 function walk(tokens: Token[]): Frame {
   const stack: Frame[] = [{ mode: 'START_REL' }];
 
@@ -133,10 +136,18 @@ function walk(tokens: Token[]): Frame {
   const setMode = (m: Mode) => { top().mode = m; };
   const push = (m: Mode) => { stack.push({ mode: m }); };
   const pop = () => { if (stack.length > 1) stack.pop(); };
+  /** When a token doesn't match any case in the current mode, treat it as an
+   *  error and drop to ERROR_RECOVERY rather than ignoring it (which would
+   *  let the next legal-looking token misleadingly advance state). */
+  const trap = () => { setMode('ERROR_RECOVERY'); };
 
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     const m = top().mode;
+
+    // SEMI always resets to a fresh statement, even from ERROR_RECOVERY.
+    if (t.kind === 'SEMI') { setMode('START_REL'); continue; }
+    if (m === 'ERROR_RECOVERY') continue; // skip rest of statement after error
 
     switch (m) {
       case 'START_REL':
@@ -144,39 +155,18 @@ function walk(tokens: Token[]): Frame {
       case 'AFTER_REL': {
         // Allow assignment: IDENT ':=' …
         if (m === 'START_REL' && t.kind === 'IDENT' && tokens[i + 1]?.kind === 'ASSIGN') {
-          // Skip name + := token to continue parsing the RHS as a fresh START_REL.
-          i++; // skip ASSIGN next iteration via the loop increment
-          setMode('START_REL');
-          break;
+          i++; setMode('START_REL'); break;
         }
-
         if (t.kind === 'OP_SELECT')  { setMode('IN_SELECT_START');  break; }
         if (t.kind === 'OP_PROJECT') { setMode('IN_PROJECT_START'); break; }
         if (t.kind === 'OP_RENAME')  { setMode('IN_RENAME_START');  break; }
-
-        if (t.kind === 'LPAREN') {
-          push('EXPECT_REL_REF');
-          break;
-        }
-        if (t.kind === 'RPAREN') {
-          pop();
-          setMode('AFTER_REL');
-          break;
-        }
-        if (t.kind === 'IDENT') {
-          setMode('AFTER_REL');
-          break;
-        }
-        if (BINARY_OP_KINDS.includes(t.kind)) {
-          // Need another relation expression on the right.
-          setMode('START_REL');
-          break;
-        }
-        if (t.kind === 'SEMI') {
-          setMode('START_REL');
-          break;
-        }
-        break;
+        if (t.kind === 'LPAREN')     { push('EXPECT_REL_REF'); break; }
+        if (t.kind === 'RPAREN')     { pop(); setMode('AFTER_REL'); break; }
+        if (t.kind === 'IDENT')      { setMode('AFTER_REL'); break; }
+        if (BINARY_OP_KINDS.includes(t.kind)) { setMode('START_REL'); break; }
+        if (t.kind === 'DOT')        { /* part of qualified name; stay */ break; }
+        // AFTER_REL also accepts ';' but SEMI is handled above the switch.
+        trap(); break;
       }
 
       case 'IN_SELECT_START':
@@ -187,49 +177,35 @@ function walk(tokens: Token[]): Frame {
         if (t.kind === 'LPAREN')     { setMode('COND_OPERAND'); break; }
         if (t.kind === 'IDENT')      {
           top().lastCmpCol = t.text;
-          setMode('COND_AFTER_COL');
-          break;
+          setMode('COND_AFTER_COL'); break;
         }
-        if (VALUE_KINDS.includes(t.kind)) {
-          setMode('COND_DONE');
-          break;
-        }
-        break;
+        if (VALUE_KINDS.includes(t.kind)) { setMode('COND_DONE'); break; }
+        trap(); break;
       }
 
       case 'COND_AFTER_COL': {
         if (CMP_KINDS.includes(t.kind)) { setMode('COND_AFTER_CMP'); break; }
-        if (t.kind === 'DOT')           { /* qualified name; stay until next IDENT */ break; }
-        if (t.kind === 'IDENT')         { /* second half of R.col */ setMode('COND_AFTER_COL'); break; }
-        break;
+        if (t.kind === 'DOT')           { break; }
+        if (t.kind === 'IDENT')         { setMode('COND_AFTER_COL'); break; }
+        trap(); break;
       }
 
       case 'COND_AFTER_CMP': {
-        if (t.kind === 'IDENT' || VALUE_KINDS.includes(t.kind)) {
-          setMode('COND_DONE');
-          break;
-        }
-        break;
+        if (t.kind === 'IDENT' || VALUE_KINDS.includes(t.kind)) { setMode('COND_DONE'); break; }
+        trap(); break;
       }
 
       case 'COND_DONE': {
         if (t.kind === 'AND' || t.kind === 'OR') { setMode('COND_OPERAND'); break; }
-        if (t.kind === 'RBRACE') {
-          // End of explicit {cond}; now expect '(' rel arg.
-          setMode('EXPECT_REL_ARG');
-          break;
-        }
-        if (t.kind === 'LPAREN') {
-          // Simplified form: condition ended, this '(' opens the rel arg.
-          push('EXPECT_REL_REF');
-          break;
-        }
-        break;
+        if (t.kind === 'RBRACE') { setMode('EXPECT_REL_ARG'); break; }
+        if (t.kind === 'LPAREN') { push('EXPECT_REL_REF'); break; }
+        if (t.kind === 'RPAREN') { /* close a (cond) group */ break; }
+        trap(); break;
       }
 
       case 'EXPECT_REL_ARG': {
         if (t.kind === 'LPAREN') { push('EXPECT_REL_REF'); break; }
-        break;
+        trap(); break;
       }
 
       case 'IN_PROJECT_START':
@@ -240,8 +216,9 @@ function walk(tokens: Token[]): Frame {
         if (t.kind === 'IDENT')      { setMode('PROJECT_AFTER_COL'); break; }
         if (t.kind === 'DOT')        { setMode('IN_PROJECT_START'); break; }
         if (t.kind === 'RBRACE')     { setMode('EXPECT_REL_ARG'); break; }
-        if (t.kind === 'LPAREN')     { push('EXPECT_REL_REF'); break; }
-        break;
+        // Only allow LPAREN right after a column (IDENT) — never after junk
+        if (t.kind === 'LPAREN' && m === 'PROJECT_AFTER_COL') { push('EXPECT_REL_REF'); break; }
+        trap(); break;
       }
 
       case 'IN_RENAME_START': {
@@ -249,26 +226,26 @@ function walk(tokens: Token[]): Frame {
         if (t.kind === 'LBRACE')     break;
         if (t.kind === 'IDENT')      { setMode('RENAME_FIRST'); break; }
         if (t.kind === 'LPAREN')     { push('EXPECT_REL_REF'); break; }
-        break;
+        trap(); break;
       }
 
       case 'RENAME_FIRST': {
         if (t.kind === 'ARROW')      { setMode('RENAME_AFTER_ARROW'); break; }
         if (t.kind === 'RBRACE')     { setMode('EXPECT_REL_ARG'); break; }
         if (t.kind === 'LPAREN')     { push('EXPECT_REL_REF'); break; }
-        break;
+        trap(); break;
       }
 
       case 'RENAME_AFTER_ARROW': {
         if (t.kind === 'IDENT') { setMode('RENAME_AFTER_PAIR'); break; }
-        break;
+        trap(); break;
       }
 
       case 'RENAME_AFTER_PAIR': {
         if (t.kind === 'COMMA')  { setMode('IN_RENAME_START'); break; }
         if (t.kind === 'RBRACE') { setMode('EXPECT_REL_ARG'); break; }
         if (t.kind === 'LPAREN') { push('EXPECT_REL_REF'); break; }
-        break;
+        trap(); break;
       }
     }
   }
@@ -387,6 +364,16 @@ function suggestionsFor(frame: Frame, ctx: PredictContext, word: string): Sugges
     case 'RENAME_AFTER_PAIR': {
       push({ text: ',', label: ',', hint: 'renombrar otra columna', kind: 'keyword', pad: 'comma' });
       push({ text: '(', label: '(', hint: 'abrir relación',         kind: 'keyword', pad: 'lparen' });
+      break;
+    }
+
+    case 'ERROR_RECOVERY': {
+      // The prefix has a syntactic mistake the walker couldn't fit into the
+      // grammar. Suggest minimal recovery options so the user can either
+      // start a new sentence or revisit what they wrote.
+      push({ text: ';', label: ';', hint: 'cerrar y empezar nueva sentencia', kind: 'keyword', pad: 'punct' });
+      push({ text: '(', label: '(', hint: 'abrir paréntesis', kind: 'keyword', pad: 'lparen' });
+      push({ text: ')', label: ')', hint: 'cerrar paréntesis', kind: 'keyword', pad: 'punct' });
       break;
     }
   }
