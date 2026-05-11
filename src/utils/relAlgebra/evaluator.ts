@@ -94,6 +94,7 @@ function evalExpr(expr: RelExpr, env: Map<string, Relation>, trace: Map<RelExpr,
         case 'union':      rel = doUnion(L, R, expr.pos); break;
         case 'intersect':  rel = doIntersect(L, R, expr.pos); break;
         case 'difference': rel = doDifference(L, R, expr.pos); break;
+        case 'division':   rel = doDivision(L, R, expr.pos); break;
       }
       break;
     }
@@ -431,6 +432,75 @@ function doDifference(L: Relation, R: Relation, pos: import('./types').SrcPos): 
     if (!rSet.has(k) && !seen.has(k)) { seen.add(k); rows.push(r); }
   }
   return { columns: L.columns, rows };
+}
+
+// ----- ÷ (division) -----
+
+/**
+ * Ramakrishnan & Gehrke, Cap 4 — Division.
+ *
+ * R ÷ S returns tuples t over the schema (R − S) such that for every tuple
+ * s ∈ S, the tuple t·s appears in R. Pre-condition: S's schema must be a
+ * subset of R's schema (by column name and type).
+ *
+ * Typical use case: "find usuarios who placed orders for ALL products in S".
+ */
+function doDivision(R: Relation, S: Relation, pos: import('./types').SrcPos): Relation {
+  // 1) Validate S schema ⊆ R schema.
+  for (let i = 0; i < S.columns.length; i++) {
+    const sCol = S.columns[i];
+    const rCol = R.columns.find(c => c.name === sCol.name);
+    if (!rCol) {
+      throw new RAError(
+        `División: la columna '${sCol.name}' de S no existe en R. S debe ser un subconjunto del esquema de R.`,
+        pos,
+      );
+    }
+    if (rCol.type !== sCol.type) {
+      throw new RAError(
+        `División: tipo incompatible en columna '${sCol.name}' (R: ${rCol.type}, S: ${sCol.type}).`,
+        pos,
+      );
+    }
+  }
+  if (S.columns.length === R.columns.length) {
+    throw new RAError(
+      `División: S debe ser un subconjunto ESTRICTO del esquema de R (al menos una columna en R que no esté en S).`,
+      pos,
+    );
+  }
+
+  // 2) Compute result schema A = R.columns − S.columns
+  const sNames = new Set(S.columns.map(c => c.name));
+  const aCols: Column[] = R.columns.filter(c => !sNames.has(c.name));
+  const aIdxInR = aCols.map(c => R.columns.findIndex(rc => rc.name === c.name));
+  const sIdxInR = S.columns.map(sc => R.columns.findIndex(rc => rc.name === sc.name));
+
+  // 3) Build fast lookup of R rows.
+  const rKeys = new Set(R.rows.map(tupleKey));
+
+  // 4) Compute unique projections of R onto A.
+  const aProjMap = new Map<string, Value[]>();
+  for (const row of R.rows) {
+    const a = aIdxInR.map(i => row[i]);
+    const k = tupleKey(a);
+    if (!aProjMap.has(k)) aProjMap.set(k, a);
+  }
+
+  // 5) For each candidate `a`, verify that ∀s∈S, (a·s reassembled in R order) ∈ R.
+  const rows: Value[][] = [];
+  for (const a of aProjMap.values()) {
+    let allPresent = true;
+    for (const s of S.rows) {
+      const candidate: Value[] = new Array(R.columns.length).fill(null);
+      aIdxInR.forEach((ri, k) => { candidate[ri] = a[k]; });
+      sIdxInR.forEach((ri, k) => { candidate[ri] = s[k]; });
+      if (!rKeys.has(tupleKey(candidate))) { allPresent = false; break; }
+    }
+    if (allPresent) rows.push(a);
+  }
+
+  return { columns: aCols, rows };
 }
 
 // ----- tuple key for dedup/lookup -----

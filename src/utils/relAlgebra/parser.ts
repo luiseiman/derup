@@ -107,10 +107,15 @@ class Parser {
 
   private parseIntersect(): RelExpr {
     let left = this.parseJoin();
-    while (this.match('OP_INTERSECT')) {
+    while (this.match('OP_INTERSECT', 'OP_DIVISION')) {
       const opTok = this.consume();
       const right = this.parseJoin();
-      left = { kind: 'binary', op: 'intersect', left, right, pos: opTok.pos };
+      left = {
+        kind: 'binary',
+        op: opTok.kind === 'OP_INTERSECT' ? 'intersect' : 'division',
+        left, right,
+        pos: opTok.pos,
+      };
     }
     return left;
   }

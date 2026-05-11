@@ -24,22 +24,23 @@ const STORAGE_KEY = 'derup.algebra.v1';
  */
 type InsertKind = 'name' | 'unary' | 'binary' | 'punct';
 const SYMBOLS: { sym: string; tip: string; kind: InsertKind }[] = [
-  { sym: 'σ', tip: 'select (selección)', kind: 'unary' },
-  { sym: 'π', tip: 'project (proyección)', kind: 'unary' },
-  { sym: 'ρ', tip: 'rename (renombrar)', kind: 'unary' },
-  { sym: '⋈', tip: 'natural join', kind: 'binary' },
-  { sym: '⨯', tip: 'producto cartesiano', kind: 'binary' },
-  { sym: '∪', tip: 'unión', kind: 'binary' },
-  { sym: '∩', tip: 'intersección', kind: 'binary' },
-  { sym: '−', tip: 'diferencia', kind: 'binary' },
-  { sym: '∧', tip: 'AND lógico', kind: 'binary' },
-  { sym: '∨', tip: 'OR lógico', kind: 'binary' },
-  { sym: '¬', tip: 'NOT lógico', kind: 'unary' },
-  { sym: '≠', tip: 'distinto', kind: 'binary' },
-  { sym: '≤', tip: 'menor o igual', kind: 'binary' },
-  { sym: '≥', tip: 'mayor o igual', kind: 'binary' },
-  { sym: '→', tip: 'flecha (rename de columna)', kind: 'binary' },
-  { sym: '.', tip: 'punto (calificador R.col)', kind: 'punct' },
+  { sym: 'σ', tip: 'σ — selección', kind: 'unary' },
+  { sym: 'π', tip: 'π — proyección', kind: 'unary' },
+  { sym: 'ρ', tip: 'ρ — renombrar', kind: 'unary' },
+  { sym: '⋈', tip: '⋈ — junta natural', kind: 'binary' },
+  { sym: '⨯', tip: '⨯ — producto cartesiano', kind: 'binary' },
+  { sym: '÷', tip: '÷ — división', kind: 'binary' },
+  { sym: '∪', tip: '∪ — unión', kind: 'binary' },
+  { sym: '∩', tip: '∩ — intersección', kind: 'binary' },
+  { sym: '−', tip: '− — diferencia', kind: 'binary' },
+  { sym: '∧', tip: '∧ — AND lógico', kind: 'binary' },
+  { sym: '∨', tip: '∨ — OR lógico', kind: 'binary' },
+  { sym: '¬', tip: '¬ — NOT lógico', kind: 'unary' },
+  { sym: '≠', tip: '≠ — distinto', kind: 'binary' },
+  { sym: '≤', tip: '≤ — menor o igual', kind: 'binary' },
+  { sym: '≥', tip: '≥ — mayor o igual', kind: 'binary' },
+  { sym: '→', tip: '→ — flecha (renombrar columna)', kind: 'binary' },
+  { sym: '.', tip: '. — calificador R.col', kind: 'punct' },
 ];
 
 interface Persisted {
@@ -566,9 +567,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         .filter(r => r.toLowerCase().startsWith(word))
         .forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
       if (word === '' || 'σπρspr'.includes(word[0])) {
-        if ('σselect'.startsWith(word) || 'σ' === word) out.push({ text: 'σ', label: 'σ', kind: 'operator', hint: 'select' });
-        if ('πproject'.startsWith(word) || 'π' === word) out.push({ text: 'π', label: 'π', kind: 'operator', hint: 'project' });
-        if ('ρrename'.startsWith(word) || 'ρ' === word) out.push({ text: 'ρ', label: 'ρ', kind: 'operator', hint: 'rename' });
+        if ('σselect'.startsWith(word) || 'σ' === word) out.push({ text: 'σ', label: 'σ', kind: 'operator', hint: 'selección' });
+        if ('πproject'.startsWith(word) || 'π' === word) out.push({ text: 'π', label: 'π', kind: 'operator', hint: 'proyección' });
+        if ('ρrename'.startsWith(word) || 'ρ' === word) out.push({ text: 'ρ', label: 'ρ', kind: 'operator', hint: 'renombrar' });
       }
     } else if (prev === ')' || /[a-zA-Z0-9_]/.test(prev)) {
       if (word.length > 0) {
@@ -581,11 +582,12 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
           .forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
       } else {
         // Empty word right after a complete expression → binary operators
-        out.push({ text: '⋈', label: '⋈', kind: 'operator', hint: 'natural join' });
-        out.push({ text: '⨯', label: '⨯', kind: 'operator', hint: 'cross' });
-        out.push({ text: '∪', label: '∪', kind: 'operator', hint: 'union' });
-        out.push({ text: '∩', label: '∩', kind: 'operator', hint: 'intersect' });
-        out.push({ text: '−', label: '−', kind: 'operator', hint: 'difference' });
+        out.push({ text: '⋈', label: '⋈', kind: 'operator', hint: 'junta natural' });
+        out.push({ text: '⨯', label: '⨯', kind: 'operator', hint: 'producto cartesiano' });
+        out.push({ text: '÷', label: '÷', kind: 'operator', hint: 'división' });
+        out.push({ text: '∪', label: '∪', kind: 'operator', hint: 'unión' });
+        out.push({ text: '∩', label: '∩', kind: 'operator', hint: 'intersección' });
+        out.push({ text: '−', label: '−', kind: 'operator', hint: 'diferencia' });
       }
     } else {
       // After comparison or other char → just filter all

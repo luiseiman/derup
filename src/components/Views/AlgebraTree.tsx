@@ -28,7 +28,7 @@ function condText(c: Condition): string {
 
 const BIN_GLYPH: Record<string, string> = {
   join: '⋈', theta: '⋈', cross: '⨯',
-  union: '∪', intersect: '∩', difference: '−',
+  union: '∪', intersect: '∩', difference: '−', division: '÷',
 };
 
 function labelOf(e: RelExpr): { glyph: string; subscript: string } {

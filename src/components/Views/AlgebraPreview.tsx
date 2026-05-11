@@ -26,6 +26,7 @@ const BIN_GLYPH: Record<string, string> = {
   union: '∪',
   intersect: '∩',
   difference: '−',
+  division: '÷',
 };
 
 function renderOperand(o: CondOperand): React.ReactNode {

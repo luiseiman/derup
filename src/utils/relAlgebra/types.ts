@@ -32,7 +32,8 @@ export type RelExpr =
   | { kind: 'binary'; op: BinaryOp; left: RelExpr; right: RelExpr; condition?: Condition; pos: SrcPos };
 
 // 'theta' = condition-join (R ⋈_c S = σ_c(R × S)); 'join' = natural join.
-export type BinaryOp = 'join' | 'theta' | 'cross' | 'union' | 'intersect' | 'difference';
+// 'division' = R ÷ S returns tuples t in πA(R) such that ∀s∈S: t∪s ∈ R, where A = R−S schema.
+export type BinaryOp = 'join' | 'theta' | 'cross' | 'union' | 'intersect' | 'difference' | 'division';
 
 // ----- AST: condition inside σ -----
 export type Condition =

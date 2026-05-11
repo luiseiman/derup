@@ -7,7 +7,7 @@ import { RAError } from './types';
 
 export type TokenKind =
   | 'OP_SELECT' | 'OP_PROJECT' | 'OP_RENAME'
-  | 'OP_JOIN' | 'OP_CROSS' | 'OP_UNION' | 'OP_INTERSECT' | 'OP_DIFFERENCE'
+  | 'OP_JOIN' | 'OP_CROSS' | 'OP_UNION' | 'OP_INTERSECT' | 'OP_DIFFERENCE' | 'OP_DIVISION'
   | 'AND' | 'OR' | 'NOT'
   | 'EQ' | 'NEQ' | 'LT' | 'GT' | 'LE' | 'GE'
   | 'ASSIGN' | 'ARROW' | 'COMMA' | 'SEMI' | 'DOT'
@@ -31,6 +31,7 @@ const KEYWORDS: Record<string, TokenKind> = {
   union: 'OP_UNION',
   intersect: 'OP_INTERSECT',
   difference: 'OP_DIFFERENCE',
+  division: 'OP_DIVISION',
   and: 'AND',
   or: 'OR',
   not: 'NOT',
@@ -49,6 +50,7 @@ const UNICODE_OPS: Record<string, TokenKind> = {
   '∪': 'OP_UNION',
   '∩': 'OP_INTERSECT',
   '−': 'OP_DIFFERENCE',
+  '÷': 'OP_DIVISION',
   '∧': 'AND',
   '∨': 'OR',
   '¬': 'NOT',
