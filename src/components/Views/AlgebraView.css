@@ -177,12 +177,15 @@
 
 /* The editor lives inside a wrapper. The textarea has transparent text so the
    user types invisibly while the highlight overlay below renders the colored
-   version of the same text in the exact same position. */
+   version of the same text in the exact same position. We force color-scheme
+   to light so dark-mode browsers don't paint an implicit opaque background
+   on the focused textarea (which would veil the colored overlay). */
 .ra-editor-wrap {
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
+  color-scheme: light;
 }
 
 .ra-editor,
@@ -204,7 +207,7 @@
   pointer-events: none;
   overflow: auto;
   color: var(--text-color);
-  background: transparent;
+  background: transparent !important;
   z-index: 1;
 }
 
@@ -214,11 +217,28 @@
   height: 100%;
   resize: none;
   outline: none;
-  background: transparent;
-  color: transparent;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: transparent !important;
   caret-color: var(--text-color);
   z-index: 2;
   overflow: auto;
+  /* Avoid the browser's user-agent text-rendering tricks for native form
+     elements, which can paint an opaque layer on focus/hover. */
+  -webkit-text-fill-color: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color-scheme: light;
+}
+
+/* Belt and suspenders: never let any descendant of the wrapper occlude the
+   highlight overlay with a hover background. */
+.ra-editor-wrap:hover .ra-editor,
+.ra-editor:hover,
+.ra-editor:focus,
+.ra-editor:active {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 /* No :focus background here — the textarea sits ABOVE the highlight overlay,
