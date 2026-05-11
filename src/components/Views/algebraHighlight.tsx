@@ -83,6 +83,7 @@ export function highlight(query: string, schema: HighlightSchema): React.ReactNo
       }
       if (j < query.length) j++; // include closing quote
       push(query.slice(i, j), 'tk-val-str');
+      i = j;
       continue;
     }
 
@@ -95,6 +96,7 @@ export function highlight(query: string, schema: HighlightSchema): React.ReactNo
         while (j < query.length && /[0-9]/.test(query[j])) j++;
       }
       push(query.slice(i, j), 'tk-val-num');
+      i = j;
       continue;
     }
 
@@ -124,6 +126,7 @@ export function highlight(query: string, schema: HighlightSchema): React.ReactNo
       while (j < query.length && /[a-zA-Z0-9_]/.test(query[j])) j++;
       const text = query.slice(i, j);
       push(text, classify(text, prevNonWs, schema));
+      i = j;          // ← bug fix: advance past the consumed identifier
       continue;
     }
 
