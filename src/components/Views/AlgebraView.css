@@ -347,6 +347,71 @@
 }
 .ra-chevron:hover { color: var(--primary-700); }
 
+/* ----- Autocomplete bar ----- */
+
+.ra-autocomplete {
+  border-top: 1px solid var(--panel-border);
+  background: #fffdf2;
+  padding: 4px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.ra-ac-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.78rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.ra-ac-item:hover,
+.ra-ac-item.selected {
+  border-color: var(--primary-600);
+  background: var(--primary-50);
+  box-shadow: 0 0 0 1px var(--primary-400);
+}
+
+.ra-ac-item.relation .ra-ac-label { color: #1e3a8a; font-weight: 600; }
+.ra-ac-item.column   .ra-ac-label { color: #065f46; }
+.ra-ac-item.operator .ra-ac-label {
+  font-family: 'Cambria Math', serif;
+  font-size: 1.05em;
+  color: #7c2d12;
+}
+
+.ra-ac-hint {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  background: #f3f4f6;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.ra-ac-tip {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+.ra-ac-tip kbd {
+  background: white;
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: 0.85em;
+}
+
 /* ----- Math-style preview of the parsed query ----- */
 
 .ra-preview {

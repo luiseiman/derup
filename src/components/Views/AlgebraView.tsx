@@ -133,6 +133,11 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
   const [selectedTreeNode, setSelectedTreeNode] = useState<RelExpr | null>(null);
   const [queryMs, setQueryMs] = useState<number | null>(null);
 
+  // ----- Autocomplete state -----
+  const [caretPos, setCaretPos] = useState(0);
+  const [acVisible, setAcVisible] = useState(true);
+  const [acIndex, setAcIndex] = useState(0);
+
   // CRUD modal state — name of the relation being edited and a working copy.
   const [editingRelation, setEditingRelation] = useState<string | null>(null);
   const [editBuffer, setEditBuffer] = useState<Relation | null>(null);
@@ -498,6 +503,128 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     setQueryMs(null);
   };
 
+  // ---- Autocomplete: schema, current word, contextual suggestions ----
+
+  type Suggestion = {
+    text: string;       // what gets inserted (no automatic padding — caller handles)
+    label: string;      // what shows in the chip
+    hint?: string;      // small badge (relation name for columns, etc.)
+    kind: 'relation' | 'column' | 'operator';
+  };
+
+  /** Map of all known relations to their columns, used to drive suggestions. */
+  const acSchema = useMemo(() => {
+    const relations: string[] = [];
+    const colsByRel = new Map<string, string[]>();
+    tables.forEach(t => {
+      relations.push(t.name);
+      colsByRel.set(t.name, t.columns.filter(c => !c.isDerived).map(c => c.name));
+    });
+    importedRelations.forEach((rel, name) => {
+      if (!relations.includes(name)) relations.push(name);
+      colsByRel.set(name, rel.columns.map(c => c.name));
+    });
+    const allCols = Array.from(new Set(Array.from(colsByRel.values()).flat()));
+    return { relations, colsByRel, allCols };
+  }, [tables, importedRelations]);
+
+  /** Word-bound currently being typed (alnum + `_` + `.`). */
+  const { currentWord, wordStart } = useMemo(() => {
+    let i = caretPos;
+    while (i > 0 && /[a-zA-Z0-9_.]/.test(query[i - 1])) i--;
+    return { currentWord: query.slice(i, caretPos), wordStart: i };
+  }, [query, caretPos]);
+
+  /** Build context-aware suggestions for the current caret position. */
+  const suggestions = useMemo<Suggestion[]>(() => {
+    if (!acVisible) return [];
+    // Find the first non-whitespace char before the word being typed.
+    let i = wordStart - 1;
+    while (i >= 0 && /\s/.test(query[i])) i--;
+    const prev = i >= 0 ? query[i] : '';
+
+    // Qualified column form: R.something → suggest R's columns only.
+    if (currentWord.includes('.')) {
+      const [rel, partial] = currentWord.split('.');
+      const cols = acSchema.colsByRel.get(rel) ?? [];
+      const tail = partial.toLowerCase();
+      return cols
+        .filter(c => c.toLowerCase().startsWith(tail))
+        .slice(0, 10)
+        .map(c => ({ text: c, label: c, hint: rel, kind: 'column' as const }));
+    }
+
+    const word = currentWord.toLowerCase();
+    const out: Suggestion[] = [];
+
+    // Boundary contexts where a new relation expression begins.
+    const isFreshSlot = prev === '' || prev === '(' || prev === ',' ||
+      ['∪', '∩', '⋈', '⨯', '−', '-'].includes(prev);
+
+    if (isFreshSlot) {
+      acSchema.relations
+        .filter(r => r.toLowerCase().startsWith(word))
+        .forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
+      if (word === '' || 'σπρspr'.includes(word[0])) {
+        if ('σselect'.startsWith(word) || 'σ' === word) out.push({ text: 'σ', label: 'σ', kind: 'operator', hint: 'select' });
+        if ('πproject'.startsWith(word) || 'π' === word) out.push({ text: 'π', label: 'π', kind: 'operator', hint: 'project' });
+        if ('ρrename'.startsWith(word) || 'ρ' === word) out.push({ text: 'ρ', label: 'ρ', kind: 'operator', hint: 'rename' });
+      }
+    } else if (prev === ')' || /[a-zA-Z0-9_]/.test(prev)) {
+      if (word.length > 0) {
+        // Mid-word: filter columns + relations
+        acSchema.allCols
+          .filter(c => c.toLowerCase().startsWith(word))
+          .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
+        acSchema.relations
+          .filter(r => r.toLowerCase().startsWith(word))
+          .forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
+      } else {
+        // Empty word right after a complete expression → binary operators
+        out.push({ text: '⋈', label: '⋈', kind: 'operator', hint: 'natural join' });
+        out.push({ text: '⨯', label: '⨯', kind: 'operator', hint: 'cross' });
+        out.push({ text: '∪', label: '∪', kind: 'operator', hint: 'union' });
+        out.push({ text: '∩', label: '∩', kind: 'operator', hint: 'intersect' });
+        out.push({ text: '−', label: '−', kind: 'operator', hint: 'difference' });
+      }
+    } else {
+      // After comparison or other char → just filter all
+      acSchema.allCols
+        .filter(c => c.toLowerCase().startsWith(word))
+        .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
+      acSchema.relations
+        .filter(r => r.toLowerCase().startsWith(word))
+        .forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
+    }
+
+    return out.slice(0, 10);
+  }, [acVisible, currentWord, wordStart, query, acSchema]);
+
+  // Reset selection index when suggestions list changes
+  useEffect(() => { setAcIndex(0); }, [suggestions.length, currentWord]);
+
+  /** Replace the current word at the caret with the suggestion's text and
+   *  pad accordingly (relations/columns get a trailing space; operators don't). */
+  const acceptSuggestion = useCallback((s: Suggestion) => {
+    const padAfter = s.kind === 'relation' || s.kind === 'column';
+    const insert = s.text + (padAfter ? ' ' : '');
+    setQuery(prev => prev.slice(0, wordStart) + insert + prev.slice(caretPos));
+    const newCaret = wordStart + insert.length;
+    requestAnimationFrame(() => {
+      const ta = editorRef.current;
+      if (ta) {
+        ta.focus();
+        ta.selectionStart = ta.selectionEnd = newCaret;
+        setCaretPos(newCaret);
+      }
+    });
+  }, [wordStart, caretPos]);
+
+  const updateCaret = () => {
+    const ta = editorRef.current;
+    if (ta) setCaretPos(ta.selectionStart);
+  };
+
   // ---- derived helpers ----
 
   const allRelations = useMemo(() => {
@@ -705,15 +832,62 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
             ref={editorRef}
             className="ra-editor"
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => { setQuery(e.target.value); setAcVisible(true); }}
+            onSelect={updateCaret}
+            onClick={updateCaret}
+            onKeyUp={updateCaret}
             onKeyDown={e => {
+              // Run query
               if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 runQuery();
+                return;
+              }
+              // Autocomplete: navigate + accept
+              if (suggestions.length > 0 && acVisible) {
+                if (e.key === 'Tab') {
+                  e.preventDefault();
+                  acceptSuggestion(suggestions[acIndex] ?? suggestions[0]);
+                  return;
+                }
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setAcIndex(i => Math.min(i + 1, suggestions.length - 1));
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setAcIndex(i => Math.max(i - 1, 0));
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setAcVisible(false);
+                  return;
+                }
               }
             }}
             spellCheck={false}
           />
+          {suggestions.length > 0 && acVisible && (
+            <div className="ra-autocomplete">
+              {suggestions.map((s, i) => (
+                <button
+                  key={s.text + ':' + i}
+                  className={`ra-ac-item ${s.kind} ${i === acIndex ? 'selected' : ''}`}
+                  onClick={() => acceptSuggestion(s)}
+                  onMouseEnter={() => setAcIndex(i)}
+                  title={s.hint ?? s.kind}
+                >
+                  <span className="ra-ac-label">{s.label}</span>
+                  {s.hint && <span className="ra-ac-hint">{s.hint}</span>}
+                </button>
+              ))}
+              <span className="ra-ac-tip">
+                <kbd>Tab</kbd> insertar · <kbd>↑↓</kbd> navegar · <kbd>Esc</kbd> ocultar
+              </span>
+            </div>
+          )}
           <AlgebraPreview query={query} />
           <div className="ra-symbols-bar">
             {SYMBOLS.map(s => (
