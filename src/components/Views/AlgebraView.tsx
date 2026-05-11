@@ -19,6 +19,12 @@ interface AlgebraViewProps {
    *  ER nodes/connections with the supplied ones and ideally switch to the ER
    *  tab so the user sees the result. Wired in App.tsx. */
   onApplyReverseEngineeredER?: (nodes: import('../../types/er').ERNode[], connections: import('../../types/er').Connection[], notes: string[]) => void;
+  /** Query+run command pushed from the chat (algebra-query AI response).
+   *  Bumped via `at` each time, so the same query can be applied repeatedly. */
+  pendingQuery?: { query: string; run: boolean; at: number } | null;
+  /** Called after AlgebraView has applied the pending query, so the parent
+   *  can clear the prop. */
+  onPendingQueryConsumed?: () => void;
 }
 
 const STORAGE_KEY = 'derup.algebra.v1';
@@ -116,7 +122,7 @@ function formatValue(v: unknown): string {
   return String(v);
 }
 
-const AlgebraView: React.FC<AlgebraViewProps> = ({ tables, onApplyReverseEngineeredER }) => {
+const AlgebraView: React.FC<AlgebraViewProps> = ({ tables, onApplyReverseEngineeredER, pendingQuery, onPendingQueryConsumed }) => {
   const persisted = useMemo(loadPersisted, []);
 
   const [query, setQuery] = useState(
@@ -599,6 +605,37 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables, onApplyReverseEnginee
 
   // Reset selection index when suggestions list changes
   useEffect(() => { setAcIndex(0); }, [suggestions.length, currentWord]);
+
+  /** Apply an algebra-query command pushed from the chat. We can't call
+   *  runQuery() right after setQuery() — runQuery closes over the previous
+   *  query value. Instead we set a "run pending" flag that a second effect
+   *  reads after React has committed the new query state. */
+  const lastPendingAtRef = useRef<number>(0);
+  const [pendingRun, setPendingRun] = useState(false);
+
+  useEffect(() => {
+    if (!pendingQuery) return;
+    if (pendingQuery.at <= lastPendingAtRef.current) return;
+    lastPendingAtRef.current = pendingQuery.at;
+    setQuery(pendingQuery.query);
+    setCaretPos(pendingQuery.query.length);
+    setAcVisible(false);
+    if (pendingQuery.run) setPendingRun(true);
+    requestAnimationFrame(() => {
+      const ta = editorRef.current;
+      if (ta) {
+        ta.focus();
+        ta.selectionStart = ta.selectionEnd = pendingQuery.query.length;
+      }
+    });
+    onPendingQueryConsumed?.();
+  }, [pendingQuery, onPendingQueryConsumed]);
+
+  useEffect(() => {
+    if (!pendingRun) return;
+    runQuery();
+    setPendingRun(false);
+  }, [pendingRun, runQuery]);
 
   /**
    * Insert a suggestion in place of the partial word the user is typing,

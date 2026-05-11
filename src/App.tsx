@@ -181,6 +181,11 @@ function App() {
   const lastAIInteraction = useRef<{ userInput: string; aiOutput: string; commandType: string } | null>(null);
   const learningLoaded = useRef(false);
   const [canvasView, setCanvasView] = useState<'er' | 'schema' | 'sql' | 'algebra'>('er');
+  /** Pending algebra-query command from the chat (algebra mode). The
+   *  AlgebraView consumes this when present, inserts the query into the
+   *  editor and runs it. Bumped each time so the same query can be applied
+   *  again. */
+  const [pendingAlgebraQuery, setPendingAlgebraQuery] = useState<{ query: string; run: boolean; at: number } | null>(null);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('chat');
@@ -3456,10 +3461,26 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
 
   const buildAlgebraPrompt = (recentMessages: Array<{ role: 'user' | 'assistant'; text: string }>): string => {
     const { query, relations } = buildAlgebraStateSummary();
-    return `Sos un experto/tutor en álgebra relacional ayudando al usuario en la pestaña "Álgebra" de derup. Aplicá teoría de Ramakrishnan & Gehrke Cap 4 estrictamente.\n\n` +
-      `RESPUESTA: SIEMPRE devolvé JSON exactamente con esta forma — nada más:\n` +
-      `{"type":"chat","message":"tu respuesta en castellano"}\n\n` +
-      `No emitas comandos de mutación de ER en esta pestaña.\n\n` +
+    return `Sos un asistente de álgebra relacional integrado en derup. Tu trabajo es HACER, no explicar.\n` +
+      `Aplicá teoría de Ramakrishnan & Gehrke Cap 4 cuando armás las consultas.\n\n` +
+      `RESPONDÉ CON UNO DE ESTOS DOS JSONs (nada de markdown, nada de texto fuera del JSON):\n\n` +
+      `1) Si el pedido es EJECUTABLE como una consulta de álgebra (ver registros, filtrar, proyectar columnas, juntar relaciones, etc.):\n` +
+      `   {"type":"algebra-query","query":"<consulta en sintaxis derup>","run":true,"message":"<una frase breve confirmando qué hiciste>"}\n` +
+      `   Esto INSERTA la consulta en el editor y la EJECUTA. NO expliques cómo se hace — hacelo.\n` +
+      `   Ejemplos:\n` +
+      `     Usuario: "quiero ver todos los registros de emp"\n` +
+      `     → {"type":"algebra-query","query":"emp","run":true,"message":"Mostrando todos los registros de emp."}\n` +
+      `     Usuario: "filtrame los empleados con edad mayor a 30"\n` +
+      `     → {"type":"algebra-query","query":"σ age > 30 (emp)","run":true,"message":"Empleados con edad > 30."}\n` +
+      `     Usuario: "necesito el nombre y el salario de cada empleado"\n` +
+      `     → {"type":"algebra-query","query":"π ename, salary (emp)","run":true,"message":"Proyección de nombre y salario."}\n` +
+      `     Usuario: "qué empleados trabajan en algún departamento"\n` +
+      `     → {"type":"algebra-query","query":"emp ⋈ works","run":true,"message":"Junta natural emp ⋈ works."}\n\n` +
+      `2) Si el pedido es CONCEPTUAL (qué es algo, por qué tal regla, explicación teórica):\n` +
+      `   {"type":"chat","message":"<respuesta en castellano>"}\n` +
+      `   Usalo solo cuando no haya una consulta concreta para ejecutar.\n\n` +
+      `IMPORTANTE: NO uses bloques de código markdown ni emojis dentro del JSON.\n` +
+      `Nunca emitas comandos de mutación de ER (add-entity, connect-entities, etc.) — esta pestaña es solo álgebra.\n\n` +
       `RELACIONES DISPONIBLES (del esquema + importadas como CSV):\n${relations || buildRelationalSchemaSummary()}\n\n` +
       (query ? `CONSULTA ACTUAL EN EL EDITOR DEL USUARIO:\n\`\`\`\n${query.slice(0, 2000)}\n\`\`\`\n\n` : '') +
       `OPERADORES SOPORTADOS POR derup (mostrá ambas sintaxis cuando enseñes — Unicode primero, ASCII en paréntesis):\n` +
@@ -4088,6 +4109,16 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       } finally {
         setAiStatus('idle');
       }
+    }
+    // Algebra-query: inject into editor and (by default) auto-execute.
+    if (aiCommand?.type === 'algebra-query') {
+      const run = aiCommand.run ?? true;
+      setPendingAlgebraQuery({ query: aiCommand.query, run, at: Date.now() });
+      // Make sure the user sees the result in the Algebra panel.
+      if (canvasView !== 'algebra') setCanvasView('algebra');
+      const msg = aiCommand.message?.trim() || 'Consulta lista en el editor.';
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `${msg} \n\`\`\`\n${aiCommand.query}\n\`\`\`` }]);
+      return;
     }
     // Respuesta conversacional
     if (aiCommand?.type === 'chat') {
@@ -5142,6 +5173,8 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           {canvasView === 'algebra' && (
             <AlgebraView
               tables={relationalSchema.tables}
+              pendingQuery={pendingAlgebraQuery}
+              onPendingQueryConsumed={() => setPendingAlgebraQuery(null)}
               onApplyReverseEngineeredER={(reNodes, reConnections, notes) => {
                 // Replace the ER diagram with the reverse-engineered one and
                 // switch to the ER tab so the user sees the result. The

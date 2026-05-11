@@ -101,6 +101,16 @@ export const AICommandSchema = z.discriminatedUnion('type', [
     newName: z.string(),
   }),
   z.object({ type: z.literal('chat'), message: z.string() }),
+  // Algebra-tab specific: insert a query into the algebra editor and
+  // optionally auto-execute it. The chat assistant uses this when the user
+  // asks something executable ("listar emp", "filtrar por edad > 30", etc.)
+  // instead of explaining how to do it in prose.
+  z.object({
+    type: z.literal('algebra-query'),
+    query: z.string(),
+    run: z.boolean().optional(),       // default true
+    message: z.string().optional(),    // brief Spanish confirmation
+  }),
 ]);
 
 export type AICommand = z.infer<typeof AICommandSchema>;
