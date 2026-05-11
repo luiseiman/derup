@@ -171,6 +171,71 @@ const getBody = req =>
     req.on('error', reject);
   });
 
+// ── ChatGPT OAuth token manager (module scope so it can be called from
+//   both request handlers AND background refresh timers) ─────────────────
+const CHATGPT_API_URL = 'https://chatgpt.com/backend-api/codex/responses';
+const CHATGPT_MODEL = 'gpt-5.4';
+const OAUTH_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
+const OAUTH_TOKEN_URL = 'https://auth.openai.com/oauth/token';
+const OAUTH_TOKEN_FILE = path.join(process.cwd(), '.oauth-tokens.json');
+const OAUTH_REFRESH_BUFFER_MS = 60_000;
+
+function decodeJwtPayload(token) {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try { return JSON.parse(Buffer.from(parts[1], 'base64url').toString()); }
+  catch { return null; }
+}
+
+function readOAuthTokens() {
+  try { return JSON.parse(fs.readFileSync(OAUTH_TOKEN_FILE, 'utf-8')); }
+  catch { return null; }
+}
+
+function saveOAuthTokens(tokens) {
+  fs.writeFileSync(OAUTH_TOKEN_FILE, JSON.stringify(tokens, null, 2));
+}
+
+async function refreshOAuthTokens(tokens) {
+  const res = await fetch(OAUTH_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: tokens.refresh_token,
+      client_id: OAUTH_CLIENT_ID,
+    }),
+  });
+  if (!res.ok) throw new Error(`Token refresh failed (${res.status})`);
+  const json = await res.json();
+  if (!json.access_token || !json.refresh_token) throw new Error('Token refresh incomplete');
+  const payload = decodeJwtPayload(json.access_token);
+  const auth = payload?.['https://api.openai.com/auth'];
+  const updated = {
+    access_token: json.access_token,
+    refresh_token: json.refresh_token,
+    expires_at: Date.now() + (json.expires_in ?? 3600) * 1000,
+    account_id: auth?.chatgpt_account_id ?? tokens.account_id,
+    email: tokens.email,
+    updated_at: new Date().toISOString(),
+  };
+  saveOAuthTokens(updated);
+  return updated;
+}
+
+async function getOAuthCredentials() {
+  let tokens = readOAuthTokens();
+  if (!tokens) return null;
+  if (Date.now() >= tokens.expires_at - OAUTH_REFRESH_BUFFER_MS) {
+    try { tokens = await refreshOAuthTokens(tokens); }
+    catch (err) {
+      console.error('[oauth] Refresh failed:', err.message);
+      if (Date.now() >= tokens.expires_at) return null;
+    }
+  }
+  return { accessToken: tokens.access_token, accountId: tokens.account_id };
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const resolveGeminiApiKey = body => {
@@ -195,69 +260,8 @@ const server = http.createServer(async (req, res) => {
     return requestKey || envKey;
   };
 
-  // ── ChatGPT OAuth token manager ──────────────────────────────────────────
-  const CHATGPT_API_URL = 'https://chatgpt.com/backend-api/codex/responses';
-  const CHATGPT_MODEL = 'gpt-5.4';
-  const OAUTH_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
-  const OAUTH_TOKEN_URL = 'https://auth.openai.com/oauth/token';
-  const OAUTH_TOKEN_FILE = path.join(process.cwd(), '.oauth-tokens.json');
-  const OAUTH_REFRESH_BUFFER_MS = 60_000;
-
-  function decodeJwtPayload(token) {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    try { return JSON.parse(Buffer.from(parts[1], 'base64url').toString()); }
-    catch { return null; }
-  }
-
-  function readOAuthTokens() {
-    try { return JSON.parse(fs.readFileSync(OAUTH_TOKEN_FILE, 'utf-8')); }
-    catch { return null; }
-  }
-
-  function saveOAuthTokens(tokens) {
-    fs.writeFileSync(OAUTH_TOKEN_FILE, JSON.stringify(tokens, null, 2));
-  }
-
-  async function refreshOAuthTokens(tokens) {
-    const res = await fetch(OAUTH_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: tokens.refresh_token,
-        client_id: OAUTH_CLIENT_ID,
-      }),
-    });
-    if (!res.ok) throw new Error(`Token refresh failed (${res.status})`);
-    const json = await res.json();
-    if (!json.access_token || !json.refresh_token) throw new Error('Token refresh incomplete');
-    const payload = decodeJwtPayload(json.access_token);
-    const auth = payload?.['https://api.openai.com/auth'];
-    const updated = {
-      access_token: json.access_token,
-      refresh_token: json.refresh_token,
-      expires_at: Date.now() + (json.expires_in ?? 3600) * 1000,
-      account_id: auth?.chatgpt_account_id ?? tokens.account_id,
-      email: tokens.email,
-      updated_at: new Date().toISOString(),
-    };
-    saveOAuthTokens(updated);
-    return updated;
-  }
-
-  async function getOAuthCredentials() {
-    let tokens = readOAuthTokens();
-    if (!tokens) return null;
-    if (Date.now() >= tokens.expires_at - OAUTH_REFRESH_BUFFER_MS) {
-      try { tokens = await refreshOAuthTokens(tokens); }
-      catch (err) {
-        console.error('[oauth] Refresh failed:', err.message);
-        if (Date.now() >= tokens.expires_at) return null;
-      }
-    }
-    return { accessToken: tokens.access_token, accountId: tokens.account_id };
-  }
+  // OAuth helpers are hoisted to module scope above so the proactive refresh
+  // interval can call them. See refreshOAuthTokens / getOAuthCredentials.
 
   async function parseChatGPTSSE(response) {
     const text = await response.text();
@@ -633,6 +637,28 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if ((req.method === 'GET' || req.method === 'POST') && url.pathname === '/api/openai/health') {
+    // Expose the OAuth token status without making a live API call.
+    // The proactive refresher already keeps the token fresh in the
+    // background; this endpoint just reports what's on disk.
+    const tokens = readOAuthTokens();
+    if (!tokens) {
+      sendJson(res, 200, { configured: false, reason: 'OAuth no configurado. Ejecutá: node scripts/openai-oauth-login.mjs' });
+      return;
+    }
+    const expiresInS = Math.max(0, Math.round((tokens.expires_at - Date.now()) / 1000));
+    sendJson(res, 200, {
+      configured: true,
+      email: tokens.email ?? null,
+      account_id: tokens.account_id ?? null,
+      expires_at: tokens.expires_at,
+      expires_in_s: expiresInS,
+      updated_at: tokens.updated_at ?? null,
+      model: CHATGPT_MODEL,
+    });
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/openai/models') {
     // ChatGPT OAuth: return fixed model
     const creds = await getOAuthCredentials();
@@ -821,6 +847,34 @@ server.timeout = 120_000;           // 2 min for AI proxy requests
 server.listen(PORT, HOST, () => {
   console.log(`derup server listening on http://${HOST}:${PORT} (pid ${process.pid})`);
 });
+
+// ── Proactive OAuth token refresh ──────────────────────────────────────────
+//
+// getOAuthCredentials() already refreshes on demand when a chat request
+// arrives, but that means the FIRST request after expiry pays the latency
+// (and could fail with a stale token if the server is offline). We refresh
+// proactively on boot and then every 30 minutes so the in-memory token
+// stays fresh in the background.
+async function proactiveOAuthRefresh(reason) {
+  const tokens = readOAuthTokens();
+  if (!tokens) {
+    console.log(`[oauth] ${reason}: no tokens on disk, skipping refresh.`);
+    return;
+  }
+  // Always attempt a refresh on boot and periodically — the auth.openai.com
+  // server is the source of truth on whether the refresh_token is still
+  // valid. If it returns a fresh access_token, we save it.
+  try {
+    const refreshed = await refreshOAuthTokens(tokens);
+    const expiresInS = Math.max(0, Math.round((refreshed.expires_at - Date.now()) / 1000));
+    console.log(`[oauth] ${reason}: token refreshed, expires in ${expiresInS}s (${refreshed.email ?? 'unknown email'}).`);
+  } catch (err) {
+    console.error(`[oauth] ${reason}: refresh failed:`, err.message);
+  }
+}
+// Fire on boot (small delay to let the server bind first) and every 30 min.
+setTimeout(() => proactiveOAuthRefresh('startup'), 5_000);
+setInterval(() => proactiveOAuthRefresh('periodic'), 30 * 60 * 1000).unref();
 
 // ── Graceful shutdown ───────────────────────────────────────────────────────
 const shutdown = (signal) => {
