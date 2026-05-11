@@ -25,8 +25,6 @@
 //   cmpOp       := '=' | '!=' | '≠' | '<' | '>' | '<=' | '≤' | '>=' | '≥'
 
 import type {
-  AggCall,
-  AggFunc,
   Condition,
   CondOperand,
   CmpOp,
@@ -153,90 +151,7 @@ class Parser {
     if (t.kind === 'OP_SELECT') return this.parseSelect();
     if (t.kind === 'OP_PROJECT') return this.parseProject();
     if (t.kind === 'OP_RENAME') return this.parseRename();
-    if (t.kind === 'OP_AGGREGATE') return this.parseAggregate();
     return this.parsePrimary();
-  }
-
-  /**
-   * γ_{groupCols ; aggCalls} (R)  — group by + aggregates
-   * γ_{aggCalls} (R)               — aggregates only (whole relation)
-   *
-   * Where `aggCall` is `func(arg) [→ alias]`, func ∈ {count, sum, avg, min, max},
-   * and arg is a column name (or '*' for count).
-   *
-   * The presence of a top-level ';' inside the brace body switches on the
-   * group-by form. Without ';' the whole list is read as aggregates.
-   */
-  private parseAggregate(): RelExpr {
-    const start = this.consume(); // γ
-    if (this.match('UNDERSCORE')) this.consume();
-    this.expect('LBRACE', "Se esperaba '{' después de γ.");
-
-    // Look ahead to decide whether the body has a group-by section.
-    // A top-level SEMI inside the braces means: cols ; aggs. No SEMI → all aggs.
-    let hasSemi = false;
-    let depth = 0;
-    for (let k = this.i; k < this.tokens.length; k++) {
-      const t = this.tokens[k];
-      if (t.kind === 'LBRACE' || t.kind === 'LPAREN') depth++;
-      else if (t.kind === 'RBRACE') {
-        if (depth === 0) break;
-        depth--;
-      } else if (t.kind === 'RPAREN') {
-        depth = Math.max(0, depth - 1);
-      } else if (t.kind === 'SEMI' && depth === 0) {
-        hasSemi = true;
-        break;
-      } else if (t.kind === 'EOF') break;
-    }
-
-    const groupBy: string[] = [];
-    if (hasSemi) {
-      groupBy.push(this.parseQualifiedIdent());
-      while (this.match('COMMA')) { this.consume(); groupBy.push(this.parseQualifiedIdent()); }
-      this.expect('SEMI', "Se esperaba ';' entre columnas de agrupación y agregados.");
-    }
-
-    const aggs: AggCall[] = [this.parseAggCall()];
-    while (this.match('COMMA')) { this.consume(); aggs.push(this.parseAggCall()); }
-
-    this.expect('RBRACE', "Se esperaba '}' cerrando la cláusula de γ.");
-    this.expect('LPAREN', "Se esperaba '(' rodeando la relación.");
-    const child = this.parseRelExpr();
-    this.expect('RPAREN');
-    return { kind: 'aggregate', groupBy, aggs, child, pos: start.pos };
-  }
-
-  /** Parse `func ( argOrStar ) [→ alias]`. */
-  private parseAggCall(): AggCall {
-    const funcTok = this.expect('IDENT', 'Se esperaba una función de agregado (count, sum, avg, min, max).');
-    const funcName = funcTok.text.toLowerCase();
-    if (funcName !== 'count' && funcName !== 'sum' && funcName !== 'avg' && funcName !== 'min' && funcName !== 'max') {
-      throw new RAError(
-        `Función de agregado desconocida: '${funcTok.text}'. Soportadas: count, sum, avg, min, max.`,
-        funcTok.pos
-      );
-    }
-    this.expect('LPAREN', `Se esperaba '(' después de ${funcName}.`);
-    let arg: string;
-    if (this.match('STAR')) {
-      this.consume();
-      arg = '*';
-      if (funcName !== 'count') {
-        throw new RAError(`'*' solo es argumento válido de count, no de ${funcName}.`, funcTok.pos);
-      }
-    } else {
-      arg = this.parseQualifiedIdent();
-    }
-    this.expect('RPAREN', "Se esperaba ')' cerrando la función.");
-    // Default alias when the user didn't provide one. `*` is rendered as "all"
-    // so the column name is valid (no special chars).
-    let alias = `${funcName}_${arg === '*' ? 'all' : arg.replace('.', '_')}`;
-    if (this.match('ARROW')) {
-      this.consume();
-      alias = this.expect('IDENT', 'Se esperaba alias después de →.').text;
-    }
-    return { func: funcName as AggFunc, arg, alias, pos: funcTok.pos };
   }
 
   private parseSelect(): RelExpr {

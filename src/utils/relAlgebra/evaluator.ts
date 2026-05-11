@@ -1,7 +1,6 @@
 // Evaluator — turns an AST + a relation environment into a Relation.
 
 import type {
-  AggCall,
   CmpOp,
   Column,
   ColumnType,
@@ -78,9 +77,6 @@ function evalExpr(expr: RelExpr, env: Map<string, Relation>, trace: Map<RelExpr,
       break;
     case 'rename':
       rel = doRename(evalExpr(expr.child, env, trace), expr.alias, expr.columnMap, expr.pos);
-      break;
-    case 'aggregate':
-      rel = doAggregate(evalExpr(expr.child, env, trace), expr.groupBy, expr.aggs, expr.pos);
       break;
     case 'binary': {
       const L = evalExpr(expr.left, env, trace);
@@ -505,134 +501,6 @@ function doDivision(R: Relation, S: Relation, pos: import('./types').SrcPos): Re
   }
 
   return { columns: aCols, rows };
-}
-
-// ----- γ (group + aggregate) -----
-
-/**
- * Group rows by groupBy columns (possibly empty for global aggregation),
- * then compute each aggregate over the rows in each group.
- *
- * Semantics:
- *  - count(*)   counts tuples (nulls included).
- *  - count(c)   counts non-null values of c.
- *  - sum/avg    over non-null values; if all null → null.
- *  - min/max    over non-null values; if all null → null.
- *  - Empty input + no groupBy → one row with count/sum=0, min/max/avg=null.
- *  - Empty input + groupBy    → zero rows.
- *
- * Output column order: groupBy columns first, then aggregate columns in the
- * order they appeared in the syntax. Aggregate column types follow standard
- * SQL conventions: count/sum/avg → number; min/max → preserve source type.
- */
-function doAggregate(
-  rel: Relation,
-  groupBy: string[],
-  aggs: AggCall[],
-  pos: import('./types').SrcPos,
-): Relation {
-  const groupIdx = groupBy.map(c => findColIdx(rel.columns, c, pos));
-  // -1 marks `count(*)` (no column dependency); other aggs resolve their col.
-  const argIdx = aggs.map(a => (a.arg === '*' ? -1 : findColIdx(rel.columns, a.arg, pos)));
-
-  // Validate non-count aggregates only run on numeric columns when arithmetic
-  // is involved (sum / avg). min/max are permissive (numbers, dates, strings).
-  for (let k = 0; k < aggs.length; k++) {
-    const a = aggs[k];
-    if (a.arg === '*') continue;
-    const srcType = rel.columns[argIdx[k]].type;
-    if ((a.func === 'sum' || a.func === 'avg') && srcType !== 'number') {
-      throw new RAError(
-        `${a.func}() requiere una columna numérica; '${a.arg}' es de tipo ${srcType}.`,
-        a.pos
-      );
-    }
-  }
-
-  // Output schema. Build it once — types don't depend on the data.
-  const outCols: Column[] = [
-    ...groupIdx.map((i, k) => ({ name: groupBy[k], type: rel.columns[i].type })),
-    ...aggs.map((a, k) => ({ name: a.alias, type: typeForAgg(a, rel.columns, argIdx[k]) })),
-  ];
-
-  // Group rows. Preserve first-occurrence order for stable output.
-  const groups = new Map<string, Value[][]>();
-  const order: string[] = [];
-  const groupVals = new Map<string, Value[]>();
-  for (const row of rel.rows) {
-    const gvals = groupIdx.map(i => row[i]);
-    const key = tupleKey(gvals);
-    if (!groups.has(key)) {
-      groups.set(key, []);
-      order.push(key);
-      groupVals.set(key, gvals);
-    }
-    groups.get(key)!.push(row);
-  }
-
-  // Special case: empty relation + global aggregation → emit a single row.
-  if (rel.rows.length === 0 && groupBy.length === 0) {
-    const row: Value[] = aggs.map(a => {
-      if (a.func === 'count') return 0;
-      if (a.func === 'sum') return 0;
-      return null;
-    });
-    return { columns: outCols, rows: [row] };
-  }
-
-  // For each group, compute aggregates.
-  const outRows: Value[][] = [];
-  for (const key of order) {
-    const groupRows = groups.get(key)!;
-    const gvals = groupVals.get(key)!;
-    const aggVals: Value[] = aggs.map((a, k) => {
-      const ai = argIdx[k];
-      if (a.func === 'count') {
-        if (a.arg === '*') return groupRows.length;
-        return groupRows.reduce((n, r) => (r[ai] !== null && r[ai] !== undefined ? n + 1 : n), 0);
-      }
-      // sum/avg/min/max: filter nulls first
-      const vals: Value[] = [];
-      for (const r of groupRows) {
-        const v = r[ai];
-        if (v !== null && v !== undefined) vals.push(v);
-      }
-      if (vals.length === 0) return null;
-      if (a.func === 'sum') {
-        return vals.reduce<number>((s, v) => s + (v as number), 0);
-      }
-      if (a.func === 'avg') {
-        const sum = vals.reduce<number>((s, v) => s + (v as number), 0);
-        return sum / vals.length;
-      }
-      if (a.func === 'min') {
-        return vals.reduce((m, v) => (compareLT(v, m) ? v : m));
-      }
-      // max
-      return vals.reduce((m, v) => (compareLT(m, v) ? v : m));
-    });
-    outRows.push([...gvals, ...aggVals]);
-  }
-
-  return { columns: outCols, rows: outRows };
-}
-
-/** Aggregate output type per Ramakrishnan §5.5. */
-function typeForAgg(a: AggCall, srcCols: Column[], argIdx: number): ColumnType {
-  if (a.func === 'count') return 'number';
-  if (a.func === 'sum' || a.func === 'avg') return 'number';
-  // min/max preserve source column type
-  if (argIdx < 0) return 'number';
-  return srcCols[argIdx].type;
-}
-
-/** Cross-type less-than for min/max. Numbers and dates compare numerically;
- *  strings lexicographically; booleans as 0/1. Nulls were filtered upstream. */
-function compareLT(a: Value, b: Value): boolean {
-  if (a instanceof Date && b instanceof Date) return a.getTime() < b.getTime();
-  if (typeof a === 'number' && typeof b === 'number') return a < b;
-  if (typeof a === 'boolean' && typeof b === 'boolean') return (a ? 1 : 0) < (b ? 1 : 0);
-  return String(a) < String(b);
 }
 
 // ----- tuple key for dedup/lookup -----

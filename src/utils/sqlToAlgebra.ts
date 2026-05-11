@@ -1,24 +1,22 @@
 // SQL → relational-algebra translator (subset).
 //
 // Covers the common SELECT statement shapes:
-//   SELECT * FROM r                                       → r
-//   SELECT c1,c2 FROM r                                   → π c1,c2 (r)
-//   SELECT * FROM r WHERE cond                            → σ cond (r)
-//   SELECT c1 FROM r WHERE cond                           → π c1 (σ cond (r))
-//   SELECT * FROM r, s                                    → r ⨯ s
-//   SELECT * FROM r CROSS JOIN s                          → r ⨯ s
-//   SELECT * FROM r NATURAL JOIN s                        → r ⋈ s
-//   SELECT * FROM r JOIN s ON r.x = s.x                   → r ⋈_{r.x = s.x} s
-//   SELECT count(*) FROM r                                → γ_{count(*) → count_all} (r)
-//   SELECT did, count(*) FROM emp GROUP BY did            → γ_{did ; count(*) → count_all} (emp)
-//   SELECT did, sum(sal) AS total FROM emp GROUP BY did   → γ_{did ; sum(sal) → total} (emp)
+//   SELECT * FROM r                             → r
+//   SELECT c1,c2 FROM r                         → π c1,c2 (r)
+//   SELECT * FROM r WHERE cond                  → σ cond (r)
+//   SELECT c1 FROM r WHERE cond                 → π c1 (σ cond (r))
+//   SELECT * FROM r, s                          → r ⨯ s
+//   SELECT * FROM r CROSS JOIN s                → r ⨯ s
+//   SELECT * FROM r NATURAL JOIN s              → r ⋈ s
+//   SELECT * FROM r JOIN s ON r.x = s.x         → r ⋈_{r.x = s.x} s
+//   SELECT * FROM r INNER JOIN s ON ...         → same as JOIN
+//   SELECT * FROM r, s WHERE r.x = s.x          → σ r.x=s.x (r ⨯ s)
 //
-// Out of scope (returns null so the SQL-mode handler shows the "not supported"
-// banner with the full list):
-//   - HAVING / ORDER BY / LIMIT
+// Out of scope (returns null so the algebra parser surfaces its native error):
+//   - GROUP BY / HAVING / ORDER BY / LIMIT — no equivalent in classical algebra
 //   - subqueries / UNION / nested CTEs
+//   - aggregate functions (COUNT, SUM, etc.)
 //   - OUTER JOIN / LEFT JOIN / RIGHT JOIN
-//   - arithmetic or string expressions in SELECT (other than aggregates)
 
 export interface SqlTranslationResult {
   algebra: string;
@@ -49,32 +47,9 @@ export function sqlToAlgebra(input: string): SqlTranslationResult | null {
     rest = rest.slice(0, whereIdx).trim();
   }
 
-  // Optional GROUP BY (split from the tail after WHERE is already removed,
-  // but we may also encounter it tucked at the end of `where` if there was
-  // no FROM-tail content between WHERE and GROUP BY).
-  let groupBy: string | null = null;
-  const splitGroupBy = (s: string): { head: string; groupBy: string | null } => {
-    const m = s.match(/\bgroup\s+by\b/i);
-    if (!m || m.index === undefined) return { head: s, groupBy: null };
-    return {
-      head: s.slice(0, m.index).trim(),
-      groupBy: s.slice(m.index).replace(/^\s*group\s+by\s+/i, '').trim(),
-    };
-  };
-  {
-    const fromTail = splitGroupBy(rest);
-    if (fromTail.groupBy) { groupBy = fromTail.groupBy; rest = fromTail.head; }
-    if (where) {
-      const whereTail = splitGroupBy(where);
-      if (whereTail.groupBy) { groupBy = whereTail.groupBy; where = whereTail.head; }
-    }
-  }
-
-  // Unsupported tail clauses → bail so the SQL-mode handler shows the
-  // "not supported" message with the full list.
-  if (/\b(having|order\s+by|limit|union|intersect|except)\b/i.test(rest)) return null;
-  if (where && /\b(having|order\s+by|limit|union|intersect|except)\b/i.test(where)) return null;
-  if (groupBy && /\b(having|order\s+by|limit|union|intersect|except)\b/i.test(groupBy)) return null;
+  // Unsupported tail clauses → bail so the native parser gives its error.
+  if (/\b(group\s+by|having|order\s+by|limit|union|intersect|except)\b/i.test(rest)) return null;
+  if (where && /\b(group\s+by|having|order\s+by|limit|union|intersect|except)\b/i.test(where)) return null;
 
   // 2) Build the FROM expression
   const fromExpr = parseFromClause(rest.trim());
@@ -86,57 +61,19 @@ export function sqlToAlgebra(input: string): SqlTranslationResult | null {
     expr = `σ ${normalizeCondition(where)} (${expr})`;
   }
 
-  // 4) Decide projection / aggregation.
-  // We classify each comma-separated item of SELECT into either:
-  //   - a plain column (identifier, optionally qualified), or
-  //   - an aggregate call (count/sum/avg/min/max).
-  // Anything else → return null (unsupported expression).
-  const COL_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?$/;
-  const AGG_RE = /^(count|sum|avg|min|max)\s*\(\s*(\*|[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)\s*\)\s*(?:as\s+([a-zA-Z_][a-zA-Z0-9_]*))?$/i;
-
-  if (cols === '*' && !groupBy) {
-    // Plain SELECT *. Nothing more to do.
-  } else {
+  // 4) Apply column list as π if not *
+  if (cols !== '*') {
+    // Validate each column is a simple identifier (optionally qualified
+    // with a table name). Aggregates like COUNT(*), SUM(x), AVG(x) have
+    // no equivalent in classical relational algebra and would produce
+    // invalid syntax if we projected them naïvely.
     const colParts = splitTopLevel(cols, ',').map(c => c.trim()).filter(Boolean);
-    if (colParts.length === 0 && cols !== '*') return null;
-
-    const plain: string[] = [];
-    const aggs: string[] = [];
+    if (colParts.length === 0) return null;
+    const COL_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?$/;
     for (const c of colParts) {
-      if (COL_RE.test(c)) { plain.push(c); continue; }
-      const m = c.match(AGG_RE);
-      if (m) {
-        const func = m[1].toLowerCase();
-        const arg = m[2];
-        const alias = m[3] ?? `${func}_${arg === '*' ? 'all' : arg.replace('.', '_')}`;
-        aggs.push(`${func}(${arg}) → ${alias}`);
-        continue;
-      }
-      return null; // unrecognised SELECT item
+      if (!COL_RE.test(c)) return null; // aggregates, expressions, * inside fn, etc.
     }
-
-    if (aggs.length > 0 || groupBy) {
-      // Build γ. If GROUP BY is present, every non-aggregate column in SELECT
-      // must appear in the GROUP BY list — this matches SQL's semantic rule
-      // and also lets us emit the columns naturally as γ's group-by section.
-      const gbCols = groupBy
-        ? splitTopLevel(groupBy, ',').map(c => c.trim()).filter(Boolean)
-        : plain.slice(); // implicit: each plain SELECT column becomes a group key
-      for (const g of gbCols) if (!COL_RE.test(g)) return null;
-      if (groupBy) {
-        for (const p of plain) {
-          if (!gbCols.includes(p)) return null; // not in GROUP BY → invalid
-        }
-      }
-      const aggList = aggs.join(', ');
-      const gammaBody = gbCols.length > 0
-        ? `${gbCols.join(', ')} ; ${aggList}`
-        : aggList;
-      expr = `γ_{${gammaBody}} (${expr})`;
-    } else if (cols !== '*') {
-      // Pure projection.
-      expr = `π ${plain.join(', ')} (${expr})`;
-    }
+    expr = `π ${colParts.join(', ')} (${expr})`;
   }
 
   return {

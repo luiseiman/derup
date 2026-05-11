@@ -9,14 +9,12 @@ export interface HighlightSchema {
   columns: string[];     // distinct column names across all known relations
 }
 
-const KW_OP_UNARY = new Set(['select', 'project', 'rename', 'aggregate', 'group', 'gamma', 'agrupar']);
+const KW_OP_UNARY = new Set(['select', 'project', 'rename']);
 const KW_OP_BIN   = new Set(['join', 'cross', 'union', 'intersect', 'difference', 'division']);
 const KW_LOG      = new Set(['and', 'or', 'not']);
 const KW_BOOL     = new Set(['true', 'false']);
-/** Aggregate function names — highlighted distinctly so γ_{count(*)} reads well. */
-const KW_AGG_FN   = new Set(['count', 'sum', 'avg', 'min', 'max']);
 
-const UNICODE_UNARY = 'σπργΓ';
+const UNICODE_UNARY = 'σπρ';
 const UNICODE_BIN   = '⋈⨯÷∪∩−⨝';
 const UNICODE_LOG   = '∧∨¬';
 const UNICODE_CMP   = '≠≤≥';
@@ -29,7 +27,6 @@ function classify(text: string, prevNonWs: string, schema: HighlightSchema): str
   if (KW_OP_BIN.has(base))   return 'tk-op-bin';
   if (KW_LOG.has(base))      return 'tk-op-log';
   if (KW_BOOL.has(lower))    return 'tk-val';
-  if (KW_AGG_FN.has(lower))  return 'tk-op-log'; // reuse the logical-keyword color
   if (schema.relations.includes(text)) return 'tk-rel';
   if (schema.columns.includes(text))   return 'tk-col';
   // Qualified suffix: previous non-ws was '.' → treat as column part of R.col
