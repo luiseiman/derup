@@ -10,10 +10,15 @@ import AlgebraPreview from './AlgebraPreview';
 import AlgebraTree from './AlgebraTree';
 import { highlight as highlightQuery } from './algebraHighlight';
 import { predictNext, wordAtCaret, type Suggestion as PredictSuggestion } from './algebraPredict';
+import { reverseEngineerER } from '../../utils/reverseEngineerER';
 import './AlgebraView.css';
 
 interface AlgebraViewProps {
   tables: RelationalTable[];
+  /** Optional callback: when invoked, the parent should replace its current
+   *  ER nodes/connections with the supplied ones and ideally switch to the ER
+   *  tab so the user sees the result. Wired in App.tsx. */
+  onApplyReverseEngineeredER?: (nodes: import('../../types/er').ERNode[], connections: import('../../types/er').Connection[], notes: string[]) => void;
 }
 
 const STORAGE_KEY = 'derup.algebra.v1';
@@ -111,7 +116,7 @@ function formatValue(v: unknown): string {
   return String(v);
 }
 
-const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
+const AlgebraView: React.FC<AlgebraViewProps> = ({ tables, onApplyReverseEngineeredER }) => {
   const persisted = useMemo(loadPersisted, []);
 
   const [query, setQuery] = useState(
@@ -801,7 +806,23 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
 
             {importedRelations.size > 0 && (
               <>
-                <div className="ra-section-label">Relaciones importadas ({importedRelations.size})</div>
+                <div className="ra-section-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                  <span>Relaciones importadas ({importedRelations.size})</span>
+                  {onApplyReverseEngineeredER && (
+                    <button
+                      className="algebra-btn"
+                      style={{ fontSize: '0.65rem', padding: '2px 6px', textTransform: 'none', letterSpacing: 0 }}
+                      title="Generar diagrama ER y esquema a partir de las relaciones importadas. Reemplaza el ER actual."
+                      onClick={() => {
+                        if (!confirm('Esto reemplaza el diagrama ER actual con uno generado a partir de las relaciones importadas. ¿Continuar?')) return;
+                        const { nodes: erNodes, connections: erConns, notes } = reverseEngineerER(importedRelations);
+                        onApplyReverseEngineeredER(erNodes, erConns, notes);
+                      }}
+                    >
+                      ✨ Generar ER
+                    </button>
+                  )}
+                </div>
                 {Array.from(importedRelations.entries()).map(([name, rel]) => {
                   const isExpanded = expandedTable === '__imp__' + name;
                   return (

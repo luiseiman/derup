@@ -5140,7 +5140,30 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
             />
           )}
           {canvasView === 'algebra' && (
-            <AlgebraView tables={relationalSchema.tables} />
+            <AlgebraView
+              tables={relationalSchema.tables}
+              onApplyReverseEngineeredER={(reNodes, reConnections, notes) => {
+                // Replace the ER diagram with the reverse-engineered one and
+                // switch to the ER tab so the user sees the result. The
+                // Relational-Schema and SQL tabs auto-derive from this.
+                setNodes(reNodes);
+                setConnections(reConnections);
+                setAggregations([]);
+                setSelectedNodeIds(new Set());
+                setSelectedConnectionIds(new Set());
+                setSelectedAggregationIds(new Set());
+                setLastSelectedNodeId(null);
+                setCanvasView('er');
+                setChatMessages(prev => [
+                  ...prev,
+                  {
+                    id: createId(),
+                    role: 'assistant',
+                    text: `Generé el diagrama ER desde tus relaciones importadas:\n\n${notes.map(n => `- ${n}`).join('\n')}\n\nRevisalo en el tab ER — puede que necesite ajustes de cardinalidad o nombres de relaciones.`,
+                  },
+                ]);
+              }}
+            />
           )}
         </div>
         {sidebarOpen && (
