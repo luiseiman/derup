@@ -57,6 +57,7 @@ const SYMBOLS: { sym: string; tip: string; kind: InsertKind; shortcut?: string }
   { sym: 'σ', tip: 'selección',           kind: 'unary',  shortcut: 'S' },
   { sym: 'π', tip: 'proyección',          kind: 'unary',  shortcut: 'P' },
   { sym: 'ρ', tip: 'renombrar',           kind: 'unary',  shortcut: 'R' },
+  { sym: 'γ', tip: 'agrupar + agregados', kind: 'unary',  shortcut: 'G' },
   { sym: '⋈', tip: 'junta natural',       kind: 'binary', shortcut: 'J' },
   { sym: '⨯', tip: 'producto cartesiano', kind: 'binary', shortcut: 'X' },
   { sym: '÷', tip: 'división',            kind: 'binary', shortcut: 'D' },
@@ -285,8 +286,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
       const sqlTrans = sqlToAlgebra(stripped);
       if (!sqlTrans) {
         setError(
-          'Consulta SQL no soportada o inválida. Soporta SELECT … FROM … [WHERE …] [JOIN …]. ' +
-          'GROUP BY, HAVING, ORDER BY, agregados, UNION y subconsultas no están soportados.'
+          'Consulta SQL no soportada o inválida. Soporta SELECT … FROM … [WHERE …] [JOIN …] ' +
+          '[GROUP BY …] con agregados count/sum/avg/min/max. ' +
+          'HAVING, ORDER BY, LIMIT, UNION, subconsultas y OUTER JOIN no están soportados.'
         );
         setResult(null);
         setLastProgram(null);

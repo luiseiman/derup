@@ -6,11 +6,11 @@ import type { SrcPos } from './types';
 import { RAError } from './types';
 
 export type TokenKind =
-  | 'OP_SELECT' | 'OP_PROJECT' | 'OP_RENAME'
+  | 'OP_SELECT' | 'OP_PROJECT' | 'OP_RENAME' | 'OP_AGGREGATE'
   | 'OP_JOIN' | 'OP_CROSS' | 'OP_UNION' | 'OP_INTERSECT' | 'OP_DIFFERENCE' | 'OP_DIVISION'
   | 'AND' | 'OR' | 'NOT'
   | 'EQ' | 'NEQ' | 'LT' | 'GT' | 'LE' | 'GE'
-  | 'ASSIGN' | 'ARROW' | 'COMMA' | 'SEMI' | 'DOT'
+  | 'ASSIGN' | 'ARROW' | 'COMMA' | 'SEMI' | 'DOT' | 'STAR'
   | 'LPAREN' | 'RPAREN' | 'LBRACE' | 'RBRACE'
   | 'UNDERSCORE'
   | 'IDENT' | 'NUMBER' | 'STRING' | 'BOOL'
@@ -26,6 +26,10 @@ const KEYWORDS: Record<string, TokenKind> = {
   select: 'OP_SELECT',
   project: 'OP_PROJECT',
   rename: 'OP_RENAME',
+  aggregate: 'OP_AGGREGATE',
+  group: 'OP_AGGREGATE',
+  agrupar: 'OP_AGGREGATE',
+  gamma: 'OP_AGGREGATE',
   join: 'OP_JOIN',
   cross: 'OP_CROSS',
   union: 'OP_UNION',
@@ -43,6 +47,8 @@ const UNICODE_OPS: Record<string, TokenKind> = {
   'σ': 'OP_SELECT',
   'π': 'OP_PROJECT',
   'ρ': 'OP_RENAME',
+  'γ': 'OP_AGGREGATE',
+  'Γ': 'OP_AGGREGATE',
   '⋈': 'OP_JOIN',
   '⨝': 'OP_JOIN',
   '⨯': 'OP_CROSS',
@@ -117,6 +123,7 @@ export function tokenize(input: string): Token[] {
       ',': 'COMMA', ';': 'SEMI', '.': 'DOT',
       '_': 'UNDERSCORE',
       '=': 'EQ', '<': 'LT', '>': 'GT',
+      '*': 'STAR',           // used as count's wildcard argument inside γ
       '-': 'OP_DIFFERENCE',  // '-' is always treated as difference between rel-expressions;
                               // negative numeric literals are written without unary minus in v1.
     };

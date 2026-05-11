@@ -43,6 +43,11 @@ function labelOf(e: RelExpr): { glyph: string; subscript: string } {
       }
       return { glyph: 'ρ', subscript: e.alias ?? '' };
     }
+    case 'aggregate': {
+      const aggList = e.aggs.map(a => `${a.func}(${a.arg})→${a.alias}`).join(', ');
+      const sub = e.groupBy.length > 0 ? `${e.groupBy.join(', ')} ; ${aggList}` : aggList;
+      return { glyph: 'γ', subscript: sub };
+    }
     case 'binary': {
       const g = BIN_GLYPH[e.op] ?? e.op;
       const s = e.op === 'theta' && e.condition ? condText(e.condition) : '';
@@ -56,7 +61,8 @@ function childrenOf(e: RelExpr): RelExpr[] {
     case 'ref': return [];
     case 'select':
     case 'project':
-    case 'rename': return [e.child];
+    case 'rename':
+    case 'aggregate': return [e.child];
     case 'binary': return [e.left, e.right];
   }
 }

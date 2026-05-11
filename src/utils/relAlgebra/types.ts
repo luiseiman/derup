@@ -29,7 +29,19 @@ export type RelExpr =
   | { kind: 'select'; condition: Condition; child: RelExpr; pos: SrcPos }
   | { kind: 'project'; columns: string[]; child: RelExpr; pos: SrcPos }
   | { kind: 'rename'; alias?: string; columnMap?: Record<string, string>; child: RelExpr; pos: SrcPos }
+  | { kind: 'aggregate'; groupBy: string[]; aggs: AggCall[]; child: RelExpr; pos: SrcPos }
   | { kind: 'binary'; op: BinaryOp; left: RelExpr; right: RelExpr; condition?: Condition; pos: SrcPos };
+
+// ----- Aggregate function call inside γ -----
+export type AggFunc = 'count' | 'sum' | 'avg' | 'min' | 'max';
+export interface AggCall {
+  func: AggFunc;
+  /** Column being aggregated. '*' = count tuples (only valid with func='count'). */
+  arg: string;
+  /** Output column name. Defaults to `${func}_${arg}` if user didn't supply one. */
+  alias: string;
+  pos: SrcPos;
+}
 
 // 'theta' = condition-join (R ⋈_c S = σ_c(R × S)); 'join' = natural join.
 // 'division' = R ÷ S returns tuples t in πA(R) such that ∀s∈S: t∪s ∈ R, where A = R−S schema.
