@@ -9,6 +9,7 @@ import { parseCSV, relationToCSV } from '../../utils/relAlgebra/csvLoader';
 import { generateSampleRelation } from '../../utils/relAlgebra/sampleData';
 import AlgebraPreview from './AlgebraPreview';
 import AlgebraTree from './AlgebraTree';
+import { highlight as highlightQuery } from './algebraHighlight';
 import './AlgebraView.css';
 
 interface AlgebraViewProps {
@@ -145,6 +146,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
   const [editBuffer, setEditBuffer] = useState<Relation | null>(null);
 
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const pendingTargetTable = useRef<string | null>(null);
@@ -1029,6 +1031,10 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
               Unicode o ASCII · Ctrl+Enter para ejecutar
             </span>
           </div>
+          <div className="ra-editor-wrap">
+            <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
+              {highlightQuery(query, { relations: acSchema.relations, columns: acSchema.allCols })}
+            </div>
           <textarea
             ref={editorRef}
             className="ra-editor"
@@ -1037,6 +1043,14 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
             onSelect={updateCaret}
             onClick={updateCaret}
             onKeyUp={updateCaret}
+            onScroll={(e) => {
+              // Mirror scroll into the highlight overlay so the colors stay aligned.
+              const ta = e.currentTarget;
+              if (highlightRef.current) {
+                highlightRef.current.scrollTop = ta.scrollTop;
+                highlightRef.current.scrollLeft = ta.scrollLeft;
+              }
+            }}
             onKeyDown={e => {
               // Run query
               if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -1070,6 +1084,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
             }}
             spellCheck={false}
           />
+          </div>
           {suggestions.length > 0 && acVisible && (
             <div className="ra-autocomplete">
               {suggestions.map((s, i) => (

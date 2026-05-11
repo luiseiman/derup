@@ -172,23 +172,78 @@
 
 /* ----- Editor (center panel) ----- */
 
-.ra-editor {
-  width: 100%;
-  height: 100%;
-  border: none;
-  resize: none;
-  outline: none;
+/* The editor lives inside a wrapper. The textarea has transparent text so the
+   user types invisibly while the highlight overlay below renders the colored
+   version of the same text in the exact same position. */
+.ra-editor-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.ra-editor,
+.ra-editor-highlight {
+  margin: 0;
   padding: 12px;
+  border: none;
   font-family: 'Courier New', monospace;
   font-size: 0.9rem;
   line-height: 1.5;
-  background: transparent;
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 2;
+}
+
+.ra-editor-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: auto;
   color: var(--text-color);
+  background: transparent;
+  z-index: 1;
+}
+
+.ra-editor {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text-color);
+  z-index: 2;
+  overflow: auto;
 }
 
 .ra-editor:focus {
-  background: #fffef9;
+  background: rgba(255, 254, 249, 0.4);
 }
+
+/* Make text selection visible despite transparent text. */
+.ra-editor::selection {
+  background: rgba(99, 102, 241, 0.3);
+  color: transparent;
+}
+
+/* ----- Token colors ----- */
+
+.tk-rel       { color: #1e40af; font-weight: 600; }      /* relaciones: azul */
+.tk-col       { color: #047857; }                         /* columnas: verde */
+.tk-op-unary  { color: #7c3aed; font-weight: 600; }      /* σ π ρ: violeta */
+.tk-op-bin    { color: #c2410c; font-weight: 600; }      /* ⋈ ⨯ ÷ ∪ ∩ −: naranja */
+.tk-op-log    { color: #be123c; font-weight: 600; }      /* ∧ ∨ ¬: rojo */
+.tk-cmp       { color: #9333ea; font-weight: 600; }      /* = ≠ < > ≤ ≥: magenta */
+.tk-arrow     { color: #c2410c; font-weight: 600; }      /* → ->: naranja */
+.tk-val-str   { color: #b45309; }                         /* 'cadena': ámbar oscuro */
+.tk-val-num   { color: #d97706; }                         /* 42, 3.14: ámbar */
+.tk-val       { color: #d97706; font-style: italic; }    /* true/false: ámbar itálico */
+.tk-assign    { color: #be123c; font-weight: 700; }      /* := : rojo bold */
+.tk-punct     { color: #64748b; }                         /* ( ) { } , . ; _ : gris */
+.tk-comment   { color: #94a3b8; font-style: italic; }    /* # comentarios */
+.tk-ident     { color: var(--text-color); }              /* identificadores desconocidos */
 
 .ra-symbols-bar {
   display: flex;
