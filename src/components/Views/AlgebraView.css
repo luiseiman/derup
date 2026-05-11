@@ -347,6 +347,88 @@
 }
 .ra-chevron:hover { color: var(--primary-700); }
 
+/* ----- Math-style preview of the parsed query ----- */
+
+.ra-preview {
+  padding: 10px 14px;
+  border-top: 1px solid var(--panel-border);
+  background: linear-gradient(180deg, #fffef5, #fafafa);
+  font-family: 'Cambria', 'Georgia', 'Times New Roman', serif;
+  font-size: 1.1rem;
+  line-height: 1.9;
+  color: var(--text-color);
+  min-height: 38px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.ra-pv-empty,
+.ra-pv-invalid {
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.ra-pv-stmt {
+  white-space: nowrap;
+}
+.ra-pv-stmt + .ra-pv-stmt {
+  margin-top: 6px;
+}
+
+/* Greek operator symbol — large, math-style */
+.ra-pv-greek {
+  font-family: 'Cambria Math', 'STIX Two Math', 'Georgia', serif;
+  font-size: 1.5em;
+  font-style: normal;
+  vertical-align: -2px;
+  color: #0f172a;
+  margin: 0 1px;
+}
+
+/* Binary operator (⋈ ⨯ ∪ ∩ − ∧ ∨ ¬ etc.) */
+.ra-pv-op {
+  font-family: 'Cambria Math', 'STIX Two Math', 'Georgia', serif;
+  font-size: 1.1em;
+  color: #0f172a;
+  margin: 0 2px;
+}
+
+/* Relation name — italic, serif */
+.ra-pv-rel {
+  font-style: italic;
+  font-weight: 500;
+  color: #1e3a8a;
+}
+
+/* Column name in conditions — italic, slightly lighter */
+.ra-pv-col {
+  font-style: italic;
+  color: #1f2937;
+}
+
+/* Literal value — upright */
+.ra-pv-lit {
+  font-style: normal;
+  color: #b45309;
+}
+
+/* Parentheses with slight emphasis */
+.ra-pv-paren {
+  color: #475569;
+  font-size: 1.1em;
+}
+
+/* Subscript — true mathematical sub */
+.ra-pv-sub {
+  font-size: 0.7em;
+  vertical-align: sub;
+  margin-left: 1px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 /* ----- CRUD modal ----- */
 
 .ra-modal-overlay {

@@ -6,6 +6,7 @@ import { parse } from '../../utils/relAlgebra/parser';
 import { evaluate } from '../../utils/relAlgebra/evaluator';
 import { parseCSV, relationToCSV } from '../../utils/relAlgebra/csvLoader';
 import { generateSampleRelation } from '../../utils/relAlgebra/sampleData';
+import AlgebraPreview from './AlgebraPreview';
 import './AlgebraView.css';
 
 interface AlgebraViewProps {
@@ -694,6 +695,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
             }}
             spellCheck={false}
           />
+          <AlgebraPreview query={query} />
           <div className="ra-symbols-bar">
             {SYMBOLS.map(s => (
               <button
