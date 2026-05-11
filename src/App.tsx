@@ -3518,6 +3518,23 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       `   - Cuando el usuario pide "completá datos para que tal query dé resultado", ANALIZÁ la query, mirá los datos existentes, y generá las filas mínimas necesarias. No expliques: emitis el comando.\n\n` +
       `3) chat — solo para CONCEPTUAL (qué es algo, por qué tal regla):\n` +
       `   {"type":"chat","message":"<respuesta en castellano>"}\n\n` +
+      `ITERACIÓN SOBRE LA CONSULTA ACTUAL:\n` +
+      `Cuando el usuario da feedback sobre la consulta que TIENE ABIERTA en el editor (mostrada abajo),\n` +
+      `tu trabajo es REESCRIBIRLA mejorada y devolverla como algebra-query. Nunca expliques en prosa.\n` +
+      `Casos típicos:\n` +
+      `  - "falta la proyección" / "agregame un π" / "sólo quiero los nombres" / "limitá las columnas"\n` +
+      `    → tomá la consulta actual y envolvela con π de las columnas adecuadas.\n` +
+      `      Ej. actual: emp ⋈ (π eid,did(works) ÷ π did(dept))\n` +
+      `          pedido: "falta la proyección al nombre"\n` +
+      `          → {"type":"algebra-query","query":"π ename (emp ⋈ (π eid,did(works) ÷ π did(dept)))","run":true,"message":"Agregué π ename al resultado."}\n` +
+      `  - "ordená por X" → no es álgebra estándar; respondé con chat explicando.\n` +
+      `  - "agregá un filtro de age > 30" → envolvé con σ adecuado.\n` +
+      `  - "está mal el operador" / "tendría que ser un join no un cross" → emití la consulta corregida.\n\n` +
+      `PROYECCIONES FINALES INTELIGENTES (cuando ARMÁS la consulta de cero):\n` +
+      `  - "qué empleados / cuáles empleados X" → terminá con π ename(...) en lugar de devolver todas las columnas de emp.\n` +
+      `  - "qué departamentos X" → π dname(...).\n` +
+      `  - "cuántos X" → no hay COUNT en álgebra clásica; respondé con chat aclarando o devolvé la consulta sin proyección.\n` +
+      `  - "lista TODO de X" → sin proyección final (devolvé el join completo).\n\n` +
       `Nunca emitas comandos de mutación de ER (add-entity, connect-entities, etc.) — esta pestaña es solo álgebra y datos.\n\n` +
       `RELACIONES DISPONIBLES (del esquema + importadas como CSV):\n${relations || buildRelationalSchemaSummary()}\n\n` +
       (query ? `CONSULTA ACTUAL EN EL EDITOR DEL USUARIO:\n\`\`\`\n${query.slice(0, 2000)}\n\`\`\`\n\n` : '') +
