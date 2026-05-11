@@ -111,6 +111,32 @@ export const AICommandSchema = z.discriminatedUnion('type', [
     run: z.boolean().optional(),       // default true
     message: z.string().optional(),    // brief Spanish confirmation
   }),
+  // Algebra-tab ABM: data manipulation commands. The user confirms each one
+  // before it's applied. Five actions cover full CRUD on the algebra
+  // workspace's tables.
+  z.object({
+    type: z.literal('algebra-data'),
+    /** What operation to apply. */
+    action: z.enum(['append', 'replace', 'update-row', 'delete-rows', 'create-relation']),
+    /** Relation to operate on (existing for the first four actions; created
+     *  by 'create-relation'). */
+    relation: z.string(),
+    /** For 'create-relation': column definitions. */
+    columns: z.array(z.object({
+      name: z.string(),
+      type: z.enum(['number', 'string', 'date', 'boolean']),
+    })).optional(),
+    /** For append/replace/create-relation: rows to add. Each row is an array
+     *  whose values map positionally to the relation's columns. */
+    rows: z.array(z.array(z.union([z.string(), z.number(), z.boolean(), z.null()]))).optional(),
+    /** For update-row: which row (0-based) and the new values per column. */
+    rowIndex: z.number().int().nonnegative().optional(),
+    values: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+    /** For delete-rows: explicit 0-based indices to remove. */
+    rowIndices: z.array(z.number().int().nonnegative()).optional(),
+    /** Brief Spanish confirmation shown to the user. */
+    message: z.string().optional(),
+  }),
 ]);
 
 export type AICommand = z.infer<typeof AICommandSchema>;

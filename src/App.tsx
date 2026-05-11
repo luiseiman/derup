@@ -186,6 +186,18 @@ function App() {
    *  editor and runs it. Bumped each time so the same query can be applied
    *  again. */
   const [pendingAlgebraQuery, setPendingAlgebraQuery] = useState<{ query: string; run: boolean; at: number } | null>(null);
+  /** Pending data mutation from the chat (algebra-data command). Once the
+   *  user confirms, this is forwarded to AlgebraView to apply. */
+  const [pendingAlgebraData, setPendingAlgebraData] = useState<{
+    action: 'append' | 'replace' | 'update-row' | 'delete-rows' | 'create-relation';
+    relation: string;
+    columns?: { name: string; type: 'number' | 'string' | 'date' | 'boolean' }[];
+    rows?: (string | number | boolean | null)[][];
+    rowIndex?: number;
+    values?: Record<string, string | number | boolean | null>;
+    rowIndices?: number[];
+    at: number;
+  } | null>(null);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'properties' | 'chat' | 'ai' | 'menu'>('chat');
@@ -3420,7 +3432,9 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     }).join('\n');
   };
 
-  /** Read the algebra tab's state from localStorage to enrich the prompt. */
+  /** Read the algebra tab's state from localStorage to enrich the prompt.
+   *  Includes the full row data per relation (capped per safety) so the AI
+   *  can reason about ABM operations against the actual values. */
   const buildAlgebraStateSummary = (): { query: string; relations: string } => {
     try {
       const raw = localStorage.getItem('derup.algebra.v1');
@@ -3430,12 +3444,22 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
         tablesData?: Record<string, { columns: { name: string; type: string }[]; rows: unknown[][] }>;
         importedRelations?: Record<string, { columns: { name: string; type: string }[]; rows: unknown[][] }>;
       };
-      const loaded: string[] = [];
-      const fmt = (name: string, r: { columns: { name: string; type: string }[]; rows: unknown[][] }) =>
-        `  ${name} (${r.rows.length} filas): ${r.columns.map(c => `${c.name}:${c.type}`).join(', ')}`;
-      Object.entries(parsed.tablesData ?? {}).forEach(([n, r]) => loaded.push(fmt(n, r)));
-      Object.entries(parsed.importedRelations ?? {}).forEach(([n, r]) => loaded.push(fmt(n, r)));
-      return { query: parsed.query ?? '', relations: loaded.join('\n') };
+      const MAX_ROWS_PER_REL = 200; // safety cap so a giant CSV doesn't blow tokens
+      const blocks: string[] = [];
+      const dump = (name: string, r: { columns: { name: string; type: string }[]; rows: unknown[][] }) => {
+        const head = `${name} (${r.rows.length} filas) — columnas: ${r.columns.map(c => `${c.name}:${c.type}`).join(', ')}`;
+        const cap = Math.min(r.rows.length, MAX_ROWS_PER_REL);
+        const truncated = r.rows.length > MAX_ROWS_PER_REL
+          ? `  …(${r.rows.length - MAX_ROWS_PER_REL} filas más omitidas)\n`
+          : '';
+        const rowsCsv = r.rows.slice(0, cap)
+          .map((row, i) => `  [${i}] ${row.map(v => v === null ? 'NULL' : JSON.stringify(v)).join(', ')}`)
+          .join('\n');
+        blocks.push(`${head}\n${rowsCsv}\n${truncated}`);
+      };
+      Object.entries(parsed.tablesData ?? {}).forEach(([n, r]) => dump(n, r));
+      Object.entries(parsed.importedRelations ?? {}).forEach(([n, r]) => dump(n, r));
+      return { query: parsed.query ?? '', relations: blocks.join('\n\n') };
     } catch { return { query: '', relations: '' }; }
   };
 
@@ -3463,24 +3487,38 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     const { query, relations } = buildAlgebraStateSummary();
     return `Sos un asistente de álgebra relacional integrado en derup. Tu trabajo es HACER, no explicar.\n` +
       `Aplicá teoría de Ramakrishnan & Gehrke Cap 4 cuando armás las consultas.\n\n` +
-      `RESPONDÉ CON UNO DE ESTOS DOS JSONs (nada de markdown, nada de texto fuera del JSON):\n\n` +
-      `1) Si el pedido es EJECUTABLE como una consulta de álgebra (ver registros, filtrar, proyectar columnas, juntar relaciones, etc.):\n` +
-      `   {"type":"algebra-query","query":"<consulta en sintaxis derup>","run":true,"message":"<una frase breve confirmando qué hiciste>"}\n` +
-      `   Esto INSERTA la consulta en el editor y la EJECUTA. NO expliques cómo se hace — hacelo.\n` +
-      `   Ejemplos:\n` +
-      `     Usuario: "quiero ver todos los registros de emp"\n` +
-      `     → {"type":"algebra-query","query":"emp","run":true,"message":"Mostrando todos los registros de emp."}\n` +
-      `     Usuario: "filtrame los empleados con edad mayor a 30"\n` +
-      `     → {"type":"algebra-query","query":"σ age > 30 (emp)","run":true,"message":"Empleados con edad > 30."}\n` +
-      `     Usuario: "necesito el nombre y el salario de cada empleado"\n` +
-      `     → {"type":"algebra-query","query":"π ename, salary (emp)","run":true,"message":"Proyección de nombre y salario."}\n` +
+      `RESPONDÉ CON UN ÚNICO JSON (sin markdown, sin texto fuera del JSON). Hay 4 formas posibles:\n\n` +
+      `1) algebra-query — pedido EJECUTABLE de consulta:\n` +
+      `   {"type":"algebra-query","query":"<consulta>","run":true,"message":"<frase breve>"}\n` +
+      `   Inserta la consulta en el editor y la ejecuta. Ejemplos:\n` +
+      `     Usuario: "ver todos los registros de emp"\n` +
+      `     → {"type":"algebra-query","query":"emp","run":true,"message":"Mostrando emp."}\n` +
+      `     Usuario: "empleados con edad mayor a 30"\n` +
+      `     → {"type":"algebra-query","query":"σ age > 30 (emp)","run":true,"message":"Filtrados."}\n` +
       `     Usuario: "qué empleados trabajan en algún departamento"\n` +
-      `     → {"type":"algebra-query","query":"emp ⋈ works","run":true,"message":"Junta natural emp ⋈ works."}\n\n` +
-      `2) Si el pedido es CONCEPTUAL (qué es algo, por qué tal regla, explicación teórica):\n` +
-      `   {"type":"chat","message":"<respuesta en castellano>"}\n` +
-      `   Usalo solo cuando no haya una consulta concreta para ejecutar.\n\n` +
-      `IMPORTANTE: NO uses bloques de código markdown ni emojis dentro del JSON.\n` +
-      `Nunca emitas comandos de mutación de ER (add-entity, connect-entities, etc.) — esta pestaña es solo álgebra.\n\n` +
+      `     → {"type":"algebra-query","query":"emp ⋈ works","run":true,"message":"Junta natural."}\n\n` +
+      `2) algebra-data — ABM (alta/baja/modificación) de datos:\n` +
+      `   El usuario va a CONFIRMAR siempre antes de aplicar, así que podés ser asertivo.\n` +
+      `   Usá los DATOS COMPLETOS provistos abajo para inferir el contexto (qué eid existen, qué did, etc.).\n` +
+      `   Acciones disponibles:\n` +
+      `     append — agregar filas a una relación existente:\n` +
+      `       {"type":"algebra-data","action":"append","relation":"works","rows":[[1,1],[1,2],[1,3]],"message":"3 filas nuevas para que la división dé resultado."}\n` +
+      `       Cada \\\`row\\\` es un array de valores en el ORDEN de las columnas tal como aparecen en el contexto.\n` +
+      `     replace — reemplazar todas las filas de una relación:\n` +
+      `       {"type":"algebra-data","action":"replace","relation":"emp","rows":[[1,"Ana",30,50000],[2,"Luis",45,60000]],"message":"Reset de emp con 2 empleados."}\n` +
+      `     update-row — modificar una fila existente (índice 0-based):\n` +
+      `       {"type":"algebra-data","action":"update-row","relation":"emp","rowIndex":0,"values":{"salary":80000,"age":31},"message":"Actualicé el sueldo y edad de la fila 0."}\n` +
+      `     delete-rows — eliminar filas por índice (0-based, podés pasar varios):\n` +
+      `       {"type":"algebra-data","action":"delete-rows","relation":"emp","rowIndices":[3,5],"message":"Borradas 2 filas."}\n` +
+      `     create-relation — crear una relación nueva con esquema + datos:\n` +
+      `       {"type":"algebra-data","action":"create-relation","relation":"salario_hist","columns":[{"name":"eid","type":"number"},{"name":"anio","type":"number"},{"name":"monto","type":"number"}],"rows":[[1,2024,50000],[1,2025,55000]],"message":"Tabla nueva con histórico."}\n\n` +
+      `   IMPORTANTE para algebra-data:\n` +
+      `   - Las \\\`rows\\\` deben respetar EXACTAMENTE el orden de columnas mostradas en el contexto.\n` +
+      `   - Los tipos deben coincidir: si la columna es number, el valor es number; si es string, string entre comillas en el JSON. null para vacío.\n` +
+      `   - Cuando el usuario pide "completá datos para que tal query dé resultado", ANALIZÁ la query, mirá los datos existentes, y generá las filas mínimas necesarias. No expliques: emitis el comando.\n\n` +
+      `3) chat — solo para CONCEPTUAL (qué es algo, por qué tal regla):\n` +
+      `   {"type":"chat","message":"<respuesta en castellano>"}\n\n` +
+      `Nunca emitas comandos de mutación de ER (add-entity, connect-entities, etc.) — esta pestaña es solo álgebra y datos.\n\n` +
       `RELACIONES DISPONIBLES (del esquema + importadas como CSV):\n${relations || buildRelationalSchemaSummary()}\n\n` +
       (query ? `CONSULTA ACTUAL EN EL EDITOR DEL USUARIO:\n\`\`\`\n${query.slice(0, 2000)}\n\`\`\`\n\n` : '') +
       `OPERADORES SOPORTADOS POR derup (mostrá ambas sintaxis cuando enseñes — Unicode primero, ASCII en paréntesis):\n` +
@@ -3600,6 +3638,24 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
     `- To add attributes to a relationship (e.g. Detalle_comprobante): {"type":"add-attributes","entityName":"Detalle_comprobante","attributes":["precio","descuento","total"],"keyAttributes":[]}\n` +
     `- To replace/fix attributes of a weak entity (e.g. remove wrong key, add correct partial key): use replace-attributes with the correct attributes and keyAttributes list.\n`
     );
+  };
+
+  /** Human-readable summary of an algebra-data command, shown in the
+   *  confirmation dialog so the user knows what's about to change. */
+  const describeAlgebraDataCmd = (cmd: AICommand & { type: 'algebra-data' }): string => {
+    const head = `Acción: ${cmd.action} · Relación: ${cmd.relation}`;
+    switch (cmd.action) {
+      case 'append':
+        return `${head}\nFilas a agregar: ${cmd.rows?.length ?? 0}\n${(cmd.rows ?? []).slice(0, 5).map(r => '  + ' + JSON.stringify(r)).join('\n')}${(cmd.rows?.length ?? 0) > 5 ? `\n  …(${(cmd.rows!.length - 5)} más)` : ''}`;
+      case 'replace':
+        return `${head}\nReemplazar TODAS las filas existentes por ${cmd.rows?.length ?? 0} filas.\n${(cmd.rows ?? []).slice(0, 5).map(r => '  = ' + JSON.stringify(r)).join('\n')}${(cmd.rows?.length ?? 0) > 5 ? `\n  …(${(cmd.rows!.length - 5)} más)` : ''}`;
+      case 'update-row':
+        return `${head}\nModificar fila ${cmd.rowIndex} con: ${JSON.stringify(cmd.values ?? {})}`;
+      case 'delete-rows':
+        return `${head}\nEliminar ${cmd.rowIndices?.length ?? 0} fila(s): índices ${(cmd.rowIndices ?? []).join(', ')}`;
+      case 'create-relation':
+        return `${head}\nCrear relación NUEVA con columnas: ${(cmd.columns ?? []).map(c => `${c.name}:${c.type}`).join(', ')}\nFilas iniciales: ${cmd.rows?.length ?? 0}`;
+    }
   };
 
   const triggerAIContinuation = async () => {
@@ -4118,6 +4174,31 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
       if (canvasView !== 'algebra') setCanvasView('algebra');
       const msg = aiCommand.message?.trim() || 'Consulta lista en el editor.';
       setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: `${msg} \n\`\`\`\n${aiCommand.query}\n\`\`\`` }]);
+      return;
+    }
+    // Algebra-data: ABM with confirmation.
+    if (aiCommand?.type === 'algebra-data') {
+      const summary = describeAlgebraDataCmd(aiCommand);
+      if (!confirm(`El asistente quiere modificar tus datos.\n\n${summary}\n\n¿Aplicar?`)) {
+        setChatMessages(prev => [
+          ...prev,
+          { id: createId(), role: 'assistant', text: 'Operación cancelada.' },
+        ]);
+        return;
+      }
+      setPendingAlgebraData({
+        action: aiCommand.action,
+        relation: aiCommand.relation,
+        columns: aiCommand.columns,
+        rows: aiCommand.rows,
+        rowIndex: aiCommand.rowIndex,
+        values: aiCommand.values,
+        rowIndices: aiCommand.rowIndices,
+        at: Date.now(),
+      });
+      if (canvasView !== 'algebra') setCanvasView('algebra');
+      const msg = aiCommand.message?.trim() || 'Cambio aplicado a los datos.';
+      setChatMessages(prev => [...prev, { id: createId(), role: 'assistant', text: msg }]);
       return;
     }
     // Respuesta conversacional
@@ -5175,6 +5256,8 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
               tables={relationalSchema.tables}
               pendingQuery={pendingAlgebraQuery}
               onPendingQueryConsumed={() => setPendingAlgebraQuery(null)}
+              pendingDataChange={pendingAlgebraData}
+              onPendingDataConsumed={() => setPendingAlgebraData(null)}
               onApplyReverseEngineeredER={(reNodes, reConnections, notes) => {
                 // Replace the ER diagram with the reverse-engineered one and
                 // switch to the ER tab so the user sees the result. The

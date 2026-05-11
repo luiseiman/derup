@@ -25,6 +25,20 @@ interface AlgebraViewProps {
   /** Called after AlgebraView has applied the pending query, so the parent
    *  can clear the prop. */
   onPendingQueryConsumed?: () => void;
+  /** Pending ABM (data manipulation) command from the chat. Already
+   *  user-confirmed by the parent. */
+  pendingDataChange?: {
+    action: 'append' | 'replace' | 'update-row' | 'delete-rows' | 'create-relation';
+    relation: string;
+    columns?: { name: string; type: 'number' | 'string' | 'date' | 'boolean' }[];
+    rows?: (string | number | boolean | null)[][];
+    rowIndex?: number;
+    values?: Record<string, string | number | boolean | null>;
+    rowIndices?: number[];
+    at: number;
+  } | null;
+  /** Called once the change is applied. */
+  onPendingDataConsumed?: () => void;
 }
 
 const STORAGE_KEY = 'derup.algebra.v1';
@@ -122,7 +136,11 @@ function formatValue(v: unknown): string {
   return String(v);
 }
 
-const AlgebraView: React.FC<AlgebraViewProps> = ({ tables, onApplyReverseEngineeredER, pendingQuery, onPendingQueryConsumed }) => {
+const AlgebraView: React.FC<AlgebraViewProps> = ({
+  tables, onApplyReverseEngineeredER,
+  pendingQuery, onPendingQueryConsumed,
+  pendingDataChange, onPendingDataConsumed,
+}) => {
   const persisted = useMemo(loadPersisted, []);
 
   const [query, setQuery] = useState(
@@ -636,6 +654,115 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables, onApplyReverseEnginee
     runQuery();
     setPendingRun(false);
   }, [pendingRun, runQuery]);
+
+  /** Apply an algebra-data ABM mutation. The parent already collected the
+   *  user's confirmation, so we just mutate the right state map here. The
+   *  five actions cover append, replace, update-row, delete-rows and
+   *  create-relation. */
+  const lastDataAtRef = useRef<number>(0);
+  useEffect(() => {
+    if (!pendingDataChange) return;
+    if (pendingDataChange.at <= lastDataAtRef.current) return;
+    lastDataAtRef.current = pendingDataChange.at;
+
+    const { action, relation, columns, rows, rowIndex, values, rowIndices } = pendingDataChange;
+
+    /** Find the relation in either tablesData (schema-bound) or
+     *  importedRelations (ad-hoc). Returns the bag name so we know which
+     *  setter to use. */
+    const findBag = (): 'tables' | 'imported' | null => {
+      if (tablesData.has(relation)) return 'tables';
+      if (importedRelations.has(relation)) return 'imported';
+      // The schema may know the table but no data has been loaded yet.
+      if (tables.some(t => t.name === relation)) return 'tables';
+      return null;
+    };
+
+    const coerceCell = (raw: string | number | boolean | null, type: ColumnType): Value => {
+      if (raw === null || raw === undefined) return null;
+      if (type === 'number') return typeof raw === 'number' ? raw : Number(raw);
+      if (type === 'boolean') return typeof raw === 'boolean' ? raw : String(raw).toLowerCase() === 'true';
+      if (type === 'date') {
+        // The wire format from the AI is string/number/boolean/null only;
+        // dates arrive as ISO strings.
+        const d = new Date(String(raw));
+        return Number.isNaN(d.getTime()) ? String(raw) : d;
+      }
+      return String(raw);
+    };
+
+    if (action === 'create-relation') {
+      if (!columns || columns.length === 0) return;
+      const rel: Relation = {
+        columns: columns.map(c => ({ name: c.name, type: c.type })),
+        rows: (rows ?? []).map(r => r.map((v, ci) => coerceCell(v, columns[ci].type))),
+      };
+      // New relations land in importedRelations (the ad-hoc bag) so they
+      // don't fight a schema definition that doesn't exist.
+      setImportedRelations(prev => {
+        const next = new Map(prev);
+        next.set(relation, rel);
+        return next;
+      });
+      onPendingDataConsumed?.();
+      return;
+    }
+
+    const bag = findBag();
+    if (!bag) {
+      alert(`No encontré la relación "${relation}". Tal vez se llama distinto o todavía no fue importada.`);
+      onPendingDataConsumed?.();
+      return;
+    }
+    // Read current relation
+    const current = bag === 'tables' ? tablesData.get(relation) : importedRelations.get(relation);
+    // If schema-bound and not yet loaded, seed from the schema columns.
+    const seedFromSchema = (): Relation => {
+      const t = tables.find(t => t.name === relation);
+      const cols: { name: string; type: ColumnType }[] = t
+        ? t.columns.filter(c => !c.isDerived).map(c => ({ name: c.name, type: 'string' as ColumnType }))
+        : [];
+      return { columns: cols, rows: [] };
+    };
+    const baseline: Relation = current ?? seedFromSchema();
+
+    const applyTo = (rel: Relation): Relation => {
+      switch (action) {
+        case 'append': {
+          const newRows = (rows ?? []).map(r => r.map((v, ci) => coerceCell(v, rel.columns[ci]?.type ?? 'string')));
+          return { columns: rel.columns, rows: [...rel.rows, ...newRows] };
+        }
+        case 'replace': {
+          const newRows = (rows ?? []).map(r => r.map((v, ci) => coerceCell(v, rel.columns[ci]?.type ?? 'string')));
+          return { columns: rel.columns, rows: newRows };
+        }
+        case 'update-row': {
+          if (rowIndex === undefined || rowIndex < 0 || rowIndex >= rel.rows.length) return rel;
+          const newRow = [...rel.rows[rowIndex]];
+          for (const [k, v] of Object.entries(values ?? {})) {
+            const ci = rel.columns.findIndex(c => c.name === k);
+            if (ci >= 0) newRow[ci] = coerceCell(v, rel.columns[ci].type);
+          }
+          const newRows = rel.rows.map((r, i) => i === rowIndex ? newRow : r);
+          return { columns: rel.columns, rows: newRows };
+        }
+        case 'delete-rows': {
+          const drop = new Set(rowIndices ?? []);
+          return { columns: rel.columns, rows: rel.rows.filter((_, i) => !drop.has(i)) };
+        }
+        default:
+          return rel;
+      }
+    };
+
+    const next = applyTo(baseline);
+    if (bag === 'tables') {
+      setTablesData(prev => { const n = new Map(prev); n.set(relation, next); return n; });
+    } else {
+      setImportedRelations(prev => { const n = new Map(prev); n.set(relation, next); return n; });
+    }
+    onPendingDataConsumed?.();
+  }, [pendingDataChange, tablesData, importedRelations, tables, onPendingDataConsumed]);
 
   /**
    * Insert a suggestion in place of the partial word the user is typing,
