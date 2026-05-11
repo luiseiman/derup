@@ -4,12 +4,12 @@ import type { ColumnType, Program, RelExpr, Relation, Value } from '../../utils/
 import { RAError } from '../../utils/relAlgebra/types';
 import { parse } from '../../utils/relAlgebra/parser';
 import { evaluate } from '../../utils/relAlgebra/evaluator';
-import { tokenize, type Token } from '../../utils/relAlgebra/tokenizer';
 import { parseCSV, relationToCSV } from '../../utils/relAlgebra/csvLoader';
 import { generateSampleRelation } from '../../utils/relAlgebra/sampleData';
 import AlgebraPreview from './AlgebraPreview';
 import AlgebraTree from './AlgebraTree';
 import { highlight as highlightQuery } from './algebraHighlight';
+import { predictNext, wordAtCaret, type Suggestion as PredictSuggestion } from './algebraPredict';
 import './AlgebraView.css';
 
 interface AlgebraViewProps {
@@ -509,257 +509,74 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
 
   // ---- Autocomplete: schema, current word, contextual suggestions ----
 
-  type Suggestion = {
-    text: string;       // what gets inserted (no automatic padding — caller handles)
-    label: string;      // what shows in the chip
-    hint?: string;      // small badge (relation name for columns, etc.)
-    kind: 'relation' | 'column' | 'operator';
-    // Padding policy at insertion time. Defaults: relation/column → 'name';
-    // operator → 'binary' (pad both sides); exceptions ('(' ',' '.') override.
-    pad?: 'name' | 'binary' | 'comma' | 'lparen' | 'punct';
-  };
+  type Suggestion = PredictSuggestion;
 
-  /** Map of all known relations to their columns, used to drive suggestions. */
+  /**
+   * Schema + sample data for the smart autocomplete. Sample values are pulled
+   * from the actual rows so suggestions like the RHS of `did = ?` show real
+   * existing values from the loaded data.
+   */
   const acSchema = useMemo(() => {
     const relations: string[] = [];
     const colsByRel = new Map<string, string[]>();
-    tables.forEach(t => {
-      relations.push(t.name);
-      colsByRel.set(t.name, t.columns.filter(c => !c.isDerived).map(c => c.name));
-    });
+    const sampleValuesByCol = new Map<string, string[]>();
+    const stringify = (v: unknown): string => {
+      if (v === null || v === undefined) return '';
+      if (v instanceof Date) return `'${v.toISOString().slice(0, 10)}'`;
+      if (typeof v === 'string') return `'${v}'`;
+      if (typeof v === 'number') return String(v);
+      if (typeof v === 'boolean') return v ? 'true' : 'false';
+      return String(v);
+    };
+    const collect = (relName: string, rel: { columns: { name: string; type: string }[]; rows: unknown[][] }) => {
+      relations.push(relName);
+      colsByRel.set(relName, rel.columns.map(c => c.name));
+      rel.columns.forEach((c, ci) => {
+        const seen = new Set<string>();
+        const samples: string[] = [];
+        for (const row of rel.rows) {
+          const v = row[ci];
+          if (v === null || v === undefined) continue;
+          const s = stringify(v);
+          if (!seen.has(s)) { seen.add(s); samples.push(s); }
+          if (samples.length >= 5) break;
+        }
+        if (samples.length > 0) sampleValuesByCol.set(`${relName}.${c.name}`, samples);
+      });
+    };
+    tables.forEach(t => collect(t.name, {
+      columns: t.columns.filter(c => !c.isDerived).map(c => ({ name: c.name, type: 'string' })),
+      rows: tablesData.get(t.name)?.rows ?? [],
+    }));
     importedRelations.forEach((rel, name) => {
-      if (!relations.includes(name)) relations.push(name);
-      colsByRel.set(name, rel.columns.map(c => c.name));
+      if (!relations.includes(name)) collect(name, { columns: rel.columns, rows: rel.rows });
     });
-    const allCols = Array.from(new Set(Array.from(colsByRel.values()).flat()));
-    return { relations, colsByRel, allCols };
-  }, [tables, importedRelations]);
+    const allColumns = Array.from(new Set(Array.from(colsByRel.values()).flat()));
+    return { relations, colsByRel, allColumns, sampleValuesByCol };
+  }, [tables, importedRelations, tablesData]);
 
-  /** Word-bound currently being typed (alnum + `_` + `.`). */
+  /** Word-bound currently being typed (alnum + `_` + `.`). Shared with the
+   *  predict engine via wordAtCaret() so both stay in sync. */
   const { currentWord, wordStart } = useMemo(() => {
-    let i = caretPos;
-    while (i > 0 && /[a-zA-Z0-9_.]/.test(query[i - 1])) i--;
-    return { currentWord: query.slice(i, caretPos), wordStart: i };
+    const r = wordAtCaret(query, caretPos);
+    return { currentWord: r.word, wordStart: r.start };
   }, [query, caretPos]);
 
   /**
-   * Detect what kind of construct the caret is inside by tokenizing the prefix
-   * up to the caret and walking the token stream backwards to find an
-   * unmatched σ / π / ρ operator (i.e. one whose body the caret is in).
+   * Smart autocomplete — delegated to the predict engine which walks the
+   * token stream up to the caret and returns suggestions whose KIND depends
+   * on what the parser would legally accept next.
    */
-  type SyntaxContext =
-    | { kind: 'select-cond'; bodyTokens: Token[] }
-    | { kind: 'project-cols'; bodyTokens: Token[] }
-    | { kind: 'rename-args'; bodyTokens: Token[] }
-    | { kind: 'top' };
-
-  const syntaxContext = useMemo<SyntaxContext>(() => {
-    const prefix = query.slice(0, caretPos);
-    let tokens: Token[] = [];
-    try { tokens = tokenize(prefix).filter(t => t.kind !== 'EOF'); }
-    catch { return { kind: 'top' }; }
-
-    // Walk backwards: count parens/braces; find the last operator at top depth.
-    let depth = 0;
-    let opIdx = -1;
-    let opKind = '';
-    for (let i = tokens.length - 1; i >= 0; i--) {
-      const t = tokens[i];
-      if (t.kind === 'RPAREN' || t.kind === 'RBRACE') { depth++; continue; }
-      if (t.kind === 'LPAREN' || t.kind === 'LBRACE') {
-        if (depth === 0) {
-          // We crossed an unmatched opening — we're inside that group, which
-          // could be the brace-form body of σ_{...}: check if the previous
-          // token (after optional UNDERSCORE) is an operator.
-          let j = i - 1;
-          if (j >= 0 && tokens[j].kind === 'UNDERSCORE') j--;
-          if (j >= 0 && (tokens[j].kind === 'OP_SELECT' || tokens[j].kind === 'OP_PROJECT' || tokens[j].kind === 'OP_RENAME')) {
-            opIdx = j;
-            opKind = tokens[j].kind;
-          }
-          break;
-        }
-        depth--; continue;
-      }
-      if (depth === 0 && (t.kind === 'OP_SELECT' || t.kind === 'OP_PROJECT' || t.kind === 'OP_RENAME')) {
-        opIdx = i;
-        opKind = t.kind;
-        break;
-      }
-    }
-    if (opIdx < 0) return { kind: 'top' };
-
-    // Check whether we've already moved past the operator's body into the
-    // relation argument: i.e. there's an LPAREN at depth 0 between the
-    // operator and the caret.
-    const after = tokens.slice(opIdx + 1);
-    let d = 0;
-    let pastBody = false;
-    for (const t of after) {
-      if (t.kind === 'LPAREN' || t.kind === 'LBRACE') {
-        if (d === 0 && t.kind === 'LPAREN' && !pastBody) {
-          // First top-level LPAREN after the operator → start of relation arg.
-          pastBody = true;
-        }
-        d++;
-      } else if (t.kind === 'RPAREN' || t.kind === 'RBRACE') {
-        d--;
-      }
-    }
-    if (pastBody && d === 0) return { kind: 'top' };
-    if (pastBody) return { kind: 'top' }; // inside the relation arg → suggest relations
-
-    const bodyTokens = after;
-    if (opKind === 'OP_SELECT') return { kind: 'select-cond', bodyTokens };
-    if (opKind === 'OP_PROJECT') return { kind: 'project-cols', bodyTokens };
-    if (opKind === 'OP_RENAME') return { kind: 'rename-args', bodyTokens };
-    return { kind: 'top' };
-  }, [query, caretPos]);
-
-  /** Build context-aware suggestions for the current caret position. */
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!acVisible) return [];
-
-    const word = currentWord.toLowerCase();
-    const tail = word.includes('.') ? word.split('.')[1] : word;
-
-    // Qualified column form R.x → only R's columns (works in any context).
-    if (currentWord.includes('.')) {
-      const [rel] = currentWord.split('.');
-      const cols = acSchema.colsByRel.get(rel) ?? [];
-      return cols
-        .filter(c => c.toLowerCase().startsWith(tail))
-        .slice(0, 10)
-        .map(c => ({ text: c, label: c, hint: rel, kind: 'column' as const }));
-    }
-
-    // ----- Context: inside σ ... (condition body) -----
-    if (syntaxContext.kind === 'select-cond') {
-      const out: Suggestion[] = [];
-      const body = syntaxContext.bodyTokens;
-      const last = body[body.length - 1];
-
-      if (tail.length > 0) {
-        // Mid-word: suggest columns (matching prefix)
-        acSchema.allCols
-          .filter(c => c.toLowerCase().startsWith(tail))
-          .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
-        return out.slice(0, 10);
-      }
-      // Empty current word: decide based on the last token in the condition body.
-      if (!last || last.kind === 'LBRACE' || last.kind === 'UNDERSCORE' ||
-          last.kind === 'AND' || last.kind === 'OR' || last.kind === 'NOT' || last.kind === 'LPAREN') {
-        // Starting a new comparison → expect a column
-        acSchema.allCols.slice(0, 8).forEach(c =>
-          out.push({ text: c, label: c, kind: 'column', hint: 'columna' }));
-        return out;
-      }
-      if (last.kind === 'IDENT') {
-        // Just typed a column → suggest comparison operators
-        out.push({ text: '=', label: '=', kind: 'operator', hint: 'igual' });
-        out.push({ text: '≠', label: '≠', kind: 'operator', hint: 'distinto' });
-        out.push({ text: '<', label: '<', kind: 'operator', hint: 'menor' });
-        out.push({ text: '>', label: '>', kind: 'operator', hint: 'mayor' });
-        out.push({ text: '≤', label: '≤', kind: 'operator', hint: 'menor o igual' });
-        out.push({ text: '≥', label: '≥', kind: 'operator', hint: 'mayor o igual' });
-        return out;
-      }
-      if (['EQ', 'NEQ', 'LT', 'GT', 'LE', 'GE'].includes(last.kind)) {
-        // Just typed a cmp op → expect a value or column (right operand)
-        acSchema.allCols.slice(0, 8).forEach(c =>
-          out.push({ text: c, label: c, kind: 'column', hint: 'columna' }));
-        return out;
-      }
-      if (last.kind === 'STRING' || last.kind === 'NUMBER' || last.kind === 'BOOL' || last.kind === 'RPAREN') {
-        // Comparison complete → suggest AND / OR (extend) or the relation arg opener.
-        out.push({ text: '∧', label: '∧', kind: 'operator', hint: 'Y lógico (AND)' });
-        out.push({ text: '∨', label: '∨', kind: 'operator', hint: 'O lógico (OR)' });
-        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación', pad: 'lparen' });
-        return out;
-      }
-      return out;
-    }
-
-    // ----- Context: inside π ... (column list) -----
-    if (syntaxContext.kind === 'project-cols') {
-      const body = syntaxContext.bodyTokens;
-      const last = body[body.length - 1];
-      const out: Suggestion[] = [];
-      if (tail.length > 0) {
-        acSchema.allCols
-          .filter(c => c.toLowerCase().startsWith(tail))
-          .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
-        return out.slice(0, 10);
-      }
-      if (!last || last.kind === 'LBRACE' || last.kind === 'UNDERSCORE' || last.kind === 'COMMA') {
-        acSchema.allCols.slice(0, 10).forEach(c =>
-          out.push({ text: c, label: c, kind: 'column', hint: 'columna' }));
-        return out;
-      }
-      if (last.kind === 'IDENT') {
-        out.push({ text: ',', label: ',', kind: 'operator', hint: 'agregar otra columna', pad: 'comma' });
-        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación', pad: 'lparen' });
-        return out;
-      }
-      return out;
-    }
-
-    // ----- Context: inside ρ ... (alias or column renames) -----
-    if (syntaxContext.kind === 'rename-args') {
-      const out: Suggestion[] = [];
-      const last = syntaxContext.bodyTokens[syntaxContext.bodyTokens.length - 1];
-      if (tail.length > 0) {
-        acSchema.allCols
-          .filter(c => c.toLowerCase().startsWith(tail))
-          .forEach(c => out.push({ text: c, label: c, kind: 'column' }));
-        return out.slice(0, 10);
-      }
-      if (last?.kind === 'IDENT') {
-        out.push({ text: '→', label: '→', kind: 'operator', hint: 'renombrar a' });
-        out.push({ text: '(', label: '(', kind: 'operator', hint: 'abrir relación', pad: 'lparen' });
-        return out;
-      }
-      return out;
-    }
-
-    // ----- Default: top-level context -----
-    // Find the first non-whitespace char before the word being typed.
-    let i = wordStart - 1;
-    while (i >= 0 && /\s/.test(query[i])) i--;
-    const prev = i >= 0 ? query[i] : '';
-    const out: Suggestion[] = [];
-
-    const isFreshSlot = prev === '' || prev === '(' || prev === ',' ||
-      ['∪', '∩', '⋈', '⨯', '÷', '−', '-'].includes(prev);
-
-    if (isFreshSlot) {
-      acSchema.relations
-        .filter(r => r.toLowerCase().startsWith(word))
-        .forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
-      if (word === '' || 'σπρspr'.includes(word[0])) {
-        out.push({ text: 'σ', label: 'σ', kind: 'operator', hint: 'selección' });
-        out.push({ text: 'π', label: 'π', kind: 'operator', hint: 'proyección' });
-        out.push({ text: 'ρ', label: 'ρ', kind: 'operator', hint: 'renombrar' });
-      }
-    } else if (prev === ')' || /[a-zA-Z0-9_]/.test(prev)) {
-      if (word.length > 0) {
-        acSchema.allCols.filter(c => c.toLowerCase().startsWith(word)).forEach(c => out.push({ text: c, label: c, kind: 'column' }));
-        acSchema.relations.filter(r => r.toLowerCase().startsWith(word)).forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
-      } else {
-        out.push({ text: '⋈', label: '⋈', kind: 'operator', hint: 'junta natural' });
-        out.push({ text: '⨯', label: '⨯', kind: 'operator', hint: 'producto cartesiano' });
-        out.push({ text: '÷', label: '÷', kind: 'operator', hint: 'división' });
-        out.push({ text: '∪', label: '∪', kind: 'operator', hint: 'unión' });
-        out.push({ text: '∩', label: '∩', kind: 'operator', hint: 'intersección' });
-        out.push({ text: '−', label: '−', kind: 'operator', hint: 'diferencia' });
-      }
-    } else {
-      acSchema.allCols.filter(c => c.toLowerCase().startsWith(word)).forEach(c => out.push({ text: c, label: c, kind: 'column' }));
-      acSchema.relations.filter(r => r.toLowerCase().startsWith(word)).forEach(r => out.push({ text: r, label: r, kind: 'relation' }));
-    }
-
-    return out.slice(0, 10);
-  }, [acVisible, currentWord, wordStart, query, acSchema, syntaxContext]);
+    return predictNext(query, caretPos, {
+      relations: acSchema.relations,
+      columnsByRel: acSchema.colsByRel,
+      allColumns: acSchema.allColumns,
+      sampleValuesByCol: acSchema.sampleValuesByCol,
+      derivedRelations: Array.from(derived.keys()),
+    });
+  }, [acVisible, query, caretPos, acSchema, derived]);
 
   // Reset selection index when suggestions list changes
   useEffect(() => { setAcIndex(0); }, [suggestions.length, currentWord]);
@@ -781,8 +598,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
    */
   const acceptSuggestion = useCallback((s: Suggestion) => {
     // Default pad based on suggestion kind
-    const pad: 'name' | 'binary' | 'comma' | 'lparen' | 'punct' = s.pad ??
-      (s.kind === 'relation' || s.kind === 'column' ? 'name' : 'binary');
+    const pad: 'name' | 'binary' | 'comma' | 'lparen' | 'punct' | 'none' = s.pad ??
+      (s.kind === 'relation' || s.kind === 'column' || s.kind === 'literal' ? 'name' :
+        s.kind === 'template' ? 'none' : 'binary');
 
     const before = wordStart > 0 ? query[wordStart - 1] : '';
     const after = caretPos < query.length ? query[caretPos] : '';
@@ -807,12 +625,21 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         padBefore = !isOpenBoundary(before);
         break;
       case 'punct':
+      case 'none':
         break;
     }
 
     const insert = (padBefore ? ' ' : '') + s.text + (padAfter ? ' ' : '');
     setQuery(prev => prev.slice(0, wordStart) + insert + prev.slice(caretPos));
-    const newCaret = wordStart + insert.length;
+
+    // Caret placement: templates can request a specific offset within their text
+    // (e.g. landing on the first placeholder); everything else ends after the
+    // inserted token + trailing pad.
+    const baseOffset = padBefore ? 1 : 0;
+    const newCaret = wordStart + (s.caretOffset !== undefined
+      ? baseOffset + s.caretOffset
+      : insert.length);
+
     requestAnimationFrame(() => {
       const ta = editorRef.current;
       if (ta) {
@@ -834,8 +661,8 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
    *  every render — caret moves, mouse hovers and AC index changes all
    *  trigger renders and we don't want to recompute spans for each. */
   const highlightedNodes = useMemo(
-    () => highlightQuery(query, { relations: acSchema.relations, columns: acSchema.allCols }),
-    [query, acSchema.relations, acSchema.allCols],
+    () => highlightQuery(query, { relations: acSchema.relations, columns: acSchema.allColumns }),
+    [query, acSchema.relations, acSchema.allColumns],
   );
 
   const allRelations = useMemo(() => {
@@ -1047,7 +874,14 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
             ref={editorRef}
             className="ra-editor"
             value={query}
-            onChange={e => { setQuery(e.target.value); setAcVisible(true); }}
+            onChange={e => {
+              setQuery(e.target.value);
+              setAcVisible(true);
+              // Critical: keep caretPos in sync with what the user just typed.
+              // Without this, suggestions stay locked at the previous caret
+              // (typically 0 on mount) so the state machine never advances.
+              setCaretPos(e.target.selectionStart);
+            }}
             onSelect={updateCaret}
             onClick={updateCaret}
             onKeyUp={updateCaret}

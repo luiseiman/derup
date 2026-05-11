@@ -462,6 +462,9 @@
 
 .ra-ac-item.relation .ra-ac-label { color: #1e3a8a; font-weight: 600; }
 .ra-ac-item.column   .ra-ac-label { color: #065f46; }
+.ra-ac-item.literal  .ra-ac-label { color: #b45309; font-style: italic; }
+.ra-ac-item.template .ra-ac-label { color: #6b21a8; font-style: italic; font-weight: 600; }
+.ra-ac-item.keyword  .ra-ac-label { color: #475569; font-weight: 700; }
 .ra-ac-item.operator .ra-ac-label {
   font-family: 'Cambria Math', serif;
   font-size: 1.05em;
