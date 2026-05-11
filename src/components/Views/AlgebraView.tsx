@@ -35,6 +35,7 @@ const SYMBOLS: { sym: string; tip: string }[] = [
 interface Persisted {
   query?: string;
   tablesData?: Record<string, SerializedRelation>;
+  importedRelations?: Record<string, SerializedRelation>;
 }
 
 interface SerializedRelation {
@@ -100,6 +101,16 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     return m;
   });
 
+  const [importedRelations, setImportedRelations] = useState<Map<string, Relation>>(() => {
+    const m = new Map<string, Relation>();
+    if (persisted.importedRelations) {
+      for (const [name, s] of Object.entries(persisted.importedRelations)) {
+        m.set(name, deserializeRelation(s));
+      }
+    }
+    return m;
+  });
+
   const [derived, setDerived] = useState<Map<string, Relation>>(new Map());
   const [result, setResult] = useState<Relation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +119,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
 
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const pendingTargetTable = useRef<string | null>(null);
 
   // ---- persistence (debounced) ----
@@ -116,13 +128,19 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
       try {
         const tablesSerialized: Record<string, SerializedRelation> = {};
         tablesData.forEach((rel, name) => { tablesSerialized[name] = serializeRelation(rel); });
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ query, tablesData: tablesSerialized } satisfies Persisted));
+        const importedSerialized: Record<string, SerializedRelation> = {};
+        importedRelations.forEach((rel, name) => { importedSerialized[name] = serializeRelation(rel); });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          query,
+          tablesData: tablesSerialized,
+          importedRelations: importedSerialized,
+        } satisfies Persisted));
       } catch {
         // storage full — ignore
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [query, tablesData]);
+  }, [query, tablesData, importedRelations]);
 
   // ---- actions ----
 
@@ -131,9 +149,11 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     setErrorPos(null);
     try {
       const program = parse(query);
-      // Build env: base tables + previously derived (overwritten by fresh assignments)
+      // Build env: schema tables + imported relations + previously derived.
+      // If an imported relation shares a name with a schema table, imported wins.
       const env = new Map<string, Relation>();
       tablesData.forEach((rel, name) => env.set(name, rel));
+      importedRelations.forEach((rel, name) => env.set(name, rel));
       const { result: r, derived: d } = evaluate(program, env);
       setDerived(d);
       setResult(r);
@@ -146,7 +166,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
       }
       setResult(null);
     }
-  }, [query, tablesData]);
+  }, [query, tablesData, importedRelations]);
 
   const insertSymbol = (sym: string) => {
     const ta = editorRef.current;
@@ -203,6 +223,92 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     });
   };
 
+  // ---- ad-hoc CSV import (relations not tied to ER schema) ----
+
+  /** Sanitize a filename into a valid identifier: letters, digits, underscore;
+   *  starts with letter or underscore. Returns null if nothing usable. */
+  const sanitizeRelName = (raw: string): string | null => {
+    let s = raw
+      .replace(/\.[^.]+$/, '')           // strip extension
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')    // strip accents
+      .replace(/[^a-zA-Z0-9_]/g, '_')     // non-alnum → _
+      .replace(/_+/g, '_')                // collapse repeats
+      .replace(/^_|_$/g, '');             // trim edges
+    if (s === '') return null;
+    if (/^[0-9]/.test(s)) s = '_' + s;    // can't start with digit
+    return s;
+  };
+
+  /** Find a free name by appending _2, _3, … when there's a collision with
+   *  schema tables or already-imported relations. */
+  const uniqueRelName = (base: string, exclude?: string): string => {
+    const taken = new Set<string>();
+    tables.forEach(t => taken.add(t.name));
+    importedRelations.forEach((_, n) => taken.add(n));
+    if (exclude) taken.delete(exclude);
+    if (!taken.has(base)) return base;
+    let n = 2;
+    while (taken.has(`${base}_${n}`)) n++;
+    return `${base}_${n}`;
+  };
+
+  const triggerImportCSV = () => importInputRef.current?.click();
+
+  const handleImportFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    const errors: string[] = [];
+    const added: Map<string, Relation> = new Map();
+    for (const f of files) {
+      try {
+        const text = await f.text();
+        const rel = parseCSV(text);
+        const base = sanitizeRelName(f.name) ?? `relacion_${importedRelations.size + added.size + 1}`;
+        const name = uniqueRelName(base);
+        added.set(name, rel);
+      } catch (err) {
+        errors.push(`${f.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    if (added.size > 0) {
+      setImportedRelations(prev => {
+        const next = new Map(prev);
+        added.forEach((rel, name) => next.set(name, rel));
+        return next;
+      });
+    }
+    if (errors.length > 0) {
+      alert(`Algunos archivos no se pudieron importar:\n\n${errors.join('\n')}`);
+    }
+  };
+
+  const renameImported = (oldName: string) => {
+    const proposed = prompt(`Nuevo nombre para la relación "${oldName}":`, oldName);
+    if (!proposed || proposed === oldName) return;
+    const sanitized = sanitizeRelName(proposed);
+    if (!sanitized) { alert('Nombre inválido. Usá letras, dígitos y _ (sin empezar con dígito).'); return; }
+    const finalName = uniqueRelName(sanitized, oldName);
+    setImportedRelations(prev => {
+      const next = new Map<string, Relation>();
+      prev.forEach((rel, n) => {
+        if (n === oldName) next.set(finalName, rel);
+        else next.set(n, rel);
+      });
+      return next;
+    });
+  };
+
+  const removeImported = (name: string) => {
+    if (!confirm(`¿Quitar la relación "${name}"?`)) return;
+    setImportedRelations(prev => {
+      const next = new Map(prev);
+      next.delete(name);
+      return next;
+    });
+  };
+
   const exportResultCSV = () => {
     if (!result) return;
     const csv = relationToCSV(result);
@@ -228,8 +334,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
   const allRelations = useMemo(() => {
     const names = new Set<string>();
     tables.forEach(t => names.add(t.name));
+    importedRelations.forEach((_, n) => names.add(n));
     return Array.from(names).sort();
-  }, [tables]);
+  }, [tables, importedRelations]);
 
   // ---- render ----
 
@@ -242,10 +349,21 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         style={{ display: 'none' }}
         onChange={handleCSVFile}
       />
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        multiple
+        style={{ display: 'none' }}
+        onChange={handleImportFiles}
+      />
 
       <div className="algebra-toolbar">
         <h3>Álgebra relacional</h3>
         <div className="algebra-toolbar-actions">
+          <button className="algebra-btn" onClick={triggerImportCSV} title="Importar uno o varios CSV como relaciones nuevas (sin necesidad de ER)">
+            📥 Importar CSV
+          </button>
           <button className="algebra-btn primary" onClick={runQuery}>▶ Ejecutar</button>
           <button className="algebra-btn" onClick={clearEditor}>Limpiar</button>
           <button className="algebra-btn" onClick={exportResultCSV} disabled={!result}>
@@ -261,10 +379,13 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
             <span>Tablas del esquema ({tables.length})</span>
           </div>
           <div className="algebra-panel-body">
-            {tables.length === 0 && (
+            {tables.length === 0 && importedRelations.size === 0 && (
               <div className="ra-empty">
-                <div>Sin tablas en el esquema.</div>
-                <div style={{ fontSize: '0.75rem' }}>Definí entidades en la pestaña ER.</div>
+                <div>No hay relaciones disponibles.</div>
+                <div style={{ fontSize: '0.75rem', textAlign: 'center', maxWidth: 240 }}>
+                  Importá uno o varios CSV con el botón "📥 Importar CSV"
+                  o definí entidades en la pestaña ER.
+                </div>
               </div>
             )}
             {tables.map(t => {
@@ -313,6 +434,46 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
                 </div>
               );
             })}
+
+            {importedRelations.size > 0 && (
+              <>
+                <div className="ra-section-label">Relaciones importadas ({importedRelations.size})</div>
+                {Array.from(importedRelations.entries()).map(([name, rel]) => {
+                  const isExpanded = expandedTable === '__imp__' + name;
+                  return (
+                    <div key={'imp:' + name} className="ra-table-item">
+                      <div
+                        className="ra-table-header"
+                        style={{ background: '#ecfdf5' }}
+                        onClick={() => setExpandedTable(isExpanded ? null : '__imp__' + name)}
+                      >
+                        <span>{name}</span>
+                        <span className="ra-row-count loaded">{rel.rows.length} filas</span>
+                      </div>
+                      {isExpanded && (
+                        <>
+                          <div className="ra-table-cols">
+                            {rel.columns.map(c => (
+                              <div key={c.name}>
+                                • {c.name}<span className="ra-col-type">: {c.type}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="ra-table-actions">
+                            <button className="algebra-btn" onClick={() => renameImported(name)}>
+                              Renombrar
+                            </button>
+                            <button className="algebra-btn danger" onClick={() => removeImported(name)}>
+                              Quitar
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
 
             {derived.size > 0 && (
               <>
