@@ -13,23 +13,31 @@ interface AlgebraViewProps {
 }
 
 const STORAGE_KEY = 'derup.algebra.v1';
-const SYMBOLS: { sym: string; tip: string }[] = [
-  { sym: 'σ', tip: 'select (selección)' },
-  { sym: 'π', tip: 'project (proyección)' },
-  { sym: 'ρ', tip: 'rename (renombrar)' },
-  { sym: '⋈', tip: 'natural join' },
-  { sym: '⨯', tip: 'producto cartesiano' },
-  { sym: '∪', tip: 'unión' },
-  { sym: '∩', tip: 'intersección' },
-  { sym: '−', tip: 'diferencia' },
-  { sym: '∧', tip: 'AND lógico' },
-  { sym: '∨', tip: 'OR lógico' },
-  { sym: '¬', tip: 'NOT lógico' },
-  { sym: '≠', tip: 'distinto' },
-  { sym: '≤', tip: 'menor o igual' },
-  { sym: '≥', tip: 'mayor o igual' },
-  { sym: '→', tip: 'flecha (rename de columna)' },
-  { sym: '.', tip: 'punto (calificador R.col)' },
+
+/**
+ * Each symbol declares whether it wants automatic padding around it when
+ * inserted via click. Unary prefix operators (σ π ρ ¬) pad before only —
+ * a trailing space would look weird in "σ_{...}". Binary operators and
+ * comparators pad on both sides. Punctuation like "." pads nothing.
+ */
+type InsertKind = 'name' | 'unary' | 'binary' | 'punct';
+const SYMBOLS: { sym: string; tip: string; kind: InsertKind }[] = [
+  { sym: 'σ', tip: 'select (selección)', kind: 'unary' },
+  { sym: 'π', tip: 'project (proyección)', kind: 'unary' },
+  { sym: 'ρ', tip: 'rename (renombrar)', kind: 'unary' },
+  { sym: '⋈', tip: 'natural join', kind: 'binary' },
+  { sym: '⨯', tip: 'producto cartesiano', kind: 'binary' },
+  { sym: '∪', tip: 'unión', kind: 'binary' },
+  { sym: '∩', tip: 'intersección', kind: 'binary' },
+  { sym: '−', tip: 'diferencia', kind: 'binary' },
+  { sym: '∧', tip: 'AND lógico', kind: 'binary' },
+  { sym: '∨', tip: 'OR lógico', kind: 'binary' },
+  { sym: '¬', tip: 'NOT lógico', kind: 'unary' },
+  { sym: '≠', tip: 'distinto', kind: 'binary' },
+  { sym: '≤', tip: 'menor o igual', kind: 'binary' },
+  { sym: '≥', tip: 'mayor o igual', kind: 'binary' },
+  { sym: '→', tip: 'flecha (rename de columna)', kind: 'binary' },
+  { sym: '.', tip: 'punto (calificador R.col)', kind: 'punct' },
 ];
 
 interface Persisted {
@@ -172,21 +180,52 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     }
   }, [query, tablesData, importedRelations]);
 
-  /** Insert arbitrary text at the current caret position in the query editor.
-   *  Used by the symbols bar AND by click-to-insert on relations and columns. */
-  const insertAtCaret = useCallback((text: string) => {
+  /**
+   * Insert text at the caret with context-aware padding. The kind tells us
+   * how to space the inserted token relative to its neighbours:
+   *   - 'name'   → relation or column name: pad before AND after.
+   *   - 'unary'  → prefix operator (σ π ρ ¬): pad before only — the body
+   *                that follows is "_{…}" or "(…)" with no space.
+   *   - 'binary' → infix operator or comparison: pad before AND after.
+   *   - 'punct'  → punctuation like ".": no padding.
+   *
+   * Padding is suppressed when the adjacent char is already whitespace or
+   * a natural boundary like "(", "{", ",", ")", "}", start/end of input.
+   */
+  const insertAtCaret = useCallback((text: string, kind: InsertKind = 'name') => {
     const ta = editorRef.current;
     if (!ta) return;
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
-    setQuery(prev => prev.slice(0, start) + text + prev.slice(end));
+
+    const before = (start > 0 ? ta.value[start - 1] : '');
+    const after = (end < ta.value.length ? ta.value[end] : '');
+
+    const isOpenBoundary = (c: string) => c === '' || /\s/.test(c) || c === '(' || c === '{' || c === ',';
+    const isCloseBoundary = (c: string) => c === '' || /\s/.test(c) || c === ')' || c === '}' || c === ',' || c === ';';
+
+    let padBefore = false;
+    let padAfter = false;
+    if (kind === 'name' || kind === 'binary') {
+      padBefore = !isOpenBoundary(before);
+      padAfter = !isCloseBoundary(after);
+    } else if (kind === 'unary') {
+      padBefore = !isOpenBoundary(before);
+      // no padAfter — unary prefix glues to its argument (σ_{…}, ¬cond, …)
+    }
+    // 'punct' → no padding.
+
+    const inserted = (padBefore ? ' ' : '') + text + (padAfter ? ' ' : '');
+    setQuery(prev => prev.slice(0, start) + inserted + prev.slice(end));
+
+    const caretAfter = start + inserted.length;
     requestAnimationFrame(() => {
       ta.focus();
-      ta.selectionStart = ta.selectionEnd = start + text.length;
+      ta.selectionStart = ta.selectionEnd = caretAfter;
     });
   }, []);
 
-  const insertSymbol = (sym: string) => insertAtCaret(sym);
+  const insertSymbol = (sym: string, kind: InsertKind) => insertAtCaret(sym, kind);
 
   const triggerLoadCSV = (tableName: string) => {
     pendingTargetTable.current = tableName;
@@ -661,7 +700,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
                 key={s.sym}
                 className="ra-symbol-btn"
                 title={s.tip}
-                onClick={() => insertSymbol(s.sym)}
+                onClick={() => insertSymbol(s.sym, s.kind)}
               >
                 {s.sym}
               </button>
