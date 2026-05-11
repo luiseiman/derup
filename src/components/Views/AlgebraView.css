@@ -278,8 +278,10 @@
 }
 
 .ra-symbol-btn {
-  width: 30px;
-  height: 26px;
+  position: relative;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 6px;
   border: 1px solid var(--panel-border);
   border-radius: 4px;
   background: white;
@@ -288,7 +290,23 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   transition: all var(--transition-fast);
+}
+.ra-symbol-glyph { line-height: 1; }
+.ra-symbol-kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: #f3f4f6;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 2px;
+}
+.ra-symbol-btn:hover .ra-symbol-kbd {
+  background: white;
+  color: var(--primary-700);
 }
 .ra-symbol-btn:hover {
   background: var(--primary-50);

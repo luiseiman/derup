@@ -25,25 +25,39 @@ const STORAGE_KEY = 'derup.algebra.v1';
  * comparators pad on both sides. Punctuation like "." pads nothing.
  */
 type InsertKind = 'name' | 'unary' | 'binary' | 'punct';
-const SYMBOLS: { sym: string; tip: string; kind: InsertKind }[] = [
-  { sym: 'σ', tip: 'σ — selección', kind: 'unary' },
-  { sym: 'π', tip: 'π — proyección', kind: 'unary' },
-  { sym: 'ρ', tip: 'ρ — renombrar', kind: 'unary' },
-  { sym: '⋈', tip: '⋈ — junta natural', kind: 'binary' },
-  { sym: '⨯', tip: '⨯ — producto cartesiano', kind: 'binary' },
-  { sym: '÷', tip: '÷ — división', kind: 'binary' },
-  { sym: '∪', tip: '∪ — unión', kind: 'binary' },
-  { sym: '∩', tip: '∩ — intersección', kind: 'binary' },
-  { sym: '−', tip: '− — diferencia', kind: 'binary' },
-  { sym: '∧', tip: '∧ — AND lógico', kind: 'binary' },
-  { sym: '∨', tip: '∨ — OR lógico', kind: 'binary' },
-  { sym: '¬', tip: '¬ — NOT lógico', kind: 'unary' },
-  { sym: '≠', tip: '≠ — distinto', kind: 'binary' },
-  { sym: '≤', tip: '≤ — menor o igual', kind: 'binary' },
-  { sym: '≥', tip: '≥ — mayor o igual', kind: 'binary' },
-  { sym: '→', tip: '→ — flecha (renombrar columna)', kind: 'binary' },
-  { sym: '.', tip: '. — calificador R.col', kind: 'punct' },
+const SYMBOLS: { sym: string; tip: string; kind: InsertKind; shortcut?: string }[] = [
+  { sym: 'σ', tip: 'selección',           kind: 'unary',  shortcut: 'S' },
+  { sym: 'π', tip: 'proyección',          kind: 'unary',  shortcut: 'P' },
+  { sym: 'ρ', tip: 'renombrar',           kind: 'unary',  shortcut: 'R' },
+  { sym: '⋈', tip: 'junta natural',       kind: 'binary', shortcut: 'J' },
+  { sym: '⨯', tip: 'producto cartesiano', kind: 'binary', shortcut: 'X' },
+  { sym: '÷', tip: 'división',            kind: 'binary', shortcut: 'D' },
+  { sym: '∪', tip: 'unión',               kind: 'binary', shortcut: 'U' },
+  { sym: '∩', tip: 'intersección',        kind: 'binary', shortcut: 'I' },
+  { sym: '−', tip: 'diferencia',          kind: 'binary', shortcut: 'M' },
+  { sym: '∧', tip: 'AND lógico',          kind: 'binary', shortcut: 'A' },
+  { sym: '∨', tip: 'OR lógico',           kind: 'binary', shortcut: 'O' },
+  { sym: '¬', tip: 'NOT lógico',          kind: 'unary',  shortcut: 'N' },
+  { sym: '≠', tip: 'distinto',            kind: 'binary', shortcut: '=' },
+  { sym: '≤', tip: 'menor o igual',       kind: 'binary', shortcut: ',' },
+  { sym: '≥', tip: 'mayor o igual',       kind: 'binary', shortcut: '.' },
+  { sym: '→', tip: 'flecha (rename de columna)', kind: 'binary', shortcut: '>' },
+  { sym: '.', tip: 'calificador R.col',   kind: 'punct' },
 ];
+
+/** Quick lookup: keyboard key (lowercase) → unicode symbol to insert. Built
+ *  from SYMBOLS so the two never drift apart. */
+const KEY_TO_SYMBOL: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  for (const s of SYMBOLS) {
+    if (s.shortcut) map[s.shortcut.toLowerCase()] = s.sym;
+  }
+  return map;
+})();
+
+/** Detect Mac for tooltip display (⌥) vs Windows/Linux (Alt). */
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+const ALT_LABEL = IS_MAC ? '⌥' : 'Alt+';
 
 interface Persisted {
   query?: string;
@@ -894,6 +908,29 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
               }
             }}
             onKeyDown={e => {
+              // ── Symbol keyboard shortcuts (Alt+letter / ⌥+letter on Mac) ──
+              // Intercepted BEFORE the default handler so the OS doesn't
+              // produce accented chars (e.g. ⌥+S = ß on Mac).
+              if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.length === 1) {
+                const k = e.key.toLowerCase();
+                const sym = KEY_TO_SYMBOL[k];
+                if (sym) {
+                  e.preventDefault();
+                  const ta = editorRef.current;
+                  if (!ta) return;
+                  const start = ta.selectionStart;
+                  const end = ta.selectionEnd;
+                  setQuery(prev => prev.slice(0, start) + sym + prev.slice(end));
+                  const next = start + sym.length;
+                  requestAnimationFrame(() => {
+                    ta.focus();
+                    ta.selectionStart = ta.selectionEnd = next;
+                    setCaretPos(next);
+                    setAcVisible(true);
+                  });
+                  return;
+                }
+              }
               // Run query
               if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
@@ -952,10 +989,11 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
               <button
                 key={s.sym}
                 className="ra-symbol-btn"
-                title={s.tip}
+                title={`${s.sym} — ${s.tip}${s.shortcut ? `   (${ALT_LABEL}${s.shortcut})` : ''}`}
                 onClick={() => insertSymbol(s.sym, s.kind)}
               >
-                {s.sym}
+                <span className="ra-symbol-glyph">{s.sym}</span>
+                {s.shortcut && <span className="ra-symbol-kbd">{s.shortcut}</span>}
               </button>
             ))}
           </div>
