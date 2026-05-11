@@ -534,6 +534,35 @@
   font-size: 0.85em;
 }
 
+/* ----- SQL translation banner ----- */
+.ra-sql-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #fef3c7, #fde68a);
+  border-top: 1px solid #f59e0b;
+  font-size: 0.78rem;
+  color: #78350f;
+  font-family: 'Courier New', monospace;
+}
+.ra-sql-icon {
+  font-size: 1.1rem;
+  color: #b45309;
+  font-weight: 700;
+}
+.ra-sql-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #78350f;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.ra-sql-dismiss:hover { color: #b45309; }
+
 /* ----- Math-style preview of the parsed query ----- */
 
 .ra-preview {

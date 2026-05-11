@@ -11,6 +11,7 @@ import AlgebraTree from './AlgebraTree';
 import { highlight as highlightQuery } from './algebraHighlight';
 import { predictNext, wordAtCaret, type Suggestion as PredictSuggestion } from './algebraPredict';
 import { reverseEngineerER } from '../../utils/reverseEngineerER';
+import { sqlToAlgebra } from '../../utils/sqlToAlgebra';
 import Splitter from '../Splitter';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import './AlgebraView.css';
@@ -226,9 +227,29 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
 
   // ---- actions ----
 
+  /** Pre-flight check before running the algebra parser: if the user typed
+   *  a SELECT … FROM … statement (SQL) we translate it into the equivalent
+   *  algebra expression so they don't have to leave the editor to rewrite. */
+  const [sqlTranslationNote, setSqlTranslationNote] = useState<string | null>(null);
+
   const runQuery = useCallback(() => {
     setError(null);
     setErrorPos(null);
+    setSqlTranslationNote(null);
+
+    // If the input looks like SQL, replace the editor's query with the
+    // translated algebra and re-run on the next state commit. (We don't run
+    // the translated version against the parser directly because the user
+    // wouldn't see what changed.)
+    const sqlTrans = sqlToAlgebra(query);
+    if (sqlTrans) {
+      setQuery(sqlTrans.algebra);
+      setCaretPos(sqlTrans.algebra.length);
+      setSqlTranslationNote(sqlTrans.note);
+      setPendingRun(true); // existing flag that triggers runQuery after commit
+      return;
+    }
+
     try {
       const program = parse(query);
       const env = new Map<string, Relation>();
@@ -1249,6 +1270,17 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
               <span className="ra-ac-tip">
                 <kbd>Tab</kbd> insertar · <kbd>↑↓</kbd> navegar · <kbd>Esc</kbd> ocultar
               </span>
+            </div>
+          )}
+          {sqlTranslationNote && (
+            <div className="ra-sql-banner" title="El editor reconoció SQL y lo tradujo a álgebra antes de ejecutar.">
+              <span className="ra-sql-icon">↪</span>
+              <span>{sqlTranslationNote}</span>
+              <button
+                className="ra-sql-dismiss"
+                onClick={() => setSqlTranslationNote(null)}
+                title="Cerrar este aviso"
+              >×</button>
             </div>
           )}
           <AlgebraPreview query={query} />
