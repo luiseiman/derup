@@ -29,6 +29,7 @@ const SYMBOLS: { sym: string; tip: string }[] = [
   { sym: '≤', tip: 'menor o igual' },
   { sym: '≥', tip: 'mayor o igual' },
   { sym: '→', tip: 'flecha (rename de columna)' },
+  { sym: '.', tip: 'punto (calificador R.col)' },
 ];
 
 interface Persisted {

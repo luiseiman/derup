@@ -10,7 +10,7 @@ export type TokenKind =
   | 'OP_JOIN' | 'OP_CROSS' | 'OP_UNION' | 'OP_INTERSECT' | 'OP_DIFFERENCE'
   | 'AND' | 'OR' | 'NOT'
   | 'EQ' | 'NEQ' | 'LT' | 'GT' | 'LE' | 'GE'
-  | 'ASSIGN' | 'ARROW' | 'COMMA' | 'SEMI'
+  | 'ASSIGN' | 'ARROW' | 'COMMA' | 'SEMI' | 'DOT'
   | 'LPAREN' | 'RPAREN' | 'LBRACE' | 'RBRACE'
   | 'UNDERSCORE'
   | 'IDENT' | 'NUMBER' | 'STRING' | 'BOOL'
@@ -112,7 +112,7 @@ export function tokenize(input: string): Token[] {
     // Punctuation
     const singles: Record<string, TokenKind> = {
       '(': 'LPAREN', ')': 'RPAREN', '{': 'LBRACE', '}': 'RBRACE',
-      ',': 'COMMA', ';': 'SEMI',
+      ',': 'COMMA', ';': 'SEMI', '.': 'DOT',
       '_': 'UNDERSCORE',
       '=': 'EQ', '<': 'LT', '>': 'GT',
       '-': 'OP_DIFFERENCE',  // '-' is always treated as difference between rel-expressions;

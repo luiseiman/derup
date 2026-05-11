@@ -119,11 +119,22 @@ class Parser {
     let left = this.parseUnary();
     while (this.match('OP_JOIN', 'OP_CROSS')) {
       const opTok = this.consume();
+      // Theta-join: ⋈_{cond} or ⋈{cond} or join_{cond} — only valid after ⋈, not after ⨯.
+      let condition: Condition | undefined;
+      if (opTok.kind === 'OP_JOIN' && (this.match('UNDERSCORE') || this.match('LBRACE'))) {
+        if (this.match('UNDERSCORE')) this.consume();
+        if (this.match('LBRACE')) {
+          this.consume();
+          condition = this.parseCondition();
+          this.expect('RBRACE', "Se esperaba '}' cerrando la condición de join.");
+        }
+      }
       const right = this.parseUnary();
       left = {
         kind: 'binary',
-        op: opTok.kind === 'OP_JOIN' ? 'join' : 'cross',
+        op: opTok.kind === 'OP_JOIN' ? (condition ? 'theta' : 'join') : 'cross',
         left, right,
+        condition,
         pos: opTok.pos,
       };
     }
@@ -155,17 +166,27 @@ class Parser {
     const start = this.consume(); // π
     if (this.match('UNDERSCORE')) this.consume();
     this.expect('LBRACE', "Se esperaba '{' después de π.");
-    const columns: string[] = [];
-    columns.push(this.expect('IDENT', 'Se esperaba nombre de columna.').text);
+    const columns: string[] = [this.parseQualifiedIdent()];
     while (this.match('COMMA')) {
       this.consume();
-      columns.push(this.expect('IDENT', 'Se esperaba nombre de columna.').text);
+      columns.push(this.parseQualifiedIdent());
     }
     this.expect('RBRACE', "Se esperaba '}' cerrando la lista de columnas.");
     this.expect('LPAREN');
     const child = this.parseRelExpr();
     this.expect('RPAREN');
     return { kind: 'project', columns, child, pos: start.pos };
+  }
+
+  /** Read IDENT or IDENT.IDENT and return the combined name. */
+  private parseQualifiedIdent(): string {
+    const head = this.expect('IDENT', 'Se esperaba un identificador.');
+    if (this.match('DOT')) {
+      this.consume();
+      const tail = this.expect('IDENT', `Se esperaba nombre de columna después de '${head.text}.'`);
+      return `${head.text}.${tail.text}`;
+    }
+    return head.text;
   }
 
   private parseRename(): RelExpr {
@@ -280,6 +301,12 @@ class Parser {
     const t = this.peek();
     if (t.kind === 'IDENT') {
       this.consume();
+      // Qualified name: R.col (used after × or θ-join to disambiguate).
+      if (this.match('DOT')) {
+        this.consume();
+        const tail = this.expect('IDENT', `Se esperaba nombre de columna después de '${t.text}.'`);
+        return { kind: 'col', name: `${t.text}.${tail.text}`, pos: t.pos };
+      }
       return { kind: 'col', name: t.text, pos: t.pos };
     }
     if (t.kind === 'NUMBER') {

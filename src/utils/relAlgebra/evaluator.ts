@@ -67,19 +67,33 @@ function evalExpr(expr: RelExpr, env: Map<string, Relation>): Relation {
     case 'project':
       return doProject(evalExpr(expr.child, env), expr.columns, expr.pos);
     case 'rename':
-      return doRename(evalExpr(expr.child, env), expr.columnMap, expr.pos);
+      return doRename(evalExpr(expr.child, env), expr.alias, expr.columnMap, expr.pos);
     case 'binary': {
       const L = evalExpr(expr.left, env);
       const R = evalExpr(expr.right, env);
+      const Lname = relNameOf(expr.left);
+      const Rname = relNameOf(expr.right);
       switch (expr.op) {
-        case 'cross': return doCross(L, R);
+        case 'cross': return doCross(L, R, Lname, Rname);
         case 'join': return doNaturalJoin(L, R);
+        case 'theta': {
+          // Ramakrishnan: R ⋈_c S ≡ σ_c (R × S)
+          const cross = doCross(L, R, Lname, Rname);
+          return doSelect(cross, expr.condition!);
+        }
         case 'union': return doUnion(L, R, expr.pos);
         case 'intersect': return doIntersect(L, R, expr.pos);
         case 'difference': return doDifference(L, R, expr.pos);
       }
     }
   }
+}
+
+/** Returns the original relation name if expr is a simple reference, else undefined. */
+function relNameOf(expr: RelExpr): string | undefined {
+  if (expr.kind === 'ref') return expr.name;
+  if (expr.kind === 'rename' && expr.alias) return expr.alias;
+  return undefined;
 }
 
 // ----- σ -----
@@ -109,19 +123,51 @@ function evalCondition(cond: Condition, row: Value[], cols: Column[]): boolean {
   }
 }
 
+/**
+ * Find a column by name. Accepts both qualified (R.col) and unqualified (col)
+ * names. An unqualified name matches a qualified column ONLY if it's unambiguous:
+ * "col" matches "R.col" iff no other column ends in ".col" and no plain "col" exists
+ * with a different position. Throws on ambiguity.
+ */
+function findColIdx(cols: Column[], name: string, pos: import('./types').SrcPos): number {
+  // 1. Exact match first.
+  for (let i = 0; i < cols.length; i++) if (cols[i].name === name) return i;
+
+  // 2. Unqualified requested name → match any column whose suffix is ".name".
+  //    E.g. "id" matches "usuario.id". Ambiguous if more than one match.
+  if (!name.includes('.')) {
+    const matches: number[] = [];
+    for (let i = 0; i < cols.length; i++) {
+      if (cols[i].name.endsWith('.' + name)) matches.push(i);
+    }
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) {
+      const cands = matches.map(i => cols[i].name).join(', ');
+      throw new RAError(`Columna '${name}' es ambigua: posibles ${cands}.`, pos);
+    }
+    throw new RAError(`Columna '${name}' no encontrada.`, pos);
+  }
+
+  // 3. Qualified requested name (R.col) with no exact column → fall back to the
+  //    bare column "col" if it exists and is unique. Handles cross-product cases
+  //    where only one side contributed a column with that name, so no prefix
+  //    was added.
+  const base = name.slice(name.indexOf('.') + 1);
+  const matches: number[] = [];
+  for (let i = 0; i < cols.length; i++) {
+    if (cols[i].name === base) matches.push(i);
+  }
+  if (matches.length === 1) return matches[0];
+  throw new RAError(`Columna '${name}' no encontrada.`, pos);
+}
+
 function resolveOperand(op: CondOperand, row: Value[], cols: Column[]): Value {
   if (op.kind === 'lit') return op.value;
-  const idx = cols.findIndex(c => c.name === op.name);
-  if (idx < 0) throw new RAError(`Columna '${op.name}' no encontrada.`, op.pos);
-  return row[idx];
+  return row[findColIdx(cols, op.name, op.pos)];
 }
 
 function typeOfOperand(op: CondOperand, cols: Column[]): ColumnType {
-  if (op.kind === 'col') {
-    const c = cols.find(c => c.name === op.name);
-    if (!c) throw new RAError(`Columna '${op.name}' no encontrada.`, op.pos);
-    return c.type;
-  }
+  if (op.kind === 'col') return cols[findColIdx(cols, op.name, op.pos)].type;
   return op.valueType;
 }
 
@@ -175,12 +221,11 @@ function compareValues(a: Value, b: Value, op: CmpOp): boolean {
 // ----- π -----
 
 function doProject(rel: Relation, cols: string[], pos: import('./types').SrcPos): Relation {
-  const indices = cols.map(name => {
-    const i = rel.columns.findIndex(c => c.name === name);
-    if (i < 0) throw new RAError(`Columna '${name}' no existe en la relación.`, pos);
-    return i;
-  });
-  const newCols: Column[] = indices.map(i => rel.columns[i]);
+  const indices = cols.map(name => findColIdx(rel.columns, name, pos));
+  // Project keeps the column names AS REQUESTED — if user asked for "R.col"
+  // the output column is "R.col"; if they asked for "col" the output is "col".
+  // This matches Ramakrishnan's convention that projection is over a list of names.
+  const newCols: Column[] = indices.map((i, k) => ({ name: cols[k], type: rel.columns[i].type }));
   const seen = new Set<string>();
   const rows: Value[][] = [];
   for (const row of rel.rows) {
@@ -196,31 +241,79 @@ function doProject(rel: Relation, cols: string[], pos: import('./types').SrcPos)
 
 // ----- ρ -----
 
-function doRename(rel: Relation, columnMap: Record<string, string> | undefined, pos: import('./types').SrcPos): Relation {
-  if (!columnMap) return rel; // alias-only rename is a no-op on Relation contents
-  const newCols = rel.columns.map(c => {
-    if (Object.prototype.hasOwnProperty.call(columnMap, c.name)) {
-      return { name: columnMap[c.name], type: c.type };
+/**
+ * Rename. Two forms:
+ *  - alias-only: ρ_{NewName}(R) — re-tags the relation. If columns are
+ *    qualified with the old relation name (R.col), they become NewName.col.
+ *  - columnMap: ρ_{a→a1, b→b1}(R) — renames individual columns.
+ */
+function doRename(
+  rel: Relation,
+  alias: string | undefined,
+  columnMap: Record<string, string> | undefined,
+  pos: import('./types').SrcPos,
+): Relation {
+  if (columnMap) {
+    // Validate that every requested rename refers to an existing column.
+    for (const from of Object.keys(columnMap)) {
+      const exists = rel.columns.some(c => c.name === from || c.name.endsWith('.' + from));
+      if (!exists) throw new RAError(`No se puede renombrar: columna '${from}' no existe.`, pos);
     }
-    return c;
-  });
-  // Validate that every requested rename refers to an existing column
-  for (const from of Object.keys(columnMap)) {
-    if (!rel.columns.some(c => c.name === from)) {
-      throw new RAError(`No se puede renombrar: columna '${from}' no existe.`, pos);
-    }
+    const newCols = rel.columns.map(c => {
+      // Direct match
+      if (Object.prototype.hasOwnProperty.call(columnMap, c.name)) {
+        return { name: columnMap[c.name], type: c.type };
+      }
+      // Unqualified-suffix match
+      const idx = c.name.indexOf('.');
+      if (idx >= 0) {
+        const tail = c.name.slice(idx + 1);
+        if (Object.prototype.hasOwnProperty.call(columnMap, tail)) {
+          return { name: columnMap[tail], type: c.type };
+        }
+      }
+      return c;
+    });
+    return { columns: newCols, rows: rel.rows.map(r => [...r]) };
   }
-  return { columns: newCols, rows: rel.rows.map(r => [...r]) };
+
+  if (alias) {
+    // Re-tag qualified columns under the new alias. Unqualified columns become
+    // qualified under the alias so that downstream theta-joins can reference
+    // them as alias.col.
+    const newCols = rel.columns.map(c => {
+      const dot = c.name.indexOf('.');
+      const local = dot >= 0 ? c.name.slice(dot + 1) : c.name;
+      return { name: `${alias}.${local}`, type: c.type };
+    });
+    return { columns: newCols, rows: rel.rows.map(r => [...r]) };
+  }
+  return rel;
 }
 
 // ----- ⨯ -----
 
-function doCross(L: Relation, R: Relation): Relation {
-  // On column-name collision, prefix with index to keep them distinguishable.
+/**
+ * Ramakrishnan, Cap 4: cross product concatenates tuples. On name collision,
+ * the convention is to prefix with the source relation name (R.a, S.a). If
+ * either side's relation name isn't known (e.g. it's a sub-expression), fall
+ * back to a positional suffix so output stays unambiguous.
+ */
+function doCross(L: Relation, R: Relation, Lname?: string, Rname?: string): Relation {
   const lNames = new Set(L.columns.map(c => c.name));
+  const collisions = new Set(R.columns.filter(c => lNames.has(c.name)).map(c => c.name));
+
+  const renameLeft = (c: Column): Column =>
+    collisions.has(c.name) && Lname ? { name: `${Lname}.${c.name}`, type: c.type } : c;
+  const renameRight = (c: Column): Column => {
+    if (!collisions.has(c.name)) return c;
+    if (Rname) return { name: `${Rname}.${c.name}`, type: c.type };
+    return { name: `${c.name}_2`, type: c.type };
+  };
+
   const cols: Column[] = [
-    ...L.columns,
-    ...R.columns.map(c => lNames.has(c.name) ? { name: `${c.name}_2`, type: c.type } : c),
+    ...L.columns.map(renameLeft),
+    ...R.columns.map(renameRight),
   ];
   const rows: Value[][] = [];
   for (const lr of L.rows) for (const rr of R.rows) rows.push([...lr, ...rr]);
@@ -266,19 +359,26 @@ function doNaturalJoin(L: Relation, R: Relation): Relation {
   return { columns: cols, rows };
 }
 
-// ----- ∪ ∩ - (require same schema) -----
+// ----- ∪ ∩ - (Ramakrishnan union-compatibility: same arity + same domains, NOT same names) -----
 
-function assertSameSchema(L: Relation, R: Relation, pos: import('./types').SrcPos): void {
+/**
+ * Ramakrishnan & Gehrke, Chapter 4:
+ *   "Two relations are union-compatible if they have the same number of fields,
+ *    and corresponding fields, taken in order from left to right, have the same domains."
+ *
+ * The result adopts the names of the LEFT operand.
+ */
+function assertUnionCompatible(L: Relation, R: Relation, pos: import('./types').SrcPos): void {
   if (L.columns.length !== R.columns.length) {
     throw new RAError(
-      `Las relaciones deben tener el mismo número de columnas (${L.columns.length} ≠ ${R.columns.length}).`,
+      `Relaciones no compatibles: distinta aridad (${L.columns.length} ≠ ${R.columns.length}).`,
       pos
     );
   }
   for (let i = 0; i < L.columns.length; i++) {
-    if (L.columns[i].name !== R.columns[i].name) {
+    if (L.columns[i].type !== R.columns[i].type) {
       throw new RAError(
-        `Los nombres de columna deben coincidir en orden: '${L.columns[i].name}' ≠ '${R.columns[i].name}'.`,
+        `Columna ${i + 1}: dominios incompatibles ('${L.columns[i].name}': ${L.columns[i].type} ≠ '${R.columns[i].name}': ${R.columns[i].type}).`,
         pos
       );
     }
@@ -286,7 +386,7 @@ function assertSameSchema(L: Relation, R: Relation, pos: import('./types').SrcPo
 }
 
 function doUnion(L: Relation, R: Relation, pos: import('./types').SrcPos): Relation {
-  assertSameSchema(L, R, pos);
+  assertUnionCompatible(L, R, pos);
   const seen = new Set<string>();
   const rows: Value[][] = [];
   for (const r of [...L.rows, ...R.rows]) {
@@ -297,7 +397,7 @@ function doUnion(L: Relation, R: Relation, pos: import('./types').SrcPos): Relat
 }
 
 function doIntersect(L: Relation, R: Relation, pos: import('./types').SrcPos): Relation {
-  assertSameSchema(L, R, pos);
+  assertUnionCompatible(L, R, pos);
   const rSet = new Set(R.rows.map(tupleKey));
   const seen = new Set<string>();
   const rows: Value[][] = [];
@@ -309,7 +409,7 @@ function doIntersect(L: Relation, R: Relation, pos: import('./types').SrcPos): R
 }
 
 function doDifference(L: Relation, R: Relation, pos: import('./types').SrcPos): Relation {
-  assertSameSchema(L, R, pos);
+  assertUnionCompatible(L, R, pos);
   const rSet = new Set(R.rows.map(tupleKey));
   const seen = new Set<string>();
   const rows: Value[][] = [];

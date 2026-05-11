@@ -29,9 +29,10 @@ export type RelExpr =
   | { kind: 'select'; condition: Condition; child: RelExpr; pos: SrcPos }
   | { kind: 'project'; columns: string[]; child: RelExpr; pos: SrcPos }
   | { kind: 'rename'; alias?: string; columnMap?: Record<string, string>; child: RelExpr; pos: SrcPos }
-  | { kind: 'binary'; op: BinaryOp; left: RelExpr; right: RelExpr; pos: SrcPos };
+  | { kind: 'binary'; op: BinaryOp; left: RelExpr; right: RelExpr; condition?: Condition; pos: SrcPos };
 
-export type BinaryOp = 'join' | 'cross' | 'union' | 'intersect' | 'difference';
+// 'theta' = condition-join (R ⋈_c S = σ_c(R × S)); 'join' = natural join.
+export type BinaryOp = 'join' | 'theta' | 'cross' | 'union' | 'intersect' | 'difference';
 
 // ----- AST: condition inside σ -----
 export type Condition =
