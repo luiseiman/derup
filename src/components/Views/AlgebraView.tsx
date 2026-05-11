@@ -844,10 +844,34 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables, onApplyReverseEnginee
                     <button
                       className="algebra-btn"
                       style={{ fontSize: '0.65rem', padding: '2px 6px', textTransform: 'none', letterSpacing: 0 }}
-                      title="Generar diagrama ER y esquema a partir de las relaciones importadas. Reemplaza el ER actual."
+                      title="Generar diagrama ER y esquema a partir de las relaciones importadas. Reemplaza el ER actual y mueve los datos a las tablas del esquema."
                       onClick={() => {
-                        if (!confirm('Esto reemplaza el diagrama ER actual con uno generado a partir de las relaciones importadas. ¿Continuar?')) return;
+                        if (!confirm('Esto reemplaza el diagrama ER actual con uno generado a partir de las relaciones importadas. Los datos de los CSVs van a quedar asociados a las tablas del esquema. ¿Continuar?')) return;
                         const { nodes: erNodes, connections: erConns, notes } = reverseEngineerER(importedRelations);
+
+                        // Migrar los datos de las CSVs importadas a las tablas
+                        // del esquema (mismo nombre). Sin esta migración la
+                        // misma relación aparece dos veces: como tabla del
+                        // esquema (vacía) y como relación importada (con datos).
+                        const migratedTablesData = new Map(tablesData);
+                        importedRelations.forEach((rel, name) => { migratedTablesData.set(name, rel); });
+                        const clearedImports = new Map<string, Relation>();
+                        setTablesData(migratedTablesData);
+                        setImportedRelations(clearedImports);
+
+                        // Persistir IMMEDIATAMENTE — el tab va a cambiar a ER
+                        // y AlgebraView se desmonta; la useEffect de debounce
+                        // (400 ms) sería cancelada y los cambios se perderían.
+                        try {
+                          const tablesSerialized: Record<string, SerializedRelation> = {};
+                          migratedTablesData.forEach((rel, name) => { tablesSerialized[name] = serializeRelation(rel); });
+                          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                            query,
+                            tablesData: tablesSerialized,
+                            importedRelations: {},
+                          } satisfies Persisted));
+                        } catch { /* storage quota etc. — ignore */ }
+
                         onApplyReverseEngineeredER(erNodes, erConns, notes);
                       }}
                     >
