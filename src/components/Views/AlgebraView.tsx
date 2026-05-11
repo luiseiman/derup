@@ -830,6 +830,14 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
 
   // ---- derived helpers ----
 
+  /** Memoized highlight output to avoid re-walking the entire query text on
+   *  every render — caret moves, mouse hovers and AC index changes all
+   *  trigger renders and we don't want to recompute spans for each. */
+  const highlightedNodes = useMemo(
+    () => highlightQuery(query, { relations: acSchema.relations, columns: acSchema.allCols }),
+    [query, acSchema.relations, acSchema.allCols],
+  );
+
   const allRelations = useMemo(() => {
     const names = new Set<string>();
     tables.forEach(t => names.add(t.name));
@@ -1033,7 +1041,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
           </div>
           <div className="ra-editor-wrap">
             <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
-              {highlightQuery(query, { relations: acSchema.relations, columns: acSchema.allCols })}
+              {highlightedNodes}
             </div>
           <textarea
             ref={editorRef}
