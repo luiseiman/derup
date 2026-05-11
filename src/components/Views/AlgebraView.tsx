@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RelationalTable } from '../../utils/relationalSchema';
-import type { Relation } from '../../utils/relAlgebra/types';
+import type { ColumnType, Relation, Value } from '../../utils/relAlgebra/types';
 import { RAError } from '../../utils/relAlgebra/types';
 import { parse } from '../../utils/relAlgebra/parser';
 import { evaluate } from '../../utils/relAlgebra/evaluator';
@@ -117,6 +117,10 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
   const [errorPos, setErrorPos] = useState<{ line: number; column: number } | null>(null);
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
 
+  // CRUD modal state — name of the relation being edited and a working copy.
+  const [editingRelation, setEditingRelation] = useState<string | null>(null);
+  const [editBuffer, setEditBuffer] = useState<Relation | null>(null);
+
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -168,19 +172,21 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     }
   }, [query, tablesData, importedRelations]);
 
-  const insertSymbol = (sym: string) => {
+  /** Insert arbitrary text at the current caret position in the query editor.
+   *  Used by the symbols bar AND by click-to-insert on relations and columns. */
+  const insertAtCaret = useCallback((text: string) => {
     const ta = editorRef.current;
     if (!ta) return;
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
-    const next = query.slice(0, start) + sym + query.slice(end);
-    setQuery(next);
-    // restore caret after the inserted symbol
+    setQuery(prev => prev.slice(0, start) + text + prev.slice(end));
     requestAnimationFrame(() => {
       ta.focus();
-      ta.selectionStart = ta.selectionEnd = start + sym.length;
+      ta.selectionStart = ta.selectionEnd = start + text.length;
     });
-  };
+  }, []);
+
+  const insertSymbol = (sym: string) => insertAtCaret(sym);
 
   const triggerLoadCSV = (tableName: string) => {
     pendingTargetTable.current = tableName;
@@ -309,6 +315,110 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
     });
   };
 
+  // ---- CRUD modal (alta/edición/baja de filas) ----
+
+  /** Open the row editor for a relation. Falls back to creating an empty
+   *  relation seeded from the schema (column names + inferred types) when
+   *  the table has no data yet. */
+  const openEditor = (name: string) => {
+    let rel = importedRelations.get(name) ?? tablesData.get(name);
+    if (!rel) {
+      const t = tables.find(t => t.name === name);
+      if (!t) return;
+      // Build empty relation from schema columns; types inferred at save time.
+      rel = {
+        columns: t.columns
+          .filter(c => !c.isDerived)
+          .map(c => ({ name: c.name, type: 'string' as ColumnType })),
+        rows: [],
+      };
+    }
+    setEditBuffer({
+      columns: rel.columns.map(c => ({ ...c })),
+      rows: rel.rows.map(r => [...r]),
+    });
+    setEditingRelation(name);
+  };
+
+  const closeEditor = (save: boolean) => {
+    if (save && editingRelation && editBuffer) {
+      const buf: Relation = {
+        columns: editBuffer.columns.map(c => ({ ...c })),
+        rows: editBuffer.rows.map(r => [...r]),
+      };
+      if (importedRelations.has(editingRelation)) {
+        setImportedRelations(prev => { const n = new Map(prev); n.set(editingRelation, buf); return n; });
+      } else {
+        // Schema table data (whether previously loaded or seeded empty)
+        setTablesData(prev => { const n = new Map(prev); n.set(editingRelation, buf); return n; });
+      }
+    }
+    setEditingRelation(null);
+    setEditBuffer(null);
+  };
+
+  /** Parse a raw string into the target column type. Returns the raw string
+   *  unchanged when it can't be parsed (UI will flag it as invalid via CSS). */
+  const parseCell = (raw: string, type: ColumnType): Value => {
+    if (raw === '') return null;
+    if (type === 'number') {
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : raw;
+    }
+    if (type === 'date') {
+      const d = new Date(raw);
+      return Number.isNaN(d.getTime()) ? raw : d;
+    }
+    if (type === 'boolean') {
+      const v = raw.trim().toLowerCase();
+      if (v === 'true') return true;
+      if (v === 'false') return false;
+      return raw;
+    }
+    return raw;
+  };
+
+  /** Used by the inline grid to render the current cell value as text. */
+  const cellToText = (v: Value): string => {
+    if (v === null || v === undefined) return '';
+    if (v instanceof Date) return v.toISOString().slice(0, 10);
+    return String(v);
+  };
+
+  /** Whether the current cell value is consistent with its column type. */
+  const cellIsValid = (v: Value, type: ColumnType): boolean => {
+    if (v === null) return true;
+    if (type === 'number') return typeof v === 'number';
+    if (type === 'date') return v instanceof Date;
+    if (type === 'boolean') return typeof v === 'boolean';
+    return true;
+  };
+
+  const updateCell = (ri: number, ci: number, raw: string) => {
+    setEditBuffer(prev => {
+      if (!prev) return prev;
+      const newVal = parseCell(raw, prev.columns[ci].type);
+      const newRows = prev.rows.map((r, i) =>
+        i === ri ? r.map((c, j) => (j === ci ? newVal : c)) : r
+      );
+      return { ...prev, rows: newRows };
+    });
+  };
+
+  const addRow = () => {
+    setEditBuffer(prev => prev ? {
+      ...prev,
+      rows: [...prev.rows, prev.columns.map(() => null as Value)],
+    } : prev);
+  };
+
+  const deleteRow = (ri: number) => {
+    setEditBuffer(prev => prev ? {
+      ...prev,
+      rows: prev.rows.filter((_, i) => i !== ri),
+    } : prev);
+  };
+
   const exportResultCSV = () => {
     if (!result) return;
     const csv = relationToCSV(result);
@@ -393,20 +503,33 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
               const isExpanded = expandedTable === t.name;
               return (
                 <div key={t.sourceId + ':' + t.name} className="ra-table-item">
-                  <div
-                    className="ra-table-header"
-                    onClick={() => setExpandedTable(isExpanded ? null : t.name)}
-                  >
-                    <span>{t.name}</span>
-                    <span className={`ra-row-count ${loaded ? 'loaded' : ''}`}>
-                      {loaded ? `${loaded.rows.length} filas` : 'sin datos'}
+                  <div className="ra-table-header">
+                    <span
+                      className="ra-name-click"
+                      title="Insertar el nombre en la consulta"
+                      onClick={(e) => { e.stopPropagation(); insertAtCaret(t.name); }}
+                    >{t.name}</span>
+                    <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span className={`ra-row-count ${loaded ? 'loaded' : ''}`}>
+                        {loaded ? `${loaded.rows.length} filas` : 'sin datos'}
+                      </span>
+                      <button
+                        className="ra-chevron"
+                        onClick={() => setExpandedTable(isExpanded ? null : t.name)}
+                        title={isExpanded ? 'Contraer' : 'Expandir'}
+                      >{isExpanded ? '▾' : '▸'}</button>
                     </span>
                   </div>
                   {isExpanded && (
                     <>
                       <div className="ra-table-cols">
                         {t.columns.filter(c => !c.isDerived).map(c => (
-                          <div key={c.name}>
+                          <div
+                            key={c.name}
+                            className="ra-col-click"
+                            title="Insertar columna en la consulta"
+                            onClick={() => insertAtCaret(c.name)}
+                          >
                             {c.isPrimaryKey ? '🔑' : c.isForeignKey ? '🔗' : '•'} {c.name}
                             {loaded && (
                               <span className="ra-col-type">
@@ -417,6 +540,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
                         ))}
                       </div>
                       <div className="ra-table-actions">
+                        <button className="algebra-btn" onClick={() => openEditor(t.name)}>
+                          Editar datos
+                        </button>
                         <button className="algebra-btn" onClick={() => triggerLoadCSV(t.name)}>
                           Cargar CSV
                         </button>
@@ -442,24 +568,39 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
                   const isExpanded = expandedTable === '__imp__' + name;
                   return (
                     <div key={'imp:' + name} className="ra-table-item">
-                      <div
-                        className="ra-table-header"
-                        style={{ background: '#ecfdf5' }}
-                        onClick={() => setExpandedTable(isExpanded ? null : '__imp__' + name)}
-                      >
-                        <span>{name}</span>
-                        <span className="ra-row-count loaded">{rel.rows.length} filas</span>
+                      <div className="ra-table-header" style={{ background: '#ecfdf5' }}>
+                        <span
+                          className="ra-name-click"
+                          title="Insertar el nombre en la consulta"
+                          onClick={(e) => { e.stopPropagation(); insertAtCaret(name); }}
+                        >{name}</span>
+                        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <span className="ra-row-count loaded">{rel.rows.length} filas</span>
+                          <button
+                            className="ra-chevron"
+                            onClick={() => setExpandedTable(isExpanded ? null : '__imp__' + name)}
+                            title={isExpanded ? 'Contraer' : 'Expandir'}
+                          >{isExpanded ? '▾' : '▸'}</button>
+                        </span>
                       </div>
                       {isExpanded && (
                         <>
                           <div className="ra-table-cols">
                             {rel.columns.map(c => (
-                              <div key={c.name}>
+                              <div
+                                key={c.name}
+                                className="ra-col-click"
+                                title="Insertar columna en la consulta"
+                                onClick={() => insertAtCaret(c.name)}
+                              >
                                 • {c.name}<span className="ra-col-type">: {c.type}</span>
                               </div>
                             ))}
                           </div>
                           <div className="ra-table-actions">
+                            <button className="algebra-btn" onClick={() => openEditor(name)}>
+                              Editar datos
+                            </button>
                             <button className="algebra-btn" onClick={() => renameImported(name)}>
                               Renombrar
                             </button>
@@ -591,6 +732,93 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables }) => {
         }}>
           Relaciones disponibles: {allRelations.join(', ')}
           {derived.size > 0 && ' · derivadas: ' + Array.from(derived.keys()).join(', ')}
+        </div>
+      )}
+
+      {/* ===== CRUD MODAL ===== */}
+      {editingRelation && editBuffer && (
+        <div className="ra-modal-overlay" onClick={() => closeEditor(false)}>
+          <div className="ra-modal" onClick={e => e.stopPropagation()}>
+            <div className="ra-modal-header">
+              <span>
+                Editar datos de <code>{editingRelation}</code>
+                <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                  {editBuffer.rows.length} fila{editBuffer.rows.length !== 1 ? 's' : ''}
+                </span>
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="algebra-btn" onClick={() => closeEditor(false)}>Cancelar</button>
+                <button className="algebra-btn primary" onClick={() => closeEditor(true)}>
+                  Guardar
+                </button>
+              </div>
+            </div>
+            <div className="ra-modal-body">
+              <table className="ra-edit-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 32 }}></th>
+                    {editBuffer.columns.map(c => (
+                      <th key={c.name}>
+                        {c.name}
+                        <span className="ra-col-type-tag">{c.type}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {editBuffer.rows.map((row, ri) => (
+                    <tr key={ri}>
+                      <td>
+                        <button
+                          className="ra-row-del"
+                          onClick={() => deleteRow(ri)}
+                          title="Eliminar fila"
+                        >×</button>
+                      </td>
+                      {row.map((v, ci) => {
+                        const type = editBuffer.columns[ci].type;
+                        const valid = cellIsValid(v, type);
+                        return (
+                          <td key={ci}>
+                            {type === 'boolean' ? (
+                              <select
+                                value={v === null || v === undefined ? '' : String(v)}
+                                onChange={e => updateCell(ri, ci, e.target.value)}
+                              >
+                                <option value="">(vacío)</option>
+                                <option value="true">true</option>
+                                <option value="false">false</option>
+                              </select>
+                            ) : (
+                              <input
+                                className={valid ? '' : 'invalid'}
+                                value={cellToText(v)}
+                                type={type === 'number' ? 'text' : type === 'date' ? 'date' : 'text'}
+                                onChange={e => updateCell(ri, ci, e.target.value)}
+                                placeholder={type === 'date' ? 'YYYY-MM-DD' : ''}
+                              />
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  {editBuffer.rows.length === 0 && (
+                    <tr><td colSpan={editBuffer.columns.length + 1} style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>
+                      Sin filas. Hacé clic en "+ Agregar fila" para empezar.
+                    </td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="ra-modal-footer">
+              <button className="algebra-btn" onClick={addRow}>+ Agregar fila</button>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                Las celdas en rojo no se corresponden con el tipo de la columna.
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>
