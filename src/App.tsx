@@ -1375,6 +1375,26 @@ function App() {
       }
       return 'No pude conectar con OpenClaw. Verifica que el servicio esté activo.';
     }
+    if (provider === 'openai') {
+      if (isTimeout) {
+        return 'ChatGPT tardó demasiado en responder. Intenta con un modelo más liviano o un escenario más corto.';
+      }
+      // The backend returns this exact text when ChatGPT OAuth is not configured.
+      // It's a server-side setup step, not a client API key.
+      if (normalizedMessage.includes('oauth no configurado')) {
+        return 'ChatGPT OAuth no está configurado en este servidor. Cambiá a otro proveedor (Gemini, Grok, Ollama u OpenClaw) en el panel de Configuración, o pedile al admin que ejecute `node scripts/openai-oauth-login.mjs` en el servidor.';
+      }
+      if (normalizedMessage.includes('unauthorized') || normalizedMessage.includes('401')) {
+        return 'ChatGPT rechazó la autenticación (401). El token OAuth expiró o no es válido. Reconfigurá OAuth en el servidor o cambiá de proveedor.';
+      }
+      if (normalizedMessage.includes('failed to fetch') || normalizedMessage.includes('connection refused')) {
+        return 'No pude conectar con ChatGPT. Verifica que el proxy del servidor esté corriendo.';
+      }
+      if (message && message !== 'ai_request_failed') {
+        return `Error de ChatGPT: ${message}`;
+      }
+      return 'No pude conectar con ChatGPT. Verifica que el proxy del servidor esté corriendo.';
+    }
     const ollamaModel = provider === aiProvider
       ? (aiModel.trim() || 'gemma3')
       : 'gemma3';
