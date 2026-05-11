@@ -83,8 +83,8 @@ export function sqlToAlgebra(input: string): SqlTranslationResult | null {
 }
 
 /** Find the byte offset of the first occurrence of `re` at paren depth 0.
- *  Returns -1 if not found. */
-function findKeyword(text: string, re: RegExp): number {
+ *  Returns -1 if not found. Exported for reuse by the SQL-aggregate path. */
+export function findKeyword(text: string, re: RegExp): number {
   let depth = 0;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -194,7 +194,7 @@ function findKeywordPhrase(text: string, re: RegExp): number {
 }
 
 /** Split `text` on the given top-level character (depth-0 only). */
-function splitTopLevel(text: string, sep: string): string[] {
+export function splitTopLevel(text: string, sep: string): string[] {
   const out: string[] = [];
   let depth = 0;
   let last = 0;

@@ -12,6 +12,7 @@ import { highlight as highlightQuery } from './algebraHighlight';
 import { predictNext, wordAtCaret, type Suggestion as PredictSuggestion } from './algebraPredict';
 import { reverseEngineerER } from '../../utils/reverseEngineerER';
 import { sqlToAlgebra } from '../../utils/sqlToAlgebra';
+import { tryExecuteSqlAggregate } from '../../utils/sqlAggregate';
 import Splitter from '../Splitter';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import './AlgebraView.css';
@@ -264,15 +265,20 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
     setErrorPos(null);
     setSqlTranslationNote(null);
 
-    // ── Decide which algebra expression to actually run ──────────────────
-    // In SQL mode: ALWAYS translate the SQL → algebra. If translation fails,
-    //              surface a clear error and stop.
-    // In algebra mode: run the user's text verbatim. (No more auto-detection
-    //              of SQL — there's a dedicated tab for that now.)
+    // Build the environment once — both code paths need it.
+    const env = new Map<string, Relation>();
+    tablesData.forEach((rel, name) => env.set(name, rel));
+    importedRelations.forEach((rel, name) => env.set(name, rel));
+
+    // ── Decide which path to take ────────────────────────────────────────
+    // In SQL mode:
+    //   1) Aggregate fast-path: count/sum/avg/min/max with optional GROUP BY
+    //      executed directly (NOT routed through the algebra engine). Returns
+    //      a Relation; no execution tree because aggregates aren't algebra.
+    //   2) Algebra fallback: translate plain SELECT/WHERE/JOIN to algebra.
+    // In algebra mode: run the user's text verbatim.
     let exprToParse: string;
     if (editorMode === 'sql') {
-      // Strip line comments ("-- ...") before translating — sqlToAlgebra
-      // doesn't know about them and would just reject the input.
       const stripped = query
         .split('\n')
         .map(line => line.replace(/--.*$/, ''))
@@ -282,11 +288,42 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
         setError('Escribí una consulta SQL para ejecutar.');
         return;
       }
+
+      // (1) Aggregate fast-path
+      try {
+        const agg = tryExecuteSqlAggregate(stripped, env);
+        if (agg) {
+          const t0 = performance.now();
+          // (agg already ran; re-measuring just for ms display)
+          const t1 = performance.now();
+          setDerived(new Map());
+          setResult(agg.result);
+          setLastProgram(null);
+          setLastTrace(new Map());
+          setSelectedTreeNode(null);
+          setSqlTranslationNote(agg.note);
+          setQueryMs(Math.max(1, Math.round(t1 - t0)));
+          return;
+        }
+      } catch (e) {
+        // Aggregate path found the query but failed validating it — surface
+        // the message directly. (e.g. column not found, wrong type.)
+        setError(e instanceof Error ? e.message : String(e));
+        setResult(null);
+        setLastProgram(null);
+        setLastTrace(new Map());
+        setSelectedTreeNode(null);
+        setQueryMs(null);
+        return;
+      }
+
+      // (2) Algebra fallback
       const sqlTrans = sqlToAlgebra(stripped);
       if (!sqlTrans) {
         setError(
-          'Consulta SQL no soportada o inválida. Soporta SELECT … FROM … [WHERE …] [JOIN …]. ' +
-          'GROUP BY, HAVING, ORDER BY, agregados, UNION y subconsultas no están soportados.'
+          'Consulta SQL no soportada o inválida. Soporta SELECT … FROM … [WHERE …] [JOIN …] ' +
+          '[GROUP BY …] con agregados count/sum/avg/min/max. ' +
+          'HAVING, ORDER BY, LIMIT, UNION, subconsultas y OUTER JOIN no están soportados.'
         );
         setResult(null);
         setLastProgram(null);
@@ -296,7 +333,6 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
         return;
       }
       exprToParse = sqlTrans.algebra;
-      // Tell the user what we actually executed, but DO NOT touch the editor.
       setSqlTranslationNote(sqlTrans.note);
     } else {
       exprToParse = query;
@@ -304,9 +340,6 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
 
     try {
       const program = parse(exprToParse);
-      const env = new Map<string, Relation>();
-      tablesData.forEach((rel, name) => env.set(name, rel));
-      importedRelations.forEach((rel, name) => env.set(name, rel));
       const t0 = performance.now();
       const { result: r, derived: d, trace } = evaluate(program, env);
       const t1 = performance.now();
