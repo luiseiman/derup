@@ -892,3 +892,65 @@
   padding: 0 4px;
 }
 .ra-row-del:hover { color: #7f1d1d; }
+
+/* ----- Sub-tabs: Álgebra | SQL ----- */
+.ra-mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px 0;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+}
+.ra-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 7px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.ra-mode-tab:hover {
+  background: rgba(99, 102, 241, 0.06);
+  color: var(--text-color);
+}
+.ra-mode-tab.is-active {
+  background: var(--bg-color, #ffffff);
+  color: var(--primary-700);
+  border-color: var(--panel-border);
+  /* Knock the border out at the bottom so the tab visually merges with the
+     editor area underneath. */
+  margin-bottom: -1px;
+  padding-bottom: 8px;
+}
+.ra-mode-tab-glyph {
+  font-family: 'Cambria', 'Georgia', serif;
+  font-style: italic;
+  font-size: 0.9rem;
+  color: var(--primary-500);
+  letter-spacing: 0.5px;
+}
+.ra-mode-tab.is-active .ra-mode-tab-glyph {
+  color: var(--primary-700);
+}
+
+/* SQL mode: the textarea paints its own text (no overlay), so the global
+   transparent-text trick from the algebra mode must be undone for this state.
+   Highest specificity to beat the .algebra-view textarea.ra-editor selector. */
+.algebra-view textarea.ra-editor.ra-editor-sql,
+.algebra-view textarea.ra-editor.ra-editor-sql:hover,
+.algebra-view textarea.ra-editor.ra-editor-sql:focus,
+.algebra-view textarea.ra-editor.ra-editor-sql:active {
+  color: var(--text-color) !important;
+  -webkit-text-fill-color: var(--text-color) !important;
+  /* Keep the background transparent so the panel's bg shows through — that
+     matches the algebra editor and looks consistent. */
+  background: transparent !important;
+  background-color: transparent !important;
+}

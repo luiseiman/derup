@@ -89,9 +89,17 @@ const ALT_LABEL = IS_MAC ? '⌥' : 'Alt+';
 
 interface Persisted {
   query?: string;
+  /** Buffer for the non-active mode when `editorMode` is 'algebra'.
+   *  Holds the SQL text the user had typed last in the SQL tab. */
+  sqlQuery?: string;
+  /** Active tab: 'algebra' (relational algebra) or 'sql' (translated to RA). */
+  editorMode?: 'algebra' | 'sql';
   tablesData?: Record<string, SerializedRelation>;
   importedRelations?: Record<string, SerializedRelation>;
 }
+
+const DEFAULT_ALGEBRA_QUERY = '# Escribí tu consulta en álgebra relacional acá.\n# Ejemplo:\n# π_{nombre, email} (σ_{estado = \'activo\'} (usuario))\n';
+const DEFAULT_SQL_QUERY = '-- Escribí tu consulta SQL acá.\n-- Soporta: SELECT, FROM, WHERE, JOIN, CROSS JOIN, NATURAL JOIN.\n-- Ejemplo:\n-- SELECT nombre, email FROM usuario WHERE estado = \'activo\';\n';
 
 interface SerializedRelation {
   columns: { name: string; type: string }[];
@@ -146,9 +154,22 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
 }) => {
   const persisted = useMemo(loadPersisted, []);
 
+  // Two editors share the same evaluation pipeline but keep their own text
+  // buffer. `query` is always the active mode's text — `sqlQuery` mirrors
+  // whatever the user typed in the SQL tab. Swapping tabs just swaps which
+  // string is the "active" one. We keep this split rather than a single
+  // `bufferedQuery` because we want both buffers to be persisted independently.
+  const [editorMode, setEditorMode] = useState<'algebra' | 'sql'>(persisted.editorMode ?? 'algebra');
   const [query, setQuery] = useState(
-    persisted.query ?? '# Escribí tu consulta en álgebra relacional acá.\n# Ejemplo:\n# π_{nombre, email} (σ_{estado = \'activo\'} (usuario))\n'
+    (persisted.editorMode === 'sql' ? persisted.sqlQuery : persisted.query)
+    ?? (persisted.editorMode === 'sql' ? DEFAULT_SQL_QUERY : DEFAULT_ALGEBRA_QUERY)
   );
+  // Inactive-mode buffer. When the active mode is 'algebra', this holds the
+  // SQL text; when active is 'sql', this holds the algebra text.
+  const [bufferedQuery, setBufferedQuery] = useState<string>(() => {
+    if (persisted.editorMode === 'sql') return persisted.query ?? DEFAULT_ALGEBRA_QUERY;
+    return persisted.sqlQuery ?? DEFAULT_SQL_QUERY;
+  });
 
   const [tablesData, setTablesData] = useState<Map<string, Relation>>(() => {
     const m = new Map<string, Relation>();
@@ -213,8 +234,14 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
         tablesData.forEach((rel, name) => { tablesSerialized[name] = serializeRelation(rel); });
         const importedSerialized: Record<string, SerializedRelation> = {};
         importedRelations.forEach((rel, name) => { importedSerialized[name] = serializeRelation(rel); });
+        // Map the dual buffer back to {query, sqlQuery} where `query` always
+        // means the algebra buffer (back-compat with older persisted state).
+        const algebraBuf = editorMode === 'algebra' ? query : bufferedQuery;
+        const sqlBuf     = editorMode === 'sql'     ? query : bufferedQuery;
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          query,
+          query: algebraBuf,
+          sqlQuery: sqlBuf,
+          editorMode,
           tablesData: tablesSerialized,
           importedRelations: importedSerialized,
         } satisfies Persisted));
@@ -223,7 +250,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [query, tablesData, importedRelations]);
+  }, [query, bufferedQuery, editorMode, tablesData, importedRelations]);
 
   // ---- actions ----
 
@@ -237,21 +264,46 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
     setErrorPos(null);
     setSqlTranslationNote(null);
 
-    // If the input looks like SQL, replace the editor's query with the
-    // translated algebra and re-run on the next state commit. (We don't run
-    // the translated version against the parser directly because the user
-    // wouldn't see what changed.)
-    const sqlTrans = sqlToAlgebra(query);
-    if (sqlTrans) {
-      setQuery(sqlTrans.algebra);
-      setCaretPos(sqlTrans.algebra.length);
+    // ── Decide which algebra expression to actually run ──────────────────
+    // In SQL mode: ALWAYS translate the SQL → algebra. If translation fails,
+    //              surface a clear error and stop.
+    // In algebra mode: run the user's text verbatim. (No more auto-detection
+    //              of SQL — there's a dedicated tab for that now.)
+    let exprToParse: string;
+    if (editorMode === 'sql') {
+      // Strip line comments ("-- ...") before translating — sqlToAlgebra
+      // doesn't know about them and would just reject the input.
+      const stripped = query
+        .split('\n')
+        .map(line => line.replace(/--.*$/, ''))
+        .join('\n')
+        .trim();
+      if (!stripped) {
+        setError('Escribí una consulta SQL para ejecutar.');
+        return;
+      }
+      const sqlTrans = sqlToAlgebra(stripped);
+      if (!sqlTrans) {
+        setError(
+          'Consulta SQL no soportada o inválida. Soporta SELECT … FROM … [WHERE …] [JOIN …]. ' +
+          'GROUP BY, HAVING, ORDER BY, agregados, UNION y subconsultas no están soportados.'
+        );
+        setResult(null);
+        setLastProgram(null);
+        setLastTrace(new Map());
+        setSelectedTreeNode(null);
+        setQueryMs(null);
+        return;
+      }
+      exprToParse = sqlTrans.algebra;
+      // Tell the user what we actually executed, but DO NOT touch the editor.
       setSqlTranslationNote(sqlTrans.note);
-      setPendingRun(true); // existing flag that triggers runQuery after commit
-      return;
+    } else {
+      exprToParse = query;
     }
 
     try {
-      const program = parse(query);
+      const program = parse(exprToParse);
       const env = new Map<string, Relation>();
       tablesData.forEach((rel, name) => env.set(name, rel));
       importedRelations.forEach((rel, name) => env.set(name, rel));
@@ -277,7 +329,27 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
       setSelectedTreeNode(null);
       setQueryMs(null);
     }
-  }, [query, tablesData, importedRelations]);
+  }, [editorMode, query, tablesData, importedRelations]);
+
+  /** Swap the active editor mode. Preserves both text buffers via the
+   *  bufferedQuery shadow. Resets transient UI state (autocomplete, errors). */
+  const switchEditorMode = useCallback((next: 'algebra' | 'sql') => {
+    setEditorMode(prev => {
+      if (prev === next) return prev;
+      // Swap active/buffered text in a single commit so the editor doesn't
+      // flash an empty/stale value during the transition.
+      setQuery(currentActive => {
+        setBufferedQuery(currentActive);
+        return bufferedQuery;
+      });
+      setError(null);
+      setErrorPos(null);
+      setSqlTranslationNote(null);
+      setAcVisible(false);
+      setCaretPos(0);
+      return next;
+    });
+  }, [bufferedQuery]);
 
   /**
    * Insert text at the caret with context-aware padding. The kind tells us
@@ -666,6 +738,13 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
     if (!pendingQuery) return;
     if (pendingQuery.at <= lastPendingAtRef.current) return;
     lastPendingAtRef.current = pendingQuery.at;
+    // The chat protocol always emits algebra expressions, so force the editor
+    // into algebra mode before applying — otherwise the SQL parser would
+    // reject Greek-letter syntax.
+    if (editorMode !== 'algebra') {
+      setBufferedQuery(query);
+      setEditorMode('algebra');
+    }
     setQuery(pendingQuery.query);
     setCaretPos(pendingQuery.query.length);
     setAcVisible(false);
@@ -678,6 +757,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
       }
     });
     onPendingQueryConsumed?.();
+    // editorMode/query are intentionally not in deps: this effect must fire
+    // only when a new pendingQuery arrives, not when the user switches tab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingQuery, onPendingQueryConsumed]);
 
   useEffect(() => {
@@ -1157,25 +1239,55 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
           }}
         />
         {/* ===== CENTER: Editor ===== */}
-        <div className="algebra-panel">
+        <div className={`algebra-panel ra-mode-${editorMode}`}>
           <div className="algebra-panel-header">
             <span>Consulta</span>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-              Unicode o ASCII · Ctrl+Enter para ejecutar
+              {editorMode === 'sql'
+                ? 'SQL → álgebra · Ctrl+Enter para ejecutar'
+                : 'Unicode o ASCII · Ctrl+Enter para ejecutar'}
             </span>
           </div>
+          {/* Sub-tabs: Álgebra vs SQL. Same evaluator, same schemas, separate buffer. */}
+          <div className="ra-mode-tabs" role="tablist" aria-label="Modo de consulta">
+            <button
+              role="tab"
+              aria-selected={editorMode === 'algebra'}
+              className={`ra-mode-tab ${editorMode === 'algebra' ? 'is-active' : ''}`}
+              onClick={() => switchEditorMode('algebra')}
+              title="Álgebra relacional (σ π ρ ⋈ ⨯ ÷ ∪ ∩ −)"
+            >
+              <span className="ra-mode-tab-glyph">σπρ</span>
+              Álgebra
+            </button>
+            <button
+              role="tab"
+              aria-selected={editorMode === 'sql'}
+              className={`ra-mode-tab ${editorMode === 'sql' ? 'is-active' : ''}`}
+              onClick={() => switchEditorMode('sql')}
+              title="SQL (se traduce a álgebra antes de ejecutar)"
+            >
+              <span className="ra-mode-tab-glyph">SQL</span>
+              SQL
+            </button>
+          </div>
           <div className="ra-editor-wrap">
-            <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
-              {/* Render every highlight node except the trailing '\n' (always last),
-                  inject the ghost suggestion, then put the newline back so the
-                  layout stays aligned with the textarea. */}
-              {highlightedNodes.slice(0, -1)}
-              {ghostText && <span className="ra-ghost">{ghostText}</span>}
-              {highlightedNodes[highlightedNodes.length - 1]}
-            </div>
+            {/* Algebra mode uses the transparent textarea + highlight overlay
+                trick. SQL mode hides the overlay and lets the textarea paint
+                its own text — no Greek-letter highlighting needed there. */}
+            {editorMode === 'algebra' && (
+              <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
+                {/* Render every highlight node except the trailing '\n' (always last),
+                    inject the ghost suggestion, then put the newline back so the
+                    layout stays aligned with the textarea. */}
+                {highlightedNodes.slice(0, -1)}
+                {ghostText && <span className="ra-ghost">{ghostText}</span>}
+                {highlightedNodes[highlightedNodes.length - 1]}
+              </div>
+            )}
           <textarea
             ref={editorRef}
-            className="ra-editor"
+            className={`ra-editor ${editorMode === 'sql' ? 'ra-editor-sql' : ''}`}
             value={query}
             onChange={e => {
               setQuery(e.target.value);
@@ -1200,7 +1312,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
               // ── Symbol keyboard shortcuts (Alt+letter / ⌥+letter on Mac) ──
               // Intercepted BEFORE the default handler so the OS doesn't
               // produce accented chars (e.g. ⌥+S = ß on Mac).
-              if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.length === 1) {
+              // SQL mode: skip the Greek-letter shortcuts entirely so the user
+              // can type the SQL alphabet without surprises.
+              if (editorMode === 'algebra' && e.altKey && !e.ctrlKey && !e.metaKey && e.key.length === 1) {
                 const k = e.key.toLowerCase();
                 const sym = KEY_TO_SYMBOL[k];
                 if (sym) {
@@ -1226,8 +1340,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
                 runQuery();
                 return;
               }
-              // Autocomplete: navigate + accept
-              if (suggestions.length > 0 && acVisible) {
+              // Autocomplete: navigate + accept (algebra mode only — the SQL
+              // tab uses native keyboard editing without algebra suggestions).
+              if (editorMode === 'algebra' && suggestions.length > 0 && acVisible) {
                 if (e.key === 'Tab') {
                   e.preventDefault();
                   acceptSuggestion(suggestions[acIndex] ?? suggestions[0]);
@@ -1253,7 +1368,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             spellCheck={false}
           />
           </div>
-          {suggestions.length > 0 && acVisible && (
+          {editorMode === 'algebra' && suggestions.length > 0 && acVisible && (
             <div className="ra-autocomplete">
               {suggestions.map((s, i) => (
                 <button
@@ -1283,8 +1398,8 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
               >×</button>
             </div>
           )}
-          <AlgebraPreview query={query} />
-          <div className="ra-symbols-bar">
+          {editorMode === 'algebra' && <AlgebraPreview query={query} />}
+          {editorMode === 'algebra' && <div className="ra-symbols-bar">
             {SYMBOLS.map(s => (
               <button
                 key={s.sym}
@@ -1296,7 +1411,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
                 {s.shortcut && <span className="ra-symbol-kbd">{s.shortcut}</span>}
               </button>
             ))}
-          </div>
+          </div>}
         </div>
 
         <Splitter
