@@ -63,9 +63,17 @@ export function sqlToAlgebra(input: string): SqlTranslationResult | null {
 
   // 4) Apply column list as π if not *
   if (cols !== '*') {
-    // Normalize the comma list
-    const colList = cols.split(',').map(c => c.trim()).join(', ');
-    expr = `π ${colList} (${expr})`;
+    // Validate each column is a simple identifier (optionally qualified
+    // with a table name). Aggregates like COUNT(*), SUM(x), AVG(x) have
+    // no equivalent in classical relational algebra and would produce
+    // invalid syntax if we projected them naïvely.
+    const colParts = splitTopLevel(cols, ',').map(c => c.trim()).filter(Boolean);
+    if (colParts.length === 0) return null;
+    const COL_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?$/;
+    for (const c of colParts) {
+      if (!COL_RE.test(c)) return null; // aggregates, expressions, * inside fn, etc.
+    }
+    expr = `π ${colParts.join(', ')} (${expr})`;
   }
 
   return {
