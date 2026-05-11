@@ -684,6 +684,38 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables, onApplyReverseEnginee
     [query, acSchema.relations, acSchema.allColumns],
   );
 
+  /**
+   * Inline ghost-text completion. Shows the top autocomplete suggestion as
+   * faint italic text directly after the caret, like Copilot. Press Tab to
+   * accept it (already wired in the keydown handler).
+   *
+   * Only renders when the caret is at the END of the query — mid-string
+   * ghost text would clash with the existing tail of the line.
+   *
+   * If the top suggestion's label starts with whatever the user is mid-typing
+   * (the "currentWord"), only the REMAINING characters are rendered as
+   * ghost so the visible text reads as if the suggestion were already half-
+   * typed.
+   */
+  const ghostText = useMemo(() => {
+    if (!acVisible) return '';
+    if (caretPos !== query.length) return '';
+    const top = suggestions[0];
+    if (!top) return '';
+    const wordLower = currentWord.toLowerCase();
+    const labelLower = top.label.toLowerCase();
+    if (wordLower) {
+      // Only show ghost when the suggestion CONTINUES what the user is typing.
+      // Showing an unrelated label here is misleading.
+      if (labelLower.startsWith(wordLower)) return top.label.slice(currentWord.length);
+      return '';
+    }
+    // Empty word: show full label, with a leading space when the previous
+    // char isn't already a natural boundary.
+    const needsLeadingSpace = query.length > 0 && !/[\s({,_]$/.test(query);
+    return (needsLeadingSpace ? ' ' : '') + top.label;
+  }, [acVisible, caretPos, query, currentWord, suggestions]);
+
   const allRelations = useMemo(() => {
     const names = new Set<string>();
     tables.forEach(t => names.add(t.name));
@@ -903,7 +935,12 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({ tables, onApplyReverseEnginee
           </div>
           <div className="ra-editor-wrap">
             <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
-              {highlightedNodes}
+              {/* Render every highlight node except the trailing '\n' (always last),
+                  inject the ghost suggestion, then put the newline back so the
+                  layout stays aligned with the textarea. */}
+              {highlightedNodes.slice(0, -1)}
+              {ghostText && <span className="ra-ghost">{ghostText}</span>}
+              {highlightedNodes[highlightedNodes.length - 1]}
             </div>
           <textarea
             ref={editorRef}
