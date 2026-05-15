@@ -11,7 +11,9 @@
 //   unary       := selectExpr | projectExpr | renameExpr | primary
 //   selectExpr  := ('σ'|'select') '_' '{' condition '}' '(' relExpr ')'
 //   projectExpr := ('π'|'project') '_' '{' identList '}' '(' relExpr ')'
-//   renameExpr  := ('ρ'|'rename') '_' '{' renameBody '}' '(' relExpr ')'
+//   renameExpr  := ('ρ'|'rename') renameDelim renameBody renameClose '(' relExpr ')'
+//   renameDelim := '_' '{' | '{' | '(' | ε     (classic / Ramakrishnan / simplified)
+//   renameClose := '}' | ')' | ε               (must match the opening delim)
 //   renameBody  := IDENT                            (relation alias)
 //                | IDENT ('→'|'->') IDENT (',' IDENT ('→'|'->') IDENT)*
 //   primary     := '(' relExpr ')' | IDENT
@@ -212,12 +214,31 @@ class Parser {
 
   private parseRename(): RelExpr {
     const start = this.consume(); // ρ
-    const classic = this.match('UNDERSCORE') || this.match('LBRACE');
-    if (classic) {
+
+    // Three accepted forms after the ρ:
+    //   (a) classic  : ρ_{...}(R)  or  ρ{...}(R)              ← RelaX / cursor convention
+    //   (b) textbook : ρ(...)(R)                              ← Ramakrishnan & Gehrke §4.2.5
+    //   (c) simplified: ρ ... (R)   (no delimiters at all)    ← convenience form
+    //
+    // Disambiguation is unambiguous on the FIRST token after ρ:
+    //   UNDERSCORE / LBRACE → (a)
+    //   LPAREN              → (b)  — and the closing ')' must precede the relation's '('
+    //   anything else (IDENT) → (c)
+    let delim: 'brace' | 'paren' | 'none';
+    if (this.match('UNDERSCORE') || this.match('LBRACE')) {
+      delim = 'brace';
       if (this.match('UNDERSCORE')) this.consume();
       this.expect('LBRACE', "Se esperaba '{' después de ρ.");
+    } else if (this.match('LPAREN')) {
+      delim = 'paren';
+      this.consume(); // (
+    } else {
+      delim = 'none';
     }
-    // Body of ρ: either NewName, or "a → b" (possibly comma-separated list).
+
+    // Body: either a single IDENT (alias of the relation) or a comma-separated
+    // list of "old → new" pairs (column renames). Same content regardless of
+    // delimiter.
     const first = this.expect('IDENT', 'Se esperaba un identificador.');
     let alias: string | undefined;
     let columnMap: Record<string, string> | undefined;
@@ -237,7 +258,9 @@ class Parser {
       alias = first.text;
     }
 
-    if (classic) this.expect('RBRACE');
+    if (delim === 'brace') this.expect('RBRACE', "Se esperaba '}' cerrando la lista de ρ.");
+    if (delim === 'paren') this.expect('RPAREN', "Se esperaba ')' cerrando la lista de ρ.");
+
     this.expect('LPAREN', "Se esperaba '(' rodeando la relación.");
     const child = this.parseRelExpr();
     this.expect('RPAREN');
