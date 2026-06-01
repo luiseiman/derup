@@ -238,6 +238,11 @@ async function getOAuthCredentials() {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+
+  if (req.method === 'GET' && url.pathname === '/health') {
+    return sendJson(res, 200, { status: 'ok', uptime_s: Math.floor(process.uptime()) });
+  }
+
   const resolveGeminiApiKey = body => {
     const requestKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
     const envKey = typeof process.env.GEMINI_API_KEY === 'string' ? process.env.GEMINI_API_KEY.trim() : '';
