@@ -4,6 +4,22 @@
 # Outputs:
 #   1. JSON metrics → ~/.claude/metrics/{project-slug}/{date}.json (always)
 #   2. SESSION_REPORT.md → project root (opt-in: FORGE_SESSION_REPORT=true)
+#
+# Reads stdin payload from Stop event (v2.1.145+ adds background_tasks +
+# session_crons fields). Back-compat: missing fields default to 0.
+
+# --- Read Stop hook stdin payload (best-effort) ---
+PENDING_BG_TASKS=0
+ACTIVE_CRONS=0
+if [[ ! -t 0 ]] && command -v jq >/dev/null 2>&1; then
+  STDIN_PAYLOAD=$(cat 2>/dev/null || true)
+  if [[ -n "$STDIN_PAYLOAD" ]]; then
+    PENDING_BG_TASKS=$(printf '%s' "$STDIN_PAYLOAD" | jq -r '.background_tasks // [] | length' 2>/dev/null)
+    ACTIVE_CRONS=$(printf '%s' "$STDIN_PAYLOAD" | jq -r '.session_crons // [] | length' 2>/dev/null)
+    PENDING_BG_TASKS=${PENDING_BG_TASKS//[!0-9]/}; PENDING_BG_TASKS=${PENDING_BG_TASKS:-0}
+    ACTIVE_CRONS=${ACTIVE_CRONS//[!0-9]/}; ACTIVE_CRONS=${ACTIVE_CRONS:-0}
+  fi
+fi
 
 DATE=$(date +%Y-%m-%d)
 TIME=$(date +%H:%M)
@@ -47,6 +63,20 @@ fi
 if [[ -f "$LINT_COUNTER" ]]; then
   LINT_BLOCKS=$(wc -l < "$LINT_COUNTER" | tr -d ' ')
   rm -f "$LINT_COUNTER"
+fi
+
+# Tool-latency counter (written by tool-latency.sh — Claude Code v2.1.119+)
+LATENCY_COUNTER="/tmp/claude-tool-latency-${PROJECT_HASH}"
+TOOL_CALLS=0
+TOOL_TIME_MS=0
+TOOL_SLOWEST="none"
+if [[ -f "$LATENCY_COUNTER" ]]; then
+  TOOL_CALLS=$(wc -l < "$LATENCY_COUNTER" | tr -d ' '); TOOL_CALLS=${TOOL_CALLS//[!0-9]/}; TOOL_CALLS=${TOOL_CALLS:-0}
+  if (( TOOL_CALLS > 0 )); then
+    TOOL_TIME_MS=$(awk -F'|' 'BEGIN{s=0} {if($2 ~ /^[0-9]+$/) s+=$2} END{print s+0}' "$LATENCY_COUNTER")
+    TOOL_SLOWEST=$(awk -F'|' '$2 ~ /^[0-9]+$/ {if ($2+0 > max) {max=$2+0; tool=$1}} END{if (tool!="") printf "%s=%dms", tool, max; else print "none"}' "$LATENCY_COUNTER")
+  fi
+  rm -f "$LATENCY_COUNTER"
 fi
 
 # --- Rule coverage ---
@@ -121,6 +151,8 @@ if [[ -f "$METRICS_FILE" ]] && command -v jq &>/dev/null && jq -e . "$METRICS_FI
   PREV_FILES=$(_jq_num '.files_touched')
   PREV_COMMITS=$(_jq_num '.commits')
   PREV_SESSIONS=$(_jq_num '.sessions')
+  PREV_TOOL_CALLS=$(_jq_num '.tool_calls')
+  PREV_TOOL_TIME=$(_jq_num '.tool_time_ms')
 
   ERRORS_ADDED=$((ERRORS_ADDED + PREV_ERRORS))
   HOOK_BLOCKS=$((HOOK_BLOCKS + PREV_HOOK))
@@ -128,6 +160,8 @@ if [[ -f "$METRICS_FILE" ]] && command -v jq &>/dev/null && jq -e . "$METRICS_FI
   FILES_TOUCHED=$((FILES_TOUCHED + PREV_FILES))
   COMMITS=$((COMMITS + PREV_COMMITS))
   SESSIONS=$((PREV_SESSIONS + 1))
+  TOOL_CALLS=$((TOOL_CALLS + PREV_TOOL_CALLS))
+  TOOL_TIME_MS=$((TOOL_TIME_MS + PREV_TOOL_TIME))
 else
   SESSIONS=1
 fi
@@ -145,7 +179,12 @@ cat > "$METRICS_FILE" << JSON
   "rules_total": $TOTAL_RULES,
   "rule_coverage": $RULE_COVERAGE,
   "commits": $COMMITS,
-  "domain_knowledge_updated": $DOMAIN_CHANGES
+  "domain_knowledge_updated": $DOMAIN_CHANGES,
+  "tool_calls": $TOOL_CALLS,
+  "tool_time_ms": $TOOL_TIME_MS,
+  "tool_slowest": "$TOOL_SLOWEST",
+  "pending_bg_tasks": $PENDING_BG_TASKS,
+  "active_crons": $ACTIVE_CRONS
 }
 JSON
 
@@ -179,6 +218,7 @@ if [[ "${FORGE_SESSION_REPORT:-false}" == "true" ]]; then
 - Hook blocks: $HOOK_BLOCKS (destructive) / $LINT_BLOCKS (lint)
 - Rule coverage: $RULES_MATCHED/$TOTAL_RULES ($RULE_COVERAGE)
 - Errors logged: $ERRORS_ADDED
+- Tool calls: $TOOL_CALLS (total ${TOOL_TIME_MS}ms; slowest: $TOOL_SLOWEST)
 
 ### Files
 $(echo "$RECENT_FILES" | sed 's/^/- /' 2>/dev/null)
