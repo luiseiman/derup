@@ -113,5 +113,7 @@
     }
   },
   "sync_method": "additive",
-  "sync_note": "Settings.json + CLAUDE.md + domain/ NOT touched. Run interactive /forge sync per-project for full merge."
+  "sync_note": "Settings.json + CLAUDE.md + domain/ NOT touched. Run interactive /forge sync per-project for full merge.",
+  "v4_migrated_at": "20260603T143141Z",
+  "v4_migration_backup": ".claude.v3-backup-20260603T143141Z"
 }

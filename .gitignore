@@ -37,3 +37,6 @@ dist-ssr
 .claude/agent-memory/
 .oauth-tokens.json
 learning.json
+
+# dotforge v4 migration ephemeral artifacts
+.claude.v3-backup-*/
