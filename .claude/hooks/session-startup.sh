@@ -55,6 +55,56 @@ except Exception: pass
 " 2>/dev/null)
 fi
 
+# Ultracode tier: read from registry/projects.local.yml for current project
+ULTRACODE_TIER=$(python3 - <<'PY' 2>/dev/null || echo "standard"
+import os, sys
+try:
+    import yaml
+except ImportError:
+    print("standard"); sys.exit(0)
+project_path = os.getcwd()
+# Try local registry first, then committed, then $DOTFORGE_DIR
+candidates = [
+    'registry/projects.local.yml',
+    'registry/projects.yml',
+    os.path.expanduser(os.environ.get('DOTFORGE_DIR', '~/Documents/GitHub/dotforge') + '/registry/projects.local.yml'),
+]
+tier = "standard"
+for f in candidates:
+    if not os.path.isfile(f): continue
+    try:
+        data = yaml.safe_load(open(f)) or {}
+    except Exception:
+        continue
+    projects = data.get('projects', []) if isinstance(data, dict) else []
+    for entry in projects:
+        if not isinstance(entry, dict): continue
+        p = entry.get('path') or entry.get('root') or entry.get('cwd')
+        if p == project_path:
+            tier = entry.get('ultracode_tier', 'standard') or 'standard'
+            break
+    if tier != "standard": break
+if tier not in {'light','standard','heavy','production'}: tier = 'standard'
+print(tier)
+PY
+)
+
+case "$ULTRACODE_TIER" in
+    production)
+        ULTRACODE_REC="ON always. Multi-pass adversarial verify. Hard-gate: blocks merge on High findings."
+        ;;
+    heavy)
+        ULTRACODE_REC="ON for architecture/security tasks. Workflow ON for multi-stage. Soft-gate."
+        ;;
+    light)
+        ULTRACODE_REC="OFF default. Workflow only for explicit batch ops."
+        ;;
+    *)
+        ULTRACODE_TIER="standard"
+        ULTRACODE_REC="OFF default. ON if C2+C4 fire (irreversible touch on risk surface). /forge ultracode-check for verdict."
+        ;;
+esac
+
 # Drift detection: read previous snapshot's HEAD
 DRIFT_SECTION=""
 DRIFT_BRIEF=""
@@ -82,6 +132,7 @@ write_snapshot() {
 **Recent .claude/ edits (24h):** $RECENT_COUNT files
 **Pending TODOs:** $TODO_COUNT
 **Behaviors disabled:** ${BEHAVIORS_DISABLED:-none}
+**Ultracode tier:** $ULTRACODE_TIER — $ULTRACODE_REC
 
 $DRIFT_SECTION
 
@@ -125,6 +176,7 @@ if [ "$SHOULD_BRIEF" -eq 1 ]; then
     [ "$RECENT_COUNT" -gt 0 ] && echo "**Recent .claude/ edits (24h):** $RECENT_COUNT"
     [ -n "$BEHAVIORS_DISABLED" ] && echo "**Behaviors disabled:** $BEHAVIORS_DISABLED"
     [ "$TODO_COUNT" -gt 0 ] && echo "**Pending TODOs:** $TODO_COUNT"
+    echo "**Ultracode tier:** $ULTRACODE_TIER — $ULTRACODE_REC"
     echo ""
     echo "Full snapshot: \`.claude/session/last-startup.md\`. Last 5 in \`.claude/session/startup-history/\`."
 fi

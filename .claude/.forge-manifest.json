@@ -1,6 +1,6 @@
 {
-  "dotforge_version": "3.10.1",
-  "synced_at": "2026-05-22",
+  "dotforge_version": "3.12.0",
+  "synced_at": "2026-06-02",
   "stacks": [],
   "files": {
     ".claude/settings.json": {
@@ -12,7 +12,7 @@
       "source": "template/rules/_common.md"
     },
     ".claude/rules/agents.md": {
-      "hash": "sha256:d70781eded51b5f57f22b41f5d1f8080ffb759eff52a7be49359ad7283ecd69e",
+      "hash": "sha256:c7ba2a48207831d5312e5e7e4fba1a1dafd037f624f1c90c488b6cb76188da87",
       "source": "template/rules/agents.md"
     },
     ".claude/rules/frontend.md": {
@@ -56,7 +56,7 @@
       "source": "template"
     },
     ".claude/hooks/session-report.sh": {
-      "hash": "sha256:eecf50069e62325f1129d573daf20369a78f9e8c911f32595742507919f642cf",
+      "hash": "sha256:ab2720006646a9f8e34bc3689681ef3c87ea20bcd650eb8a4a891601bda79273",
       "source": "template"
     },
     ".claude/hooks/tool-latency.sh": {
@@ -113,6 +113,5 @@
     }
   },
   "sync_method": "additive",
-  "sync_note": "Settings.json + CLAUDE.md + domain/ NOT touched. Run interactive /forge sync per-project for full merge.",
-  "last_sync": "2026-06-01"
+  "sync_note": "Settings.json + CLAUDE.md + domain/ NOT touched. Run interactive /forge sync per-project for full merge."
 }
