@@ -9,9 +9,8 @@ import { generateSampleRelation } from '../../utils/relAlgebra/sampleData';
 import AlgebraPreview from './AlgebraPreview';
 import AlgebraTree from './AlgebraTree';
 import { highlight as highlightQuery } from './algebraHighlight';
-import { highlightSql } from './sqlHighlight';
+import SqlEditor from './SqlEditor';
 import { predictNext, wordAtCaret, type Suggestion as PredictSuggestion } from './algebraPredict';
-import { predictSql } from './sqlPredict';
 import { reverseEngineerER } from '../../utils/reverseEngineerER';
 import { sqlToAlgebra } from '../../utils/sqlToAlgebra';
 import { initSqlEngine } from '../../utils/sqlEngine';
@@ -753,17 +752,10 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
    * token stream up to the caret and returns suggestions whose KIND depends
    * on what the parser would legally accept next.
    */
+  /** Suggestions for the ALGEBRA editor. SQL mode uses CodeMirror's built-in
+   *  autocomplete dropdown — we don't compute these in SQL mode. */
   const suggestions = useMemo<Suggestion[]>(() => {
-    if (!acVisible) return [];
-    if (editorMode === 'sql') {
-      // SQL mode → use the SQL-specific predictor. Same Suggestion shape so
-      // the dropdown rendering downstream works unchanged.
-      return predictSql(query, caretPos, {
-        tables: acSchema.relations,
-        columnsByTable: acSchema.colsByRel,
-        allColumns: acSchema.allColumns,
-      });
-    }
+    if (!acVisible || editorMode === 'sql') return [];
     return predictNext(query, caretPos, {
       relations: acSchema.relations,
       columnsByRel: acSchema.colsByRel,
@@ -1005,11 +997,11 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
   /** Memoized highlight output to avoid re-walking the entire query text on
    *  every render — caret moves, mouse hovers and AC index changes all
    *  trigger renders and we don't want to recompute spans for each. */
+  /** Highlight nodes for the ALGEBRA editor only. SQL mode uses CodeMirror,
+   *  which has its own highlighter and we don't compute these nodes there. */
   const highlightedNodes = useMemo(
-    () => editorMode === 'sql'
-      ? highlightSql(query, { tables: acSchema.relations, columns: acSchema.allColumns })
-      : highlightQuery(query, { relations: acSchema.relations, columns: acSchema.allColumns }),
-    [editorMode, query, acSchema.relations, acSchema.allColumns],
+    () => highlightQuery(query, { relations: acSchema.relations, columns: acSchema.allColumns }),
+    [query, acSchema.relations, acSchema.allColumns],
   );
 
   /**
@@ -1330,18 +1322,30 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             </button>
           </div>
           <div className="ra-editor-wrap">
-            {/* Both modes use the transparent textarea + overlay trick.
-                highlightedNodes is dispatched by editorMode upstream so each
-                mode renders its own colour palette here. */}
-            <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
-              {highlightedNodes.slice(0, -1)}
-              {ghostText && <span className="ra-ghost">{ghostText}</span>}
-              {highlightedNodes[highlightedNodes.length - 1]}
-            </div>
-          <textarea
-            ref={editorRef}
-            className={`ra-editor ${editorMode === 'sql' ? 'ra-editor-sql' : ''}`}
-            value={query}
+            {editorMode === 'sql' ? (
+              // SQL: CodeMirror 6 with @codemirror/lang-sql owns the editor.
+              // Schema-aware autocomplete, syntax highlight, bracket matching,
+              // multi-cursor, search — all built in.
+              <SqlEditor
+                value={query}
+                onChange={(v) => { setQuery(v); }}
+                schema={{ columnsByTable: acSchema.colsByRel }}
+                onRun={runQuery}
+              />
+            ) : (
+              <>
+                {/* Algebra mode keeps the custom transparent textarea + overlay
+                    so the Greek-letter highlight, ghost-text and Alt+letter
+                    shortcuts (σπρ⋈⨯÷∪∩−) keep working as before. */}
+                <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
+                  {highlightedNodes.slice(0, -1)}
+                  {ghostText && <span className="ra-ghost">{ghostText}</span>}
+                  {highlightedNodes[highlightedNodes.length - 1]}
+                </div>
+                <textarea
+                  ref={editorRef}
+                  className="ra-editor"
+                  value={query}
             onChange={e => {
               setQuery(e.target.value);
               setAcVisible(true);
@@ -1393,8 +1397,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
                 runQuery();
                 return;
               }
-              // Autocomplete: navigate + accept. Active in both modes —
-              // algebra mode uses predictNext, SQL mode uses predictSql.
+              // Autocomplete: navigate + accept. Only algebra mode reaches
+              // this textarea — SQL mode is owned by CodeMirror upstream and
+              // never renders this textarea or its handlers.
               if (suggestions.length > 0 && acVisible) {
                 if (e.key === 'Tab') {
                   e.preventDefault();
@@ -1418,8 +1423,10 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
                 }
               }
             }}
-            spellCheck={false}
-          />
+                  spellCheck={false}
+                />
+              </>
+            )}
           </div>
           {suggestions.length > 0 && acVisible && (
             <div className="ra-autocomplete">
