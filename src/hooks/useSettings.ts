@@ -97,7 +97,13 @@ export interface UseSettingsApi {
 
 /** Subscribe to the global settings store. Re-renders the calling component
  *  on any change. The returned API mutates the singleton and notifies all
- *  subscribers. */
+ *  subscribers.
+ *
+ *  Note: `settings` is read fresh on every render (NOT memoised) so React
+ *  sees the latest value after a mutation. The action callbacks ARE memoised
+ *  with [] because they read `current` lazily at invocation time — the
+ *  module-level variable is mutable, so closing over it is fine.
+ */
 export function useSettings(): UseSettingsApi {
   const [, force] = useState(0);
   useEffect(() => {
@@ -106,28 +112,32 @@ export function useSettings(): UseSettingsApi {
     return () => { listeners.delete(fn); };
   }, []);
 
-  return useMemo<UseSettingsApi>(() => ({
-    settings: current,
-    setTheme: (theme) => setSettings({ ...current, theme }),
+  const actions = useMemo(() => ({
+    setTheme: (theme: Theme) => setSettings({ ...current, theme }),
     toggleTheme: () => setSettings({ ...current, theme: current.theme === 'light' ? 'dark' : 'light' }),
-    setFontScale: (fontScale) => setSettings({
+    setFontScale: (fontScale: number) => setSettings({
       ...current,
       fontScale: Math.max(0.7, Math.min(1.5, fontScale)),
     }),
-    bumpFontScale: (delta) => setSettings({
+    bumpFontScale: (delta: number) => setSettings({
       ...current,
       fontScale: Math.max(0.7, Math.min(1.5, Math.round((current.fontScale + delta) * 100) / 100)),
     }),
-    setPanelVisible: (panel, visible) => setSettings({
+    setPanelVisible: (panel: keyof PanelVisibility, visible: boolean) => setSettings({
       ...current,
       panels: { ...current.panels, [panel]: visible },
     }),
-    togglePanel: (panel) => setSettings({
+    togglePanel: (panel: keyof PanelVisibility) => setSettings({
       ...current,
       panels: { ...current.panels, [panel]: !current.panels[panel] },
     }),
     reset: () => setSettings(DEFAULT_SETTINGS),
   }), []);
+
+  // `current` is read FRESH on every render so the consumer always sees the
+  // latest store state. Spreading actions (which never change) keeps the
+  // returned API stable for downstream useEffect deps.
+  return { settings: current, ...actions };
 }
 
 /** Read-only accessor for code paths that don't want to subscribe to renders
