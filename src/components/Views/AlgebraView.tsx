@@ -1555,12 +1555,12 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             ? { gridColumn: showTables ? '3' : '1', gridRow: '3' }
             : undefined}
         >
-          <div className="algebra-panel-header">
-            <span>Resultado</span>
+          <div className="algebra-panel-header" style={{ flexWrap: 'wrap', rowGap: 4 }}>
+            <span style={{ whiteSpace: 'nowrap' }}>Resultado</span>
             {/* In-panel toggles: hide/show the execution tree and the data
                 table independently. Pure UI affordance — also exposed in
                 the ⚙ menu but easier to reach from here. */}
-            <span style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 8 }}>
+            <span style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 8, flexShrink: 0 }}>
               <button
                 className={`algebra-btn ${showResultTree ? 'primary' : ''}`}
                 style={{ fontSize: '0.65rem', padding: '2px 6px' }}
@@ -1574,8 +1574,8 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
                 title="Mostrar / ocultar la tabla de datos"
               >▦ datos</button>
             </span>
-            <span style={{ display: 'flex', gap: 10, alignItems: 'center', marginLeft: 'auto' }}>
-              {queryMs !== null && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{queryMs} ms</span>}
+            <span style={{ display: 'flex', gap: 10, alignItems: 'center', marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap' }}>
+              {queryMs !== null && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{queryMs} ms</span>}
               {selectedTreeNode && result && (
                 <button
                   className="algebra-btn"
@@ -1584,7 +1584,11 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
                   title="Volver al resultado final"
                 >↺ final</button>
               )}
-              {result && <span>{result.rows.length} filas · {result.columns.length} columnas</span>}
+              {result && (
+                <span style={{ whiteSpace: 'nowrap' }}>
+                  {result.rows.length} filas · {result.columns.length} columnas
+                </span>
+              )}
             </span>
           </div>
           <div className="algebra-panel-body">
