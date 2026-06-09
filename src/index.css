@@ -2,6 +2,11 @@
   --font-sans: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --font-display: 'Plus Jakarta Sans', 'Space Grotesk', 'Segoe UI', Arial, sans-serif;
   --font-family: var(--font-sans);
+
+  /* User-controllable font scale. The hook useSettings sets this on :root
+     via element.style.setProperty. Read everywhere font-size needs to react
+     to the user's chosen size. */
+  --ui-font-scale: 1;
   
   /* Paleta moderna: Púrpura y Azul */
   --primary-50: #f8f6ff;
@@ -61,6 +66,79 @@
   --entity-bg: #ffffff;
   --relationship-bg: #ffffff;
   --attribute-bg: #ffffff;
+
+  /* Composite body background — themed override below redefines this so the
+     gradient swaps between light and dark cleanly. */
+  --body-bg: linear-gradient(135deg, #f8f6ff 0%, #f0f9ff 50%, #faf5ff 100%);
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Dark theme override. The user toggles this by flipping data-theme on
+ * <html>; we only re-define the variables that should change. Anything
+ * not overridden inherits its light-mode value, which is the right call
+ * for accent colours (primary palette stays purple, just the surfaces and
+ * text invert).
+ * ──────────────────────────────────────────────────────────────────────── */
+:root[data-theme='dark'] {
+  --bg-color: #0f172a;
+  --bg-soft: #1e293b;
+  --body-bg: linear-gradient(135deg, #0b1120 0%, #0f172a 50%, #1a1830 100%);
+  --grid-color: rgba(167, 139, 250, 0.06);
+
+  --text-color: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --panel-border: rgba(226, 232, 240, 0.12);
+
+  /* Surfaces — entities, relationships, attributes — get a muted dark base
+     so they're still readable on the dark canvas. */
+  --entity-bg: #1e293b;
+  --relationship-bg: #1e293b;
+  --attribute-bg: #1e293b;
+
+  /* Slightly desaturated primary range for dark mode contrast. */
+  --primary-50: #1a1830;
+  --primary-100: #2a2548;
+  --primary-200: #3b3268;
+  --primary-300: #5b4ea8;
+  --primary-400: #7c6cd0;
+  --primary-500: #a78bfa;
+  --primary-600: #b794f6;
+  --primary-700: #d0b4ff;
+  --primary-800: #e4d9ff;
+  --primary-900: #f0ebff;
+
+  --accent-soft: rgba(167, 139, 250, 0.18);
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 20px 40px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.55);
+  --shadow-tight: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Dark-mode tweaks for elements that hard-code white-ish backgrounds
+   inline (CSS files predating the theming work). Kept here so a future
+   audit of those files can remove this safety net once they're vars. */
+:root[data-theme='dark'] button {
+  background-color: rgba(30, 41, 59, 0.8);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] button:hover {
+  background-color: var(--bg-soft);
+}
+:root[data-theme='dark'] input,
+:root[data-theme='dark'] select,
+:root[data-theme='dark'] textarea {
+  background: rgba(30, 41, 59, 0.9);
+  color: var(--text-color);
+  border-color: var(--panel-border);
+}
+:root[data-theme='dark'] input:hover,
+:root[data-theme='dark'] select:hover,
+:root[data-theme='dark'] textarea:hover {
+  background: var(--bg-soft);
+}
+:root[data-theme='dark'] input::placeholder {
+  color: var(--text-muted);
 }
 
 *,
@@ -76,8 +154,12 @@ body {
   min-width: 320px;
   min-height: 100vh;
   font-family: var(--font-sans);
-  background: linear-gradient(135deg, #f8f6ff 0%, #f0f9ff 50%, #faf5ff 100%);
+  background: var(--body-bg);
   color: var(--text-color);
+  /* Font scale applied at the root so every em/rem-sized element below
+     reacts. Components using fixed px ignore it by design — those are
+     mostly icons / chips that look better at a fixed size. */
+  font-size: calc(16px * var(--ui-font-scale));
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

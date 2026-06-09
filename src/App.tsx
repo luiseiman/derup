@@ -15,6 +15,7 @@ import { RelationalSchemaView } from './components/Views/RelationalSchemaView';
 import { SQLView, registerSQLNavigate } from './components/Views/SQLView';
 import AlgebraView from './components/Views/AlgebraView';
 import Splitter from './components/Splitter';
+import SettingsMenu from './components/SettingsMenu';
 import { erToRelationalSchema, buildSQLDDL } from './utils/relationalSchema';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -5218,6 +5219,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
                 disabled={isExporting}
                 title="Exportar como PDF"
               >{isExporting ? '…' : '⬇ PDF'}</button>
+              <SettingsMenu />
             </div>
           </div>
           {canvasView === 'er' && (
