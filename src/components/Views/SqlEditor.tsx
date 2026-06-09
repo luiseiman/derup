@@ -61,8 +61,14 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
     runKeymap,
   ], [schemaForCm, runKeymap]);
 
+  // CodeMirror only applies its `theme` prop on first mount — subsequent
+  // changes are ignored. Keying the component by the current theme forces
+  // React to remount when the user toggles ☀/☾, which is fine for an
+  // editor whose only "lost" state on remount is undo history (and the
+  // value lives in our parent React state anyway).
   return (
     <CodeMirror
+      key={settings.theme}
       ref={editorRef}
       value={value}
       onChange={onChange}
