@@ -163,6 +163,21 @@
  * ──────────────────────────────────────────────────────────────────────── */
 
 /* ── App.css ── */
+/* The outermost app shell paints its own gradient that was tinted purple-
+   white. In dark mode, let the body's gradient show through so the user
+   sees the unified dark surface instead of a pale slab. */
+:root[data-theme='dark'] .app-container {
+  background: transparent;
+}
+:root[data-theme='dark'] .sidebar-toggle-btn {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.92) 100%);
+  color: var(--primary-500);
+  border-color: var(--panel-border);
+}
+:root[data-theme='dark'] .sidebar-toggle-btn:hover {
+  background: var(--primary-500);
+  color: white;
+}
 :root[data-theme='dark'] .canvas-view-tab {
   background: rgba(30, 41, 59, 0.7);
   color: var(--text-secondary);
@@ -184,9 +199,34 @@
   background: var(--bg-soft);
   color: var(--text-color);
 }
+/* Sidebar header strip — no own bg in light, so a non-override would show
+   the .app-container gradient bleeding through. Pin to bg-soft so it's
+   visually flush with the panel below it. */
+:root[data-theme='dark'] .sidebar-tabs {
+  background: var(--bg-soft);
+  border-bottom-color: var(--panel-border);
+}
 :root[data-theme='dark'] .sidebar-tab {
-  background: rgba(30, 41, 59, 0.7);
+  background: transparent;
   color: var(--text-secondary);
+}
+:root[data-theme='dark'] .sidebar-tab:hover {
+  background: rgba(167, 139, 250, 0.1);
+  color: var(--primary-500);
+}
+:root[data-theme='dark'] .sidebar-tab.active {
+  background: rgba(167, 139, 250, 0.15);
+  color: var(--primary-500);
+  border-bottom-color: var(--primary-500);
+}
+:root[data-theme='dark'] .sidebar-tab.sidebar-close:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+/* Entity suggestions dropdown that pops above the chat input */
+:root[data-theme='dark'] .chat-suggestions {
+  background: var(--bg-soft);
+  border-color: var(--panel-border);
 }
 /* Chat panel — the message list container has a hard-coded white gradient
    that breaks dark mode entirely. Override the gradient + the bubble
