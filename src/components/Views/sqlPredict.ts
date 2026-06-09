@@ -281,8 +281,18 @@ function tbl(text: string): Suggestion {
 function col(text: string, hint?: string): Suggestion {
   return { text, label: text, hint, kind: 'column', pad: 'name' };
 }
-function fn(text: string, hint?: string): Suggestion {
-  return { text: `${text}(`, label: `${text}()`, hint, kind: 'operator', pad: 'none' };
+function fn(name: string, hint?: string): Suggestion {
+  // Insert "NAME()" with the caret landing between the parens so the user
+  // can type the argument right away. pad: 'lparen' adds a leading space
+  // only when the previous char isn't already a natural boundary.
+  return {
+    text: `${name}()`,
+    label: `${name}()`,
+    hint,
+    kind: 'operator',
+    pad: 'lparen',
+    caretOffset: name.length + 1, // index right after '('
+  };
 }
 
 function selectSuggestions(schema: SqlSchema, prevWasComma: boolean): Suggestion[] {
@@ -329,6 +339,64 @@ function startSuggestions(): Suggestion[] {
   return KW_START.map(k => kw(k));
 }
 
+// ── Alias resolution ─────────────────────────────────────────────────────
+//
+// `FROM emp e` and `FROM emp AS e` are SQL's table-alias forms. We need them
+// so that `e.col` autocompletes to columns of `emp`, not of all tables.
+// Scan the tokens linearly: whenever we hit FROM or JOIN, the next ident is
+// a table; if the ident after that (with optional AS in between) isn't a
+// reserved keyword, it's the alias.
+
+interface AliasMap {
+  /** alias-or-table-name (lowercased) → actual table name in the schema. */
+  resolve: Map<string, string>;
+}
+
+function extractAliasMap(tokens: SqlToken[]): AliasMap {
+  const resolve = new Map<string, string>();
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.kind !== 'ident') continue;
+    if (t.upper !== 'FROM' && t.upper !== 'JOIN') continue;
+
+    // Table name = next non-trivia ident that isn't a keyword.
+    let j = i + 1;
+    while (j < tokens.length && (tokens[j].kind === 'space' || tokens[j].kind === 'comment')) j++;
+    if (j >= tokens.length || tokens[j].kind !== 'ident' || SQL_KEYWORDS.has(tokens[j].upper)) continue;
+    const tableName = tokens[j].text;
+    resolve.set(tableName.toLowerCase(), tableName);
+
+    // Optional alias: maybe "AS name", maybe just "name".
+    let k = j + 1;
+    while (k < tokens.length && (tokens[k].kind === 'space' || tokens[k].kind === 'comment')) k++;
+    if (k >= tokens.length) continue;
+    let aliasTok: SqlToken | undefined;
+    if (tokens[k].kind === 'ident' && tokens[k].upper === 'AS') {
+      k++;
+      while (k < tokens.length && (tokens[k].kind === 'space' || tokens[k].kind === 'comment')) k++;
+      if (k < tokens.length && tokens[k].kind === 'ident' && !SQL_KEYWORDS.has(tokens[k].upper)) {
+        aliasTok = tokens[k];
+      }
+    } else if (tokens[k].kind === 'ident' && !SQL_KEYWORDS.has(tokens[k].upper)) {
+      aliasTok = tokens[k];
+    }
+    if (aliasTok) resolve.set(aliasTok.text.toLowerCase(), tableName);
+  }
+  return { resolve };
+}
+
+/** Look up which table a `tabla.col` qualifier refers to. Returns the actual
+ *  table name, or undefined if the qualifier doesn't resolve. */
+function resolveQualifier(qual: string, aliases: AliasMap, schema: SqlSchema): string | undefined {
+  const lower = qual.toLowerCase();
+  // Alias defined explicitly in this query
+  const aliased = aliases.resolve.get(lower);
+  if (aliased) return aliased;
+  // Or it might just be the table name itself, used without an alias
+  const matchByName = schema.tables.find(t => t.toLowerCase() === lower);
+  return matchByName;
+}
+
 // ── Main entry ────────────────────────────────────────────────────────────
 
 const COMPARISON_OPS = new Set(['=', '<', '>', '!=', '<=', '>=']);
@@ -352,6 +420,38 @@ export function predictSql(query: string, caretPos: number, schema: SqlSchema): 
 
   const { anchor, prev } = detectAnchor(scanTokens);
   const word = wordAtCaretLocal(query, caretPos).word;
+  const aliases = extractAliasMap(tokens);
+
+  // ── Qualified-column fast-path: `alias.colPrefix` or `tabla.colPrefix` ──
+  // If the user is typing after a '.', narrow the column list to the cols
+  // of the table that the qualifier resolves to. This is the standard
+  // behaviour IDE users expect — type `e.` and only see e's columns.
+  const dotIdx = word.lastIndexOf('.');
+  if (dotIdx >= 0) {
+    const qual = word.slice(0, dotIdx);
+    const colPrefix = word.slice(dotIdx + 1).toLowerCase();
+    const tableName = resolveQualifier(qual, aliases, schema);
+    if (tableName) {
+      const tableCols = schema.columnsByTable.get(tableName) ?? [];
+      const matches = tableCols
+        .filter(c => !colPrefix || c.toLowerCase().startsWith(colPrefix))
+        // wordAtCaret treats `qual.colPart` as ONE word, so the inserted
+        // text must include the qualifier too — otherwise accepting the
+        // suggestion would replace "e.col" with just "col". Label shows
+        // only the column for readability.
+        .map(c => ({ ...col(c), text: `${qual}.${c}`, label: c, hint: tableName }));
+      // Dedup + cap
+      const seen = new Set<string>();
+      const out: Suggestion[] = [];
+      for (const s of matches) {
+        if (seen.has(s.label)) continue;
+        seen.add(s.label);
+        out.push(s);
+      }
+      return out.slice(0, 14);
+    }
+    // Qualifier didn't resolve to a known table → fall through to normal logic
+  }
 
   // Helper: did the previous meaningful token end with a comparison or ',' ?
   const prevIsComma = prev?.text === ',';
@@ -368,11 +468,19 @@ export function predictSql(query: string, caretPos: number, schema: SqlSchema): 
       suggestions = startSuggestions();
       break;
     case 'AFTER_SELECT':
-      // If user just typed an aggregate function name or DISTINCT, suggest cols.
-      // If just typed a column, suggest ',' / FROM via KW_AFTER_SELECT.
+      // Three sub-cases:
+      //   (a) Just typed a column → comma/FROM/more columns
+      //   (b) Just typed DISTINCT/ALL → columns/*/aggregates (NO another DISTINCT)
+      //   (c) Otherwise → full SELECT bucket
       if (prevIsUserIdent) {
-        // Just typed an identifier (column) → suggest comma/FROM
         suggestions = [kw('FROM'), kw(','), ...KW_AFTER_SELECT.map(k => kw(k)), ...schema.allColumns.map(c => col(c))];
+      } else if (prev?.upper === 'DISTINCT' || prev?.upper === 'ALL') {
+        // After DISTINCT, suggest columns, * and aggregates — never another modifier
+        suggestions = [
+          kw('*', 'todas las columnas'),
+          ...schema.allColumns.map(c => col(c)),
+          ...KW_AGG.map(f => fn(f.toUpperCase(), 'función agregada')),
+        ];
       } else {
         suggestions = selectSuggestions(schema, prevIsComma);
       }
