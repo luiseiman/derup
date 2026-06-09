@@ -15,6 +15,7 @@ import { reverseEngineerER } from '../../utils/reverseEngineerER';
 import { sqlToAlgebra } from '../../utils/sqlToAlgebra';
 import { initSqlEngine } from '../../utils/sqlEngine';
 import Splitter from '../Splitter';
+import { useSettings } from '../../hooks/useSettings';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import './AlgebraView.css';
 
@@ -155,6 +156,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
   pendingDataChange, onPendingDataConsumed,
 }) => {
   const persisted = useMemo(loadPersisted, []);
+  const { settings: appSettings } = useSettings();
+  const showTables = appSettings.panels.algebraTables;
+  const showResult = appSettings.panels.algebraResult;
 
   // Two editors share the same evaluation pipeline but keep their own text
   // buffer. `query` is always the active mode's text — `sqlQuery` mirrors
@@ -1086,9 +1090,24 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
 
       <div
         className="algebra-body"
-        style={{ gridTemplateColumns: `${tablesPanelWidth}px 5px ${editorPanelWidth}px 5px 1fr` }}
+        style={{ gridTemplateColumns: (() => {
+          // The grid mirrors which panels are visible. Hidden panels drop both
+          // themselves AND their adjacent 5px splitter track.
+          const cols: string[] = [];
+          if (showTables) cols.push(`${tablesPanelWidth}px`, '5px');
+          // Editor always visible. If neither side panel is shown, give it 1fr;
+          // otherwise stick with the configured editor width and let 1fr be
+          // the result panel.
+          if (showResult) {
+            cols.push(`${editorPanelWidth}px`, '5px', '1fr');
+          } else {
+            cols.push('1fr');
+          }
+          return cols.join(' ');
+        })() }}
       >
         {/* ===== LEFT: Tables ===== */}
+        {showTables && (<>
         <div className="algebra-panel">
           <div className="algebra-panel-header">
             <span>Tablas del esquema ({tables.length})</span>
@@ -1288,6 +1307,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             setTablesPanelWidth(next);
           }}
         />
+        </>)}
         {/* ===== CENTER: Editor ===== */}
         <div className={`algebra-panel ra-mode-${editorMode}`}>
           <div className="algebra-panel-header">
@@ -1474,6 +1494,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
           </div>}
         </div>
 
+        {showResult && (<>
         <Splitter
           orientation="vertical"
           title="Arrastrar para cambiar el ancho del panel de consulta"
@@ -1555,6 +1576,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             )}
           </div>
         </div>
+        </>)}
       </div>
 
       {/* Hint about available relations — non-blocking */}

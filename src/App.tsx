@@ -16,6 +16,7 @@ import { SQLView, registerSQLNavigate } from './components/Views/SQLView';
 import AlgebraView from './components/Views/AlgebraView';
 import Splitter from './components/Splitter';
 import SettingsMenu from './components/SettingsMenu';
+import { useSettings } from './hooks/useSettings';
 import { erToRelationalSchema, buildSQLDDL } from './utils/relationalSchema';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -183,6 +184,12 @@ function App() {
   const lastAIInteraction = useRef<{ userInput: string; aiOutput: string; commandType: string } | null>(null);
   const learningLoaded = useRef(false);
   const [canvasView, setCanvasView] = useState<'er' | 'schema' | 'sql' | 'algebra'>('er');
+  const { settings: appSettings } = useSettings();
+  /** Sidebar gate combining all three layers — used inline below.
+   *  appSidebar = global on/off; erPanels = per-ER-tab override that hides
+   *  when canvasView==='er' AND erPanels is off (even if appSidebar is on). */
+  const sidebarPanelsAllowed = appSettings.panels.appSidebar
+    && !(canvasView === 'er' && !appSettings.panels.erPanels);
   /** Pending algebra-query command from the chat (algebra mode). The
    *  AlgebraView consumes this when present, inserts the query into the
    *  editor and runs it. Bumped each time so the same query can be applied
@@ -5077,7 +5084,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
 
   return (
     <div className="app-container">
-      {canvasView === 'er' && (
+      {canvasView === 'er' && appSettings.panels.erToolbar && (
       <Toolbar
         items={(() => {
           const selectionCount = selectedNodeIds.size + selectedConnectionIds.size + selectedAggregationIds.size;
@@ -5308,7 +5315,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
             />
           )}
         </div>
-        {sidebarOpen && (
+        {sidebarOpen && sidebarPanelsAllowed && (
         <Splitter
           orientation="vertical"
           title="Arrastrar para cambiar el ancho del panel lateral"
@@ -5321,7 +5328,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           }}
         />
         )}
-        {sidebarOpen && (
+        {sidebarOpen && sidebarPanelsAllowed && (
         <aside className="sidebar" style={{ width: sidebarWidth, flex: `0 0 ${sidebarWidth}px` }}>
           <div className="sidebar-tabs">
             <button className={`sidebar-tab ${activeTab === 'properties' ? 'active' : ''}`} onClick={() => setActiveTab('properties')}>Properties</button>
@@ -5786,7 +5793,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
           )}
         </aside>
         )}
-        {!sidebarOpen && (
+        {!sidebarOpen && sidebarPanelsAllowed && (
           <button className="sidebar-toggle-btn" onClick={() => setSidebarOpen(true)} title="Mostrar panel" aria-label="Mostrar panel">
             Panel
           </button>
