@@ -1085,7 +1085,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             className="algebra-btn primary"
             onClick={runQuery}
             disabled={isExecuting}
-            title={isExecuting ? 'Esperando motor SQL…' : 'Ctrl+Enter'}
+            title={isExecuting ? 'Esperando motor SQL…' : 'Ctrl+Enter (Cmd+Enter en Mac)'}
           >
             {isExecuting ? '⏳ Ejecutando…' : '▶ Ejecutar'}
           </button>
@@ -1341,8 +1341,8 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             <span>Consulta</span>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
               {editorMode === 'sql'
-                ? 'SQL → álgebra · Ctrl+Enter para ejecutar'
-                : 'Unicode o ASCII · Ctrl+Enter para ejecutar'}
+                ? 'SQL → álgebra · Ctrl/Cmd+Enter para ejecutar'
+                : 'Unicode o ASCII · Ctrl/Cmd+Enter para ejecutar'}
             </span>
           </div>
           {/* Sub-tabs: Álgebra vs SQL. Same evaluator, same schemas, separate buffer. */}

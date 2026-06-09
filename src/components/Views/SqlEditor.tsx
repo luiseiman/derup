@@ -109,8 +109,17 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
   useEffect(() => { onRunRef.current = onRun; }, [onRun]);
   const runKeymap = useMemo(() =>
     keymap.of([
+      // Both bindings on purpose: Mod-Enter maps to Cmd on Mac and Ctrl on
+      // Win/Linux (the conventional cross-platform shortcut), but many Mac
+      // users coming from Windows hit Ctrl+Enter literally — register that
+      // too so the action fires either way.
       {
         key: 'Mod-Enter',
+        preventDefault: true,
+        run: () => { onRunRef.current(); return true; },
+      },
+      {
+        key: 'Ctrl-Enter',
         preventDefault: true,
         run: () => { onRunRef.current(); return true; },
       },
@@ -415,7 +424,7 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
       height="100%"
       style={{ height: '100%', fontSize: '0.9rem' }}
       theme={settings.theme === 'dark' ? 'dark' : 'light'}
-      placeholder="-- Escribí SQL · Ctrl+Enter para ejecutar"
+      placeholder="-- Escribí SQL · Ctrl/Cmd+Enter para ejecutar"
     />
   );
 };
