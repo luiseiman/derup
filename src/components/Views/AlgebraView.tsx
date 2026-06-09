@@ -9,6 +9,7 @@ import { generateSampleRelation } from '../../utils/relAlgebra/sampleData';
 import AlgebraPreview from './AlgebraPreview';
 import AlgebraTree from './AlgebraTree';
 import { highlight as highlightQuery } from './algebraHighlight';
+import { highlightSql } from './sqlHighlight';
 import { predictNext, wordAtCaret, type Suggestion as PredictSuggestion } from './algebraPredict';
 import { predictSql } from './sqlPredict';
 import { reverseEngineerER } from '../../utils/reverseEngineerER';
@@ -1005,8 +1006,10 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
    *  every render — caret moves, mouse hovers and AC index changes all
    *  trigger renders and we don't want to recompute spans for each. */
   const highlightedNodes = useMemo(
-    () => highlightQuery(query, { relations: acSchema.relations, columns: acSchema.allColumns }),
-    [query, acSchema.relations, acSchema.allColumns],
+    () => editorMode === 'sql'
+      ? highlightSql(query, { tables: acSchema.relations, columns: acSchema.allColumns })
+      : highlightQuery(query, { relations: acSchema.relations, columns: acSchema.allColumns }),
+    [editorMode, query, acSchema.relations, acSchema.allColumns],
   );
 
   /**
@@ -1327,23 +1330,13 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             </button>
           </div>
           <div className="ra-editor-wrap">
-            {/* Both modes use the transparent textarea + overlay trick. In
-                algebra mode the overlay renders coloured spans; in SQL mode
-                it renders the query as plain text + a ghost-text suggestion.
-                (Fase 3 will add proper SQL syntax highlighting here.) */}
+            {/* Both modes use the transparent textarea + overlay trick.
+                highlightedNodes is dispatched by editorMode upstream so each
+                mode renders its own colour palette here. */}
             <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
-              {editorMode === 'algebra' ? (
-                <>
-                  {highlightedNodes.slice(0, -1)}
-                  {ghostText && <span className="ra-ghost">{ghostText}</span>}
-                  {highlightedNodes[highlightedNodes.length - 1]}
-                </>
-              ) : (
-                <>
-                  <span className="ra-sql-plain">{query}</span>
-                  {ghostText && <span className="ra-ghost">{ghostText}</span>}
-                </>
-              )}
+              {highlightedNodes.slice(0, -1)}
+              {ghostText && <span className="ra-ghost">{ghostText}</span>}
+              {highlightedNodes[highlightedNodes.length - 1]}
             </div>
           <textarea
             ref={editorRef}
