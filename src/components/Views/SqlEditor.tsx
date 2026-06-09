@@ -9,7 +9,7 @@
 // The component is intentionally thin: it owns nothing — value/onChange are
 // driven by AlgebraView, and Ctrl+Enter is wired upstream via onRun.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { FC } from 'react';
 import CodeMirror, { keymap } from '@uiw/react-codemirror';
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror';
@@ -34,23 +34,30 @@ interface Props {
 const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => {
   const { settings } = useSettings();
   // CM6's lang-sql takes the schema as an object literal { tableName: [cols] }.
-  // We build it from our Map. Memoised so it doesn't churn when the parent
-  // re-renders for unrelated reasons.
+  // Memo dep is schema.columnsByTable (the underlying Map's identity is stable
+  // upstream) — NOT `schema` itself, which is a fresh object literal on every
+  // render of AlgebraView. Without this, the memo invalidates every keystroke
+  // and CM6 reconfigures its extensions, killing the in-flight autocomplete.
   const schemaForCm = useMemo(() => {
     const out: Record<string, string[]> = {};
     for (const [t, cols] of schema.columnsByTable.entries()) out[t] = cols;
     return out;
-  }, [schema]);
+  }, [schema.columnsByTable]);
 
-  // Run-on-Ctrl/Cmd+Enter keymap. Returning `true` tells CM6 the key was
-  // handled so its default ("insert newline") doesn't also fire.
+  // Run-on-Ctrl/Cmd+Enter keymap. `onRun` upstream closes over the current
+  // query string, so its identity changes on every keystroke. We funnel it
+  // through a ref so the keymap (and therefore the extension array) stays
+  // stable — otherwise CM6 reconfigures on each render and the in-flight
+  // autocomplete state is torn down.
+  const onRunRef = useRef(onRun);
+  useEffect(() => { onRunRef.current = onRun; }, [onRun]);
   const runKeymap = useMemo(() =>
     keymap.of([{
       key: 'Mod-Enter',
       preventDefault: true,
-      run: () => { onRun(); return true; },
+      run: () => { onRunRef.current(); return true; },
     }]),
-  [onRun]);
+  []);
 
   const extensions = useMemo(() => [
     sql({

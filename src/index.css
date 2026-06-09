@@ -278,20 +278,24 @@
   color: var(--text-color);
 }
 
-/* Result table */
+/* Result table — the original zebra rule targets `tr:nth-child(even) td`
+   (background on the cells, not the row), so the override must match that
+   specificity. Targeting tr only would lose the cascade fight. */
 :root[data-theme='dark'] .ra-result-table {
-  background: var(--bg-soft);
+  background: transparent;
 }
 :root[data-theme='dark'] .ra-result-table th {
-  background: rgba(167, 139, 250, 0.12);
+  background: rgba(167, 139, 250, 0.18);
   color: var(--text-color);
+  border-color: var(--panel-border);
 }
 :root[data-theme='dark'] .ra-result-table td {
   border-color: var(--panel-border);
   color: var(--text-color);
+  background: transparent;
 }
-:root[data-theme='dark'] .ra-result-table tr:nth-child(even) {
-  background: rgba(15, 23, 42, 0.3);
+:root[data-theme='dark'] .ra-result-table tr:nth-child(even) td {
+  background: rgba(167, 139, 250, 0.06);
 }
 
 /* Execution tree nodes */
