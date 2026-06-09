@@ -188,17 +188,34 @@
   background: rgba(30, 41, 59, 0.7);
   color: var(--text-secondary);
 }
+/* Chat panel — the message list container has a hard-coded white gradient
+   that breaks dark mode entirely. Override the gradient + the bubble
+   variants. The user-message bubble stays purple (its own gradient with
+   --primary vars covers both themes already). */
+:root[data-theme='dark'] .chat-messages {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.7) 100%);
+  border-color: var(--panel-border);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
 :root[data-theme='dark'] .chat-message {
-  background: rgba(30, 41, 59, 0.7);
   color: var(--text-color);
 }
-:root[data-theme='dark'] .chat-message.user {
-  background: var(--primary-300);
-  color: white;
+:root[data-theme='dark'] .chat-message.assistant {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.18) 0%, rgba(14, 116, 144, 0.12) 100%);
+  color: var(--text-color);
+  border-color: rgba(6, 182, 212, 0.25);
 }
-:root[data-theme='dark'] .chat-input {
+:root[data-theme='dark'] .chat-message code {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .chat-input input {
   background: rgba(30, 41, 59, 0.9);
   color: var(--text-color);
+  border-color: var(--panel-border);
+}
+:root[data-theme='dark'] .chat-input input:focus {
+  background: var(--bg-soft);
 }
 
 /* ── AlgebraView.css ── */
@@ -399,6 +416,14 @@
   box-sizing: border-box;
 }
 
+/* CRITICAL: font-size lives on <html>, not <body>. CSS rem units resolve
+   against the root element's font-size — putting the scale on body would
+   only affect direct em children, not any rem-sized text (which is most of
+   the app). Setting it here propagates to every rem in the stylesheet. */
+html {
+  font-size: calc(16px * var(--ui-font-scale));
+}
+
 body {
   margin: 0;
   display: flex;
@@ -408,10 +433,6 @@ body {
   font-family: var(--font-sans);
   background: var(--body-bg);
   color: var(--text-color);
-  /* Font scale applied at the root so every em/rem-sized element below
-     reacts. Components using fixed px ignore it by design — those are
-     mostly icons / chips that look better at a fixed size. */
-  font-size: calc(16px * var(--ui-font-scale));
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
