@@ -11,11 +11,13 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import type { FC } from 'react';
-import CodeMirror, { keymap } from '@uiw/react-codemirror';
+import CodeMirror, { keymap, EditorView } from '@uiw/react-codemirror';
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { sql, SQLite } from '@codemirror/lang-sql';
 import { indentUnit, indentOnInput } from '@codemirror/language';
 import { indentMore, indentLess, insertNewlineAndIndent } from '@codemirror/commands';
+import { autocompletion, startCompletion } from '@codemirror/autocomplete';
+import type { CompletionContext, CompletionResult, Completion } from '@codemirror/autocomplete';
 import { useSettings } from '../../hooks/useSettings';
 
 export interface SqlEditorSchema {
@@ -73,12 +75,165 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
     ]),
   []);
 
+  // ── Context-aware completion source ──────────────────────────────────────
+  // lang-sql provides keyword highlight + schema awareness, but its built-in
+  // completer doesn't fire after a bare space (e.g. "SELECT |"), doesn't
+  // include '*' as an option, and treats every keyword the same way.
+  //
+  // We override with a source that classifies the caret position by the most
+  // recent significant token and emits the bucket that fits:
+  //   - After SELECT / DISTINCT / a comma in SELECT → '*', columns, aggregates
+  //   - After FROM / JOIN / INTO / UPDATE / DELETE FROM → tables
+  //   - After WHERE / ON / HAVING / AND / OR / SET → columns
+  //   - After GROUP BY / ORDER BY → columns + ASC/DESC where applicable
+  //   - Qualified prefix 'alias.' → only that table's columns
+  //   - At start of a statement → top-level keywords (SELECT / INSERT / …)
+  const sqlCtxCompletion = useMemo(() => {
+    return (context: CompletionContext): CompletionResult | null => {
+      const word = context.matchBefore(/[\w*.]*/);
+      const wordText = word?.text || '';
+      const wordFrom = word?.from ?? context.pos;
+      const before = context.state.doc.sliceString(0, context.pos);
+      // Trim the partial word the user is typing — context detection looks at
+      // tokens BEFORE the word, not the prefix itself.
+      const beforeWord = before.slice(0, before.length - wordText.length);
+      const tail = beforeWord.toUpperCase();
+
+      // Qualified path "alias.col" → restrict to that table's columns
+      const qualMatch = wordText.match(/^([a-zA-Z_]\w*)\.([a-zA-Z_]\w*)?$/);
+      if (qualMatch) {
+        const qual = qualMatch[1];
+        const colPrefix = qualMatch[2] ?? '';
+        const tableKey = Object.keys(schemaForCm).find(t => t.toLowerCase() === qual.toLowerCase());
+        if (tableKey) {
+          const opts: Completion[] = schemaForCm[tableKey]
+            .filter(c => !colPrefix || c.toLowerCase().startsWith(colPrefix.toLowerCase()))
+            .map(c => ({ label: c, type: 'property', detail: tableKey, apply: `${qual}.${c}` }));
+          if (opts.length > 0) return { from: wordFrom, options: opts, validFor: /^[\w.]*$/ };
+        }
+      }
+
+      const ALL_TABLES = Object.keys(schemaForCm);
+      const ALL_COLUMNS: { label: string; from: string }[] = [];
+      for (const [t, cols] of Object.entries(schemaForCm)) {
+        for (const c of cols) ALL_COLUMNS.push({ label: c, from: t });
+      }
+
+      // FROM / JOIN / INSERT INTO / DELETE FROM / UPDATE  →  tables
+      if (/\b(?:FROM|JOIN|INTO|UPDATE)\s+(?:[\w,]+\s*,\s*)*$/.test(tail) ||
+          /\bDELETE\s+FROM\s+$/.test(tail)) {
+        const opts: Completion[] = ALL_TABLES.map(t => ({
+          label: t,
+          type: 'class',
+          detail: `tabla · ${schemaForCm[t].length} columnas`,
+          boost: 50,
+        }));
+        return { from: wordFrom, options: opts, validFor: /^[\w]*$/ };
+      }
+
+      // SELECT (or after a comma in the SELECT list) → *, columns, aggregates
+      if (/\bSELECT\s+(?:DISTINCT\s+|ALL\s+)?(?:[\w*.,\s]*,\s*)?$/.test(tail) ||
+          /\bDISTINCT\s+$/.test(tail) || /\bALL\s+$/.test(tail)) {
+        const opts: Completion[] = [
+          { label: '*', type: 'keyword', detail: 'todas las columnas', boost: 99 },
+          { label: 'DISTINCT', type: 'keyword', boost: 80 },
+          ...ALL_COLUMNS.map(c => ({
+            label: c.label,
+            type: 'property',
+            detail: c.from,
+          })),
+          ...['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'].map(f => ({
+            label: f,
+            type: 'function',
+            detail: 'agregada',
+            apply: `${f}()`,
+          })),
+        ];
+        return { from: wordFrom, options: opts, validFor: /^[\w*]*$/ };
+      }
+
+      // WHERE / HAVING / ON / AND / OR / NOT / SET → columns + operators
+      if (/\b(?:WHERE|HAVING|ON|SET)\s+(?:[\w.=<>!,\s]*\s)?$/.test(tail) ||
+          /\b(?:AND|OR|NOT)\s+$/.test(tail)) {
+        const opts: Completion[] = ALL_COLUMNS.map(c => ({
+          label: c.label,
+          type: 'property',
+          detail: c.from,
+        }));
+        return { from: wordFrom, options: opts, validFor: /^[\w.]*$/ };
+      }
+
+      // GROUP BY / ORDER BY → columns (+ ASC/DESC for ORDER BY)
+      if (/\bGROUP\s+BY\s+(?:[\w,\s]*,\s*)?$/.test(tail)) {
+        const opts: Completion[] = ALL_COLUMNS.map(c => ({
+          label: c.label,
+          type: 'property',
+          detail: c.from,
+        }));
+        return { from: wordFrom, options: opts, validFor: /^[\w]*$/ };
+      }
+      if (/\bORDER\s+BY\s+(?:[\w,\s]*,\s*)?$/.test(tail)) {
+        const opts: Completion[] = [
+          ...ALL_COLUMNS.map(c => ({ label: c.label, type: 'property', detail: c.from })),
+          { label: 'ASC', type: 'keyword' },
+          { label: 'DESC', type: 'keyword' },
+        ];
+        return { from: wordFrom, options: opts, validFor: /^[\w]*$/ };
+      }
+
+      // Start of statement → top-level DML/DDL keywords
+      if (/(?:^|;|\)\s*)\s*$/.test(beforeWord)) {
+        const opts: Completion[] = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'WITH']
+          .map(k => ({ label: k, type: 'keyword' }));
+        return { from: wordFrom, options: opts, validFor: /^[\w]*$/ };
+      }
+
+      return null;
+    };
+  }, [schemaForCm]);
+
+  // After the user types a space, the partial-word prefix is empty so CM6
+  // doesn't trigger autocomplete by itself. If the space follows a SQL
+  // keyword that has a well-defined "next" bucket (SELECT, FROM, WHERE, …),
+  // we manually call startCompletion so the dropdown opens immediately.
+  const triggerOnSpace = useMemo(() =>
+    EditorView.updateListener.of((update) => {
+      if (!update.docChanged) return;
+      let typedSpace = false;
+      for (const tr of update.transactions) {
+        tr.changes.iterChanges((_fa, _ta, _fb, _tb, inserted) => {
+          if (inserted.toString() === ' ') typedSpace = true;
+        });
+      }
+      if (!typedSpace) return;
+      const pos = update.state.selection.main.head;
+      const before = update.state.doc.sliceString(Math.max(0, pos - 40), pos);
+      const isTrigger =
+        /\b(SELECT|DISTINCT|ALL|FROM|JOIN|ON|WHERE|HAVING|AND|OR|NOT|SET|VALUES|INTO|UPDATE|GROUP\s+BY|ORDER\s+BY|BY|UNION|EXCEPT|INTERSECT)\s+$/i.test(before) ||
+        /,\s+$/.test(before);
+      if (!isTrigger) return;
+      // Defer to next frame so the space change is committed before the
+      // completion query reads the document.
+      setTimeout(() => startCompletion(update.view), 0);
+    }),
+  []);
+
   const extensions = useMemo(() => [
     sql({
       dialect: SQLite,
       schema: schemaForCm,
       upperCaseKeywords: true,
     }),
+    // Override the default SQL completer with our context-aware one. We lose
+    // lang-sql's built-in completion source (which is mostly redundant with
+    // ours), but keep its syntax highlighting + indent rules — those come
+    // through the language extension, not the completer.
+    autocompletion({
+      override: [sqlCtxCompletion],
+      activateOnTyping: true,
+      closeOnBlur: true,
+    }),
+    triggerOnSpace,
     // Use two spaces — soft tab — so the formatted output is consistent
     // regardless of the user's tab-width setting. Combined with the Tab
     // keybinding above (indentMore) this gives us the conventional
@@ -89,7 +244,7 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
     // re-aligned automatically based on the SQL grammar.
     indentOnInput(),
     runKeymap,
-  ], [schemaForCm, runKeymap]);
+  ], [schemaForCm, runKeymap, sqlCtxCompletion, triggerOnSpace]);
 
   // CodeMirror only applies its `theme` prop on first mount — subsequent
   // changes are ignored. Keying the component by the current theme forces
