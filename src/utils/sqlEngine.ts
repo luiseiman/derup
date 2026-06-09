@@ -15,6 +15,7 @@ import type { Database, SqlJsStatic } from 'sql.js';
 // At runtime we feed the resolved URL to initSqlJs via locateFile.
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import type { Column, ColumnType, Relation, Value } from './relAlgebra/types';
+import { validateStatement } from './sqlValidate';
 
 let cached: Promise<SqlEngine> | null = null;
 
@@ -71,17 +72,20 @@ export class SqlEngine {
         .map(l => l.replace(/--.*$/, ''))
         .join('\n');
 
-      // ── Strict pre-validation for set operators ──────────────────────
-      // SQLite is laxly typed and will happily UNION 'SELECT eid' with
-      // 'SELECT ename'. Standard SQL (Postgres / MySQL / SQL Server) reject
-      // those — and derup is a teaching tool, so we mirror that strictness
-      // BEFORE handing the SQL to sql.js. Each statement is split on
-      // top-level UNION/INTERSECT/EXCEPT; each part is run in isolation
-      // with LIMIT 1 to recover its column types; mismatch in count or
-      // type throws an Error with a pedagogical message in Spanish.
+      // ── Strict pre-validation ────────────────────────────────────────
+      // derup is a teaching tool, so we mirror standard-SQL strictness
+      // (Postgres / MySQL strict mode / SQL Server) BEFORE handing the
+      // query to sql.js. Each statement is checked for:
+      //   - UNION/INTERSECT/EXCEPT column-count + type compatibility
+      //   - GROUP BY: every non-aggregate SELECT column must be in GROUP BY
+      //   - Aggregates in WHERE (should be in HAVING)
+      //   - IN / NOT IN with subquery: arity match
+      // The first error throws with a Spanish pedagogical message.
       for (const stmt of splitStatements(stmts)) {
-        const err = validateSetOps(db, stmt);
-        if (err) throw new Error(err);
+        const setOpErr = validateSetOps(db, stmt);
+        if (setOpErr) throw new Error(setOpErr);
+        const stmtErr = validateStatement(stmt, db);
+        if (stmtErr) throw new Error(stmtErr);
       }
 
       // sql.js's exec() returns an array of result sets — one per
