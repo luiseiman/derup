@@ -84,7 +84,7 @@ export class SqlEngine {
       for (const stmt of splitStatements(stmts)) {
         const setOpErr = validateSetOps(db, stmt);
         if (setOpErr) throw new Error(setOpErr);
-        const stmtErr = validateStatement(stmt, db);
+        const stmtErr = validateStatement(stmt, db, this.schemas);
         if (stmtErr) throw new Error(stmtErr);
       }
 
