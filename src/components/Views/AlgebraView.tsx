@@ -12,7 +12,7 @@ import { highlight as highlightQuery } from './algebraHighlight';
 import { predictNext, wordAtCaret, type Suggestion as PredictSuggestion } from './algebraPredict';
 import { reverseEngineerER } from '../../utils/reverseEngineerER';
 import { sqlToAlgebra } from '../../utils/sqlToAlgebra';
-import { tryExecuteSqlAggregate } from '../../utils/sqlAggregate';
+import { initSqlEngine } from '../../utils/sqlEngine';
 import Splitter from '../Splitter';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import './AlgebraView.css';
@@ -203,6 +203,10 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
   const [lastTrace, setLastTrace] = useState<Map<RelExpr, Relation>>(new Map());
   const [selectedTreeNode, setSelectedTreeNode] = useState<RelExpr | null>(null);
   const [queryMs, setQueryMs] = useState<number | null>(null);
+  /** True while runQuery's awaiting an async dependency (currently: sql.js
+   *  WASM boot on the first SQL run, ~200-500 ms cold). Used to disable the
+   *  ▶ Ejecutar button so the user doesn't fire multiple requests. */
+  const [isExecuting, setIsExecuting] = useState(false);
 
   // ----- Autocomplete state -----
   const [caretPos, setCaretPos] = useState(0);
@@ -260,7 +264,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
    *  algebra expression so they don't have to leave the editor to rewrite. */
   const [sqlTranslationNote, setSqlTranslationNote] = useState<string | null>(null);
 
-  const runQuery = useCallback(() => {
+  const runQuery = useCallback(async () => {
     setError(null);
     setErrorPos(null);
     setSqlTranslationNote(null);
@@ -270,14 +274,14 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
     tablesData.forEach((rel, name) => env.set(name, rel));
     importedRelations.forEach((rel, name) => env.set(name, rel));
 
-    // ── Decide which path to take ────────────────────────────────────────
-    // In SQL mode:
-    //   1) Aggregate fast-path: count/sum/avg/min/max with optional GROUP BY
-    //      executed directly (NOT routed through the algebra engine). Returns
-    //      a Relation; no execution tree because aggregates aren't algebra.
-    //   2) Algebra fallback: translate plain SELECT/WHERE/JOIN to algebra.
-    // In algebra mode: run the user's text verbatim.
-    let exprToParse: string;
+    // ── SQL mode ────────────────────────────────────────────────────────
+    // We embed SQLite (sql.js) so the user gets a real SQL engine: SELECT,
+    // JOINs, subqueries, CTEs, window functions, UNION, INSERT/UPDATE/DELETE,
+    // DDL, the lot. No more hand-written subset — see commit history.
+    //
+    // sqlToAlgebra is kept ONLY as an optional didactic hint: if the query
+    // happens to be plain SELECT/WHERE/JOIN that we know how to translate,
+    // we show the equivalent algebra expression next to the result.
     if (editorMode === 'sql') {
       const stripped = query
         .split('\n')
@@ -288,58 +292,43 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
         setError('Escribí una consulta SQL para ejecutar.');
         return;
       }
-
-      // (1) Aggregate fast-path
+      setIsExecuting(true);
       try {
-        const agg = tryExecuteSqlAggregate(stripped, env);
-        if (agg) {
-          const t0 = performance.now();
-          // (agg already ran; re-measuring just for ms display)
-          const t1 = performance.now();
-          setDerived(new Map());
-          setResult(agg.result);
-          setLastProgram(null);
-          setLastTrace(new Map());
-          setSelectedTreeNode(null);
-          setSqlTranslationNote(agg.note);
-          setQueryMs(Math.max(1, Math.round(t1 - t0)));
-          return;
+        const engine = await initSqlEngine();
+        const { result: r, ms, rowsAffected } = engine.execute(stripped, env);
+        setDerived(new Map());
+        setResult(r);
+        setLastProgram(null); // SQL doesn't produce an algebra tree
+        setLastTrace(new Map());
+        setSelectedTreeNode(null);
+        setQueryMs(ms);
+
+        // Optional algebra translation as a didactic note (only if the
+        // query happens to be inside the algebra-translatable subset).
+        const trans = sqlToAlgebra(stripped);
+        if (trans) {
+          setSqlTranslationNote(trans.note);
+        } else if (rowsAffected !== null) {
+          setSqlTranslationNote(`SQL ejecutado: ${rowsAffected} fila${rowsAffected !== 1 ? 's' : ''} afectada${rowsAffected !== 1 ? 's' : ''}.`);
         }
       } catch (e) {
-        // Aggregate path found the query but failed validating it — surface
-        // the message directly. (e.g. column not found, wrong type.)
-        setError(e instanceof Error ? e.message : String(e));
+        // sql.js throws Error with the SQLite message verbatim (usually
+        // something like "near \"foo\": syntax error").
+        setError(`SQL: ${e instanceof Error ? e.message : String(e)}`);
         setResult(null);
         setLastProgram(null);
         setLastTrace(new Map());
         setSelectedTreeNode(null);
         setQueryMs(null);
-        return;
+      } finally {
+        setIsExecuting(false);
       }
-
-      // (2) Algebra fallback
-      const sqlTrans = sqlToAlgebra(stripped);
-      if (!sqlTrans) {
-        setError(
-          'Consulta SQL no soportada o inválida. Soporta SELECT … FROM … [WHERE …] [JOIN …] ' +
-          '[GROUP BY …] con agregados count/sum/avg/min/max. ' +
-          'HAVING, ORDER BY, LIMIT, UNION, subconsultas y OUTER JOIN no están soportados.'
-        );
-        setResult(null);
-        setLastProgram(null);
-        setLastTrace(new Map());
-        setSelectedTreeNode(null);
-        setQueryMs(null);
-        return;
-      }
-      exprToParse = sqlTrans.algebra;
-      setSqlTranslationNote(sqlTrans.note);
-    } else {
-      exprToParse = query;
+      return;
     }
 
+    // ── Algebra mode — run the user's text verbatim ─────────────────────
     try {
-      const program = parse(exprToParse);
+      const program = parse(query);
       const t0 = performance.now();
       const { result: r, derived: d, trace } = evaluate(program, env);
       const t1 = performance.now();
@@ -382,7 +371,23 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
       setCaretPos(0);
       return next;
     });
+    // Warm up sql.js WASM when the user enters the SQL tab so the first
+    // query feels instant. Fire-and-forget — failures will surface on the
+    // actual execute call.
+    if (next === 'sql') {
+      initSqlEngine().catch(() => { /* swallow — will retry on execute */ });
+    }
   }, [bufferedQuery]);
+
+  // Same warm-up if the SQL tab is already active on mount (persisted state).
+  useEffect(() => {
+    if (editorMode === 'sql') {
+      initSqlEngine().catch(() => { /* swallow */ });
+    }
+  // intentionally run once on mount only — re-warming on every editorMode
+  // change is already handled by switchEditorMode.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Insert text at the caret with context-aware padding. The kind tells us
@@ -1059,7 +1064,14 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
           <button className="algebra-btn" onClick={triggerImportCSV} title="Importar uno o varios CSV como relaciones nuevas (sin necesidad de ER)">
             📥 Importar CSV
           </button>
-          <button className="algebra-btn primary" onClick={runQuery}>▶ Ejecutar</button>
+          <button
+            className="algebra-btn primary"
+            onClick={runQuery}
+            disabled={isExecuting}
+            title={isExecuting ? 'Esperando motor SQL…' : 'Ctrl+Enter'}
+          >
+            {isExecuting ? '⏳ Ejecutando…' : '▶ Ejecutar'}
+          </button>
           <button className="algebra-btn" onClick={clearEditor}>Limpiar</button>
           <button className="algebra-btn" onClick={exportResultCSV} disabled={!result}>
             Exportar CSV
