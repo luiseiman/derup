@@ -22,11 +22,21 @@ export interface PanelVisibility {
   erPanels: boolean;
 }
 
+export type ResultLayout = 'side' | 'below';
+
 export interface AppSettings {
   theme: Theme;
   /** Multiplier applied to base font size. Range [0.7, 1.5]. */
   fontScale: number;
   panels: PanelVisibility;
+  /** Show the execution tree (graphical view) in the result panel. */
+  showResultTree: boolean;
+  /** Show the rows table in the result panel. */
+  showResultData: boolean;
+  /** Where the result panel sits in the AlgebraView layout:
+   *   'side'  → to the right of the editor (default)
+   *   'below' → underneath the editor */
+  resultLayout: ResultLayout;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -39,6 +49,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     erToolbar: true,
     erPanels: true,
   },
+  showResultTree: true,
+  showResultData: true,
+  resultLayout: 'side',
 };
 
 const STORAGE_KEY = 'derup.settings.v1';
@@ -92,6 +105,9 @@ export interface UseSettingsApi {
   bumpFontScale(delta: number): void;
   setPanelVisible(panel: keyof PanelVisibility, visible: boolean): void;
   togglePanel(panel: keyof PanelVisibility): void;
+  setShowResultTree(v: boolean): void;
+  setShowResultData(v: boolean): void;
+  setResultLayout(layout: ResultLayout): void;
   reset(): void;
 }
 
@@ -131,6 +147,9 @@ export function useSettings(): UseSettingsApi {
       ...current,
       panels: { ...current.panels, [panel]: !current.panels[panel] },
     }),
+    setShowResultTree: (v: boolean) => setSettings({ ...current, showResultTree: v }),
+    setShowResultData: (v: boolean) => setSettings({ ...current, showResultData: v }),
+    setResultLayout: (layout: ResultLayout) => setSettings({ ...current, resultLayout: layout }),
     reset: () => setSettings(DEFAULT_SETTINGS),
   }), []);
 

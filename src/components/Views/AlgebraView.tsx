@@ -156,9 +156,12 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
   pendingDataChange, onPendingDataConsumed,
 }) => {
   const persisted = useMemo(loadPersisted, []);
-  const { settings: appSettings } = useSettings();
+  const { settings: appSettings, setShowResultTree, setShowResultData } = useSettings();
   const showTables = appSettings.panels.algebraTables;
   const showResult = appSettings.panels.algebraResult;
+  const showResultTree = appSettings.showResultTree;
+  const showResultData = appSettings.showResultData;
+  const resultLayout = appSettings.resultLayout;
 
   // Two editors share the same evaluation pipeline but keep their own text
   // buffer. `query` is always the active mode's text — `sqlQuery` mirrors
@@ -223,8 +226,13 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
   // tweak survives a reload.
   const [tablesPanelWidth, setTablesPanelWidth] = useLocalStorage<number>('derup.algebra.col1', 280);
   const [editorPanelWidth, setEditorPanelWidth] = useLocalStorage<number>('derup.algebra.col2', 460);
+  /** Height of the result panel when it sits BELOW the editor.
+   *  Drag the horizontal splitter to resize. Stored separately from the
+   *  side-layout widths so switching layouts preserves both preferences. */
+  const [resultPanelHeight, setResultPanelHeight] = useLocalStorage<number>('derup.algebra.resultH', 280);
   const tablesDragBaseline = useRef(tablesPanelWidth);
   const editorDragBaseline = useRef(editorPanelWidth);
+  const resultHeightDragBaseline = useRef(resultPanelHeight);
 
   // CRUD modal state — name of the relation being edited and a working copy.
   const [editingRelation, setEditingRelation] = useState<string | null>(null);
@@ -1090,25 +1098,38 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
 
       <div
         className="algebra-body"
-        style={{ gridTemplateColumns: (() => {
-          // The grid mirrors which panels are visible. Hidden panels drop both
-          // themselves AND their adjacent 5px splitter track.
+        data-layout={resultLayout}
+        style={(() => {
+          // Layout 'side' — three columns in a single row. Hidden panels drop
+          //                 themselves AND their adjacent 5px splitter track.
+          // Layout 'below' — tables stays in the left column spanning every
+          //                  row; editor sits top-right, result bottom-right,
+          //                  with a horizontal splitter between them.
+          if (resultLayout === 'below') {
+            const cols: string[] = [];
+            if (showTables) cols.push(`${tablesPanelWidth}px`, '5px');
+            cols.push('1fr');
+            const rows: string[] = ['1fr'];
+            if (showResult) rows.push('5px', `${resultPanelHeight}px`);
+            return {
+              gridTemplateColumns: cols.join(' '),
+              gridTemplateRows: rows.join(' '),
+            };
+          }
+          // Side layout
           const cols: string[] = [];
           if (showTables) cols.push(`${tablesPanelWidth}px`, '5px');
-          // Editor always visible. If neither side panel is shown, give it 1fr;
-          // otherwise stick with the configured editor width and let 1fr be
-          // the result panel.
-          if (showResult) {
-            cols.push(`${editorPanelWidth}px`, '5px', '1fr');
-          } else {
-            cols.push('1fr');
-          }
-          return cols.join(' ');
-        })() }}
+          if (showResult) cols.push(`${editorPanelWidth}px`, '5px', '1fr');
+          else            cols.push('1fr');
+          return {
+            gridTemplateColumns: cols.join(' '),
+            gridTemplateRows: '1fr',
+          };
+        })()}
       >
-        {/* ===== LEFT: Tables ===== */}
+        {/* ===== LEFT: Tables — spans every row when result sits below ===== */}
         {showTables && (<>
-        <div className="algebra-panel">
+        <div className="algebra-panel" style={resultLayout === 'below' ? { gridRow: '1 / -1' } : undefined}>
           <div className="algebra-panel-header">
             <span>Tablas del esquema ({tables.length})</span>
           </div>
@@ -1306,10 +1327,16 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             const next = Math.max(180, Math.min(600, tablesDragBaseline.current + delta));
             setTablesPanelWidth(next);
           }}
+          style={resultLayout === 'below' ? { gridRow: '1 / -1' } : undefined}
         />
         </>)}
         {/* ===== CENTER: Editor ===== */}
-        <div className={`algebra-panel ra-mode-${editorMode}`}>
+        <div
+          className={`algebra-panel ra-mode-${editorMode}`}
+          style={resultLayout === 'below'
+            ? { gridColumn: showTables ? '3' : '1', gridRow: '1' }
+            : undefined}
+        >
           <div className="algebra-panel-header">
             <span>Consulta</span>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
@@ -1495,20 +1522,59 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
         </div>
 
         {showResult && (<>
-        <Splitter
-          orientation="vertical"
-          title="Arrastrar para cambiar el ancho del panel de consulta"
-          onDragStart={() => { editorDragBaseline.current = editorPanelWidth; }}
-          onDrag={(delta) => {
-            const next = Math.max(260, Math.min(900, editorDragBaseline.current + delta));
-            setEditorPanelWidth(next);
-          }}
-        />
-        {/* ===== RIGHT: Result ===== */}
-        <div className="algebra-panel">
+        {resultLayout === 'side' ? (
+          <Splitter
+            orientation="vertical"
+            title="Arrastrar para cambiar el ancho del panel de consulta"
+            onDragStart={() => { editorDragBaseline.current = editorPanelWidth; }}
+            onDrag={(delta) => {
+              const next = Math.max(260, Math.min(900, editorDragBaseline.current + delta));
+              setEditorPanelWidth(next);
+            }}
+          />
+        ) : (
+          // 'below' layout — horizontal splitter sits in row 2 of the editor
+          // column (col 3 when tables are visible, col 1 when they aren't).
+          // Drag moves the boundary between editor area and result area
+          // vertically; positive delta (mouse down) shrinks the result.
+          <Splitter
+            orientation="horizontal"
+            title="Arrastrar para cambiar el alto del panel de resultado"
+            onDragStart={() => { resultHeightDragBaseline.current = resultPanelHeight; }}
+            onDrag={(delta) => {
+              const next = Math.max(120, Math.min(800, resultHeightDragBaseline.current - delta));
+              setResultPanelHeight(next);
+            }}
+            style={{ gridColumn: showTables ? '3' : '1' }}
+          />
+        )}
+        {/* ===== RIGHT (or BOTTOM): Result ===== */}
+        <div
+          className="algebra-panel"
+          style={resultLayout === 'below'
+            ? { gridColumn: showTables ? '3' : '1', gridRow: '3' }
+            : undefined}
+        >
           <div className="algebra-panel-header">
             <span>Resultado</span>
-            <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {/* In-panel toggles: hide/show the execution tree and the data
+                table independently. Pure UI affordance — also exposed in
+                the ⚙ menu but easier to reach from here. */}
+            <span style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 8 }}>
+              <button
+                className={`algebra-btn ${showResultTree ? 'primary' : ''}`}
+                style={{ fontSize: '0.65rem', padding: '2px 6px' }}
+                onClick={() => setShowResultTree(!showResultTree)}
+                title="Mostrar / ocultar el árbol de ejecución"
+              >▸ árbol</button>
+              <button
+                className={`algebra-btn ${showResultData ? 'primary' : ''}`}
+                style={{ fontSize: '0.65rem', padding: '2px 6px' }}
+                onClick={() => setShowResultData(!showResultData)}
+                title="Mostrar / ocultar la tabla de datos"
+              >▦ datos</button>
+            </span>
+            <span style={{ display: 'flex', gap: 10, alignItems: 'center', marginLeft: 'auto' }}>
               {queryMs !== null && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{queryMs} ms</span>}
               {selectedTreeNode && result && (
                 <button
@@ -1540,7 +1606,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
                 </div>
               </div>
             )}
-            {!error && result && lastProgram && lastTrace.size > 0 && (
+            {!error && result && showResultTree && lastProgram && lastTrace.size > 0 && (
               <AlgebraTree
                 program={lastProgram}
                 trace={lastTrace}
@@ -1551,7 +1617,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
                 }}
               />
             )}
-            {!error && result && (
+            {!error && result && showResultData && (
               <table className="ra-result-table">
                 <thead>
                   <tr>

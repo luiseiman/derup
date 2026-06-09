@@ -17,7 +17,7 @@ const PANEL_LABELS: Record<keyof PanelVisibility, string> = {
 };
 
 const SettingsMenu: FC = () => {
-  const { settings, toggleTheme, bumpFontScale, setFontScale, togglePanel, reset } = useSettings();
+  const { settings, toggleTheme, bumpFontScale, setFontScale, togglePanel, setResultLayout, reset } = useSettings();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -115,6 +115,29 @@ const SettingsMenu: FC = () => {
                   <span>{PANEL_LABELS[panel]}</span>
                 </label>
               ))}
+            </div>
+          </div>
+
+          {/* Result panel layout (Algebra/SQL view only) */}
+          <div className="settings-section">
+            <div className="settings-label">Ubicación del resultado</div>
+            <div className="settings-row">
+              <button
+                type="button"
+                className={`settings-pill ${settings.resultLayout === 'side' ? 'active' : ''}`}
+                onClick={() => setResultLayout('side')}
+                title="Panel a la derecha del editor"
+              >
+                ⇥ Al costado
+              </button>
+              <button
+                type="button"
+                className={`settings-pill ${settings.resultLayout === 'below' ? 'active' : ''}`}
+                onClick={() => setResultLayout('below')}
+                title="Panel debajo del editor"
+              >
+                ⤓ Abajo
+              </button>
             </div>
           </div>
 

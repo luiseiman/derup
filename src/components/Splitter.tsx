@@ -23,6 +23,9 @@ interface SplitterProps {
   onDragEnd?: () => void;
   /** className override (e.g. to highlight a specific splitter). */
   className?: string;
+  /** Inline style override (e.g. to set grid-row when the splitter sits in
+   *  a CSS-grid layout that needs an explicit row span). */
+  style?: React.CSSProperties;
   /** Tooltip on hover. */
   title?: string;
 }
@@ -33,6 +36,7 @@ const Splitter: React.FC<SplitterProps> = ({
   onDragStart,
   onDragEnd,
   className = '',
+  style,
   title,
 }) => {
   // Track the starting cursor position so onDrag receives a cumulative delta.
@@ -79,6 +83,7 @@ const Splitter: React.FC<SplitterProps> = ({
       role="separator"
       aria-orientation={orientation === 'vertical' ? 'vertical' : 'horizontal'}
       title={title ?? (orientation === 'vertical' ? 'Arrastrar para cambiar el ancho' : 'Arrastrar para cambiar el alto')}
+      style={style}
       onMouseDown={handleMouseDown}
     />
   );

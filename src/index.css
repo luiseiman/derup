@@ -316,7 +316,9 @@
   background: transparent;
 }
 :root[data-theme='dark'] .ra-result-table th {
-  background: rgba(167, 139, 250, 0.18);
+  /* Opaque — sticky headers must not be translucent or the first row
+     bleeds through them as the user scrolls (visible bug in screenshot). */
+  background: #2a2548;
   color: var(--text-color);
   border-color: var(--panel-border);
 }
