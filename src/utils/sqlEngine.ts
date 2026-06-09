@@ -125,21 +125,45 @@ export class SqlEngine {
   }
 
   private recoverType(name: string, rows: Array<Array<unknown>>, ci: number): ColumnType {
-    // First try: a column with this exact name lives in a synced table.
+    // Step 1 — does a column with this exact name exist in any synced table?
+    let candidate: ColumnType | null = null;
     for (const cols of this.schemas.values()) {
       const hit = cols.find(c => c.name === name);
-      if (hit) return hit.type;
+      if (hit) { candidate = hit.type; break; }
     }
-    // Suffix qualifier (e.g. "emp.eid" produced by a join column name)
-    const dotIdx = name.indexOf('.');
-    if (dotIdx >= 0) {
-      const tail = name.slice(dotIdx + 1);
-      for (const cols of this.schemas.values()) {
-        const hit = cols.find(c => c.name === tail);
-        if (hit) return hit.type;
+    // Step 2 — suffix qualifier (e.g. "emp.eid" produced by a join column).
+    if (!candidate) {
+      const dotIdx = name.indexOf('.');
+      if (dotIdx >= 0) {
+        const tail = name.slice(dotIdx + 1);
+        for (const cols of this.schemas.values()) {
+          const hit = cols.find(c => c.name === tail);
+          if (hit) { candidate = hit.type; break; }
+        }
       }
     }
-    // Fallback: inspect the first non-null value.
+
+    // Step 3 — if we got a candidate, VERIFY it against the actual values.
+    // SQLite is laxly typed (type affinity) and a query like
+    //   SELECT eid FROM emp UNION ALL SELECT ename FROM emp
+    // returns rows whose 'eid' column mixes numbers and strings. Forcing
+    // those strings to 'number' downstream would coerce them to NaN→null
+    // and the user would see Ø where they expect "Ana", "Beto", etc.
+    // When the schema type doesn't fit ALL non-null values, fall back to
+    // 'string' which round-trips everything verbatim.
+    if (candidate && candidate !== 'string') {
+      let fits = true;
+      for (const row of rows) {
+        const v = row[ci];
+        if (v === null || v === undefined) continue;
+        if (!valueFitsType(v, candidate)) { fits = false; break; }
+      }
+      if (fits) return candidate;
+      return 'string';
+    }
+    if (candidate) return candidate;
+
+    // Step 4 — no schema match: infer from the first non-null value.
     for (const row of rows) {
       const v = row[ci];
       if (v === null || v === undefined) continue;
@@ -153,6 +177,26 @@ export class SqlEngine {
     }
     return 'string';
   }
+}
+
+/** Does the runtime value `v` match the declared ColumnType `t`?
+ *  Used to detect SQLite type-affinity surprises (mixed types in a UNION-ALL
+ *  column, for instance) so we can fall back to 'string' instead of forcing
+ *  a doomed conversion in fromSqlite. */
+function valueFitsType(v: unknown, t: ColumnType): boolean {
+  if (v === null || v === undefined) return true; // null is universal
+  if (t === 'number') return typeof v === 'number';
+  if (t === 'boolean') {
+    if (typeof v === 'boolean') return true;
+    // SQLite stores booleans as 0/1 integers — those are still "fits".
+    return typeof v === 'number' && (v === 0 || v === 1);
+  }
+  if (t === 'date') {
+    if (v instanceof Date) return true;
+    return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v);
+  }
+  // 'string' is the universal fallback — anything serialises into it.
+  return true;
 }
 
 function sqliteTypeOf(t: ColumnType): string {
