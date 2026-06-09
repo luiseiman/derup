@@ -287,6 +287,45 @@
   background: var(--bg-soft);
   border-color: var(--panel-border);
 }
+
+/* Room (collaborate) bar — referenced an undefined --surface-2 so it
+   fell through to the literal #f0f0f0 grey. Pin to a dark surface. */
+:root[data-theme='dark'] .room-bar {
+  background: rgba(30, 41, 59, 0.5);
+  border-bottom-color: var(--panel-border);
+}
+:root[data-theme='dark'] .room-copy-btn {
+  background: rgba(99, 102, 241, 0.25);
+  color: #c4b5fd;
+}
+:root[data-theme='dark'] .room-leave-btn {
+  background: rgba(220, 38, 38, 0.18);
+  color: #fca5a5;
+}
+
+/* Chat mode chips ('Modo: Álgebra Relacional' etc.) — all four hard-code
+   pastel light backgrounds. In dark, keep the hue but pump opacity down
+   and use light text so they read on the dark sidebar surface. */
+:root[data-theme='dark'] .chat-mode-chip.mode-er {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.4);
+}
+:root[data-theme='dark'] .chat-mode-chip.mode-schema {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+:root[data-theme='dark'] .chat-mode-chip.mode-sql {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fdba74;
+  border-color: rgba(249, 115, 22, 0.4);
+}
+:root[data-theme='dark'] .chat-mode-chip.mode-algebra {
+  background: rgba(167, 139, 250, 0.2);
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.4);
+}
 /* Chat panel — the message list container has a hard-coded white gradient
    that breaks dark mode entirely. Override the gradient + the bubble
    variants. The user-message bubble stays purple (its own gradient with
