@@ -74,9 +74,9 @@ const SettingsMenu: FC = () => {
             </div>
           </div>
 
-          {/* Font scale + bold */}
+          {/* Font scale + bold — applies ONLY to the algebra/SQL editor body */}
           <div className="settings-section">
-            <div className="settings-label">Tamaño de letra</div>
+            <div className="settings-label">Tamaño de letra (editor)</div>
             <div className="settings-row">
               <button
                 type="button"

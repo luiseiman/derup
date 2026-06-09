@@ -517,14 +517,13 @@
   box-sizing: border-box;
 }
 
-/* CRITICAL: font-size lives on <html>, not <body>. CSS rem units resolve
-   against the root element's font-size — putting the scale on body would
-   only affect direct em children, not any rem-sized text (which is most of
-   the app). Setting it here propagates to every rem in the stylesheet. */
+/* --ui-font-scale and --ui-font-weight are set by useSettings on :root,
+   but they're CONSUMED only by the query editors (algebra textarea +
+   CodeMirror SQL editor). The rest of the UI keeps its original sizes
+   so the chrome stays consistent regardless of the user's reading
+   preferences. Default --ui-font-weight kept here as a fallback in case
+   the JS hasn't applied yet. */
 html {
-  font-size: calc(16px * var(--ui-font-scale));
-  /* Default value — the settings store overrides via element.style.
-     Anything that reads var(--ui-font-weight) (body below) reacts live. */
   --ui-font-weight: 400;
 }
 
@@ -535,7 +534,6 @@ body {
   min-width: 320px;
   min-height: 100vh;
   font-family: var(--font-sans);
-  font-weight: var(--ui-font-weight);
   background: var(--body-bg);
   color: var(--text-color);
   overflow: hidden;

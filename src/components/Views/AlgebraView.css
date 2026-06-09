@@ -194,7 +194,10 @@
   padding: 12px;
   border: none;
   font-family: 'Courier New', monospace;
-  font-size: 0.9rem;
+  /* Font scale and weight come from the settings store. They scope to the
+     editors only — other parts of the app are unaffected, by design. */
+  font-size: calc(0.9rem * var(--ui-font-scale, 1));
+  font-weight: var(--ui-font-weight, 400);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -958,7 +961,10 @@
 }
 .ra-cm-editor .cm-scroller {
   font-family: 'Courier New', monospace;
-  font-size: 0.9rem;
+  /* Mirror the algebra editor — font scale + weight from settings apply
+     here too so the user's sizing prefs cover both editor modes. */
+  font-size: calc(0.9rem * var(--ui-font-scale, 1));
+  font-weight: var(--ui-font-weight, 400);
   line-height: 1.5;
 }
 .ra-cm-editor .cm-focused {
