@@ -141,6 +141,240 @@
   color: var(--text-muted);
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+ * Dark-theme overrides for legacy CSS files that hard-code light surfaces.
+ * Each rule mirrors the original selector with a [data-theme='dark']
+ * scope so light mode stays untouched. As CSS files are migrated to use
+ * var() for surfaces, the matching rule here can be deleted.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/* ── App.css ── */
+:root[data-theme='dark'] .canvas-view-tab {
+  background: rgba(30, 41, 59, 0.7);
+  color: var(--text-secondary);
+}
+:root[data-theme='dark'] .canvas-view-tab.active {
+  /* The active state already uses var(--primary-600), which we re-tinted
+     for dark. No bg override needed — the colour reads correctly. */
+}
+:root[data-theme='dark'] .canvas-export-btn {
+  background: rgba(30, 41, 59, 0.8);
+  color: var(--text-secondary);
+}
+:root[data-theme='dark'] .canvas-export-btn:hover:not(:disabled) {
+  background: rgba(30, 41, 59, 0.95);
+}
+:root[data-theme='dark'] .sidebar,
+:root[data-theme='dark'] .sidebar-tab-content,
+:root[data-theme='dark'] .sidebar-section {
+  background: var(--bg-soft);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .sidebar-tab {
+  background: rgba(30, 41, 59, 0.7);
+  color: var(--text-secondary);
+}
+:root[data-theme='dark'] .chat-message {
+  background: rgba(30, 41, 59, 0.7);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .chat-message.user {
+  background: var(--primary-300);
+  color: white;
+}
+:root[data-theme='dark'] .chat-input {
+  background: rgba(30, 41, 59, 0.9);
+  color: var(--text-color);
+}
+
+/* ── AlgebraView.css ── */
+:root[data-theme='dark'] .algebra-view {
+  background: var(--body-bg);
+}
+:root[data-theme='dark'] .algebra-toolbar {
+  background: rgba(30, 41, 59, 0.6);
+}
+:root[data-theme='dark'] .algebra-btn {
+  background: rgba(30, 41, 59, 0.9);
+  color: var(--text-color);
+  border-color: var(--panel-border);
+}
+:root[data-theme='dark'] .algebra-btn:hover {
+  background: var(--bg-soft);
+}
+:root[data-theme='dark'] .algebra-btn.primary {
+  background: var(--primary-500);
+  color: white;
+  border-color: var(--primary-500);
+}
+:root[data-theme='dark'] .algebra-btn.primary:hover {
+  background: var(--primary-400);
+}
+:root[data-theme='dark'] .algebra-btn.danger:hover {
+  background: rgba(220, 50, 50, 0.2);
+  border-color: #b91c1c;
+  color: #fca5a5;
+}
+:root[data-theme='dark'] .algebra-panel {
+  background: rgba(30, 41, 59, 0.85);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .algebra-panel-header {
+  color: var(--text-secondary);
+}
+:root[data-theme='dark'] .ra-table-item {
+  background: var(--bg-soft);
+}
+:root[data-theme='dark'] .ra-table-header {
+  background: rgba(167, 139, 250, 0.12);
+}
+:root[data-theme='dark'] .ra-table-header:hover {
+  background: rgba(167, 139, 250, 0.2);
+}
+:root[data-theme='dark'] .ra-row-count {
+  background: rgba(30, 41, 59, 0.8);
+}
+:root[data-theme='dark'] .ra-row-count.loaded {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+:root[data-theme='dark'] .ra-table-actions {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+/* Sub-tabs (Álgebra | SQL) */
+:root[data-theme='dark'] .ra-mode-tabs {
+  background: transparent;
+}
+:root[data-theme='dark'] .ra-mode-tab {
+  color: var(--text-muted);
+}
+:root[data-theme='dark'] .ra-mode-tab:hover {
+  background: rgba(167, 139, 250, 0.1);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .ra-mode-tab.is-active {
+  background: var(--bg-soft);
+  color: var(--primary-500);
+  border-color: var(--panel-border);
+}
+
+/* Symbols bar at the bottom of the editor (algebra mode) */
+:root[data-theme='dark'] .ra-symbols-bar {
+  background: rgba(15, 23, 42, 0.5);
+  border-top-color: var(--panel-border);
+}
+:root[data-theme='dark'] .ra-symbol-btn {
+  background: var(--bg-soft);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .ra-symbol-btn:hover {
+  background: var(--primary-100);
+}
+
+/* Algebra preview (parsed query rendered as math) */
+:root[data-theme='dark'] .ra-preview {
+  background: rgba(15, 23, 42, 0.4);
+  color: var(--text-color);
+}
+
+/* Result table */
+:root[data-theme='dark'] .ra-result-table {
+  background: var(--bg-soft);
+}
+:root[data-theme='dark'] .ra-result-table th {
+  background: rgba(167, 139, 250, 0.12);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .ra-result-table td {
+  border-color: var(--panel-border);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .ra-result-table tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.3);
+}
+
+/* Execution tree nodes */
+:root[data-theme='dark'] .ra-tree-node {
+  background: var(--bg-soft);
+  color: var(--text-color);
+  border-color: var(--panel-border);
+}
+:root[data-theme='dark'] .ra-tree-node:hover {
+  background: rgba(167, 139, 250, 0.12);
+}
+:root[data-theme='dark'] .ra-tree-node.selected {
+  background: var(--primary-100);
+  border-color: var(--primary-500);
+}
+
+/* SQL → algebra translation banner */
+:root[data-theme='dark'] .ra-sql-banner {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.08));
+  border-top-color: #b45309;
+  color: #fbbf24;
+}
+:root[data-theme='dark'] .ra-sql-icon {
+  color: #fbbf24;
+}
+:root[data-theme='dark'] .ra-sql-dismiss {
+  color: #fbbf24;
+}
+
+/* Autocomplete dropdown (algebra mode) */
+:root[data-theme='dark'] .ra-autocomplete {
+  background: var(--bg-soft);
+  border-color: var(--panel-border);
+}
+:root[data-theme='dark'] .ra-ac-item {
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .ra-ac-item:hover,
+:root[data-theme='dark'] .ra-ac-item.selected {
+  background: rgba(167, 139, 250, 0.18);
+}
+
+/* Editing modal (relations CRUD) */
+:root[data-theme='dark'] .ra-edit-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+:root[data-theme='dark'] .ra-edit-modal {
+  background: var(--bg-soft);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .ra-edit-modal-header {
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.1), rgba(30, 41, 59, 0));
+  border-bottom-color: var(--panel-border);
+}
+:root[data-theme='dark'] .ra-edit-table {
+  background: var(--bg-soft);
+}
+:root[data-theme='dark'] .ra-edit-table th {
+  background: rgba(15, 23, 42, 0.5);
+  color: var(--text-color);
+}
+:root[data-theme='dark'] .ra-edit-table input.invalid {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border-color: #fca5a5;
+}
+
+/* Token colours in the algebra highlighter — pump up saturation for dark bg */
+:root[data-theme='dark'] .tk-rel       { color: #93c5fd; }
+:root[data-theme='dark'] .tk-col       { color: #6ee7b7; }
+:root[data-theme='dark'] .tk-op-unary  { color: #c4b5fd; }
+:root[data-theme='dark'] .tk-op-bin    { color: #fdba74; }
+:root[data-theme='dark'] .tk-op-log    { color: #fda4af; }
+:root[data-theme='dark'] .tk-cmp       { color: #d8b4fe; }
+:root[data-theme='dark'] .tk-arrow     { color: #fdba74; }
+:root[data-theme='dark'] .tk-val-str   { color: #fcd34d; }
+:root[data-theme='dark'] .tk-val-num   { color: #fbbf24; }
+:root[data-theme='dark'] .tk-val       { color: #fbbf24; }
+:root[data-theme='dark'] .tk-assign    { color: #fda4af; }
+:root[data-theme='dark'] .tk-punct     { color: #94a3b8; }
+:root[data-theme='dark'] .tk-comment   { color: #64748b; }
+:root[data-theme='dark'] .ra-ghost     { color: #64748b; }
+
 *,
 *::before,
 *::after {

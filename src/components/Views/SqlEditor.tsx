@@ -14,6 +14,7 @@ import type { FC } from 'react';
 import CodeMirror, { keymap } from '@uiw/react-codemirror';
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { sql, SQLite } from '@codemirror/lang-sql';
+import { useSettings } from '../../hooks/useSettings';
 
 export interface SqlEditorSchema {
   /** Table names → ordered list of column names. */
@@ -31,6 +32,7 @@ interface Props {
 }
 
 const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => {
+  const { settings } = useSettings();
   // CM6's lang-sql takes the schema as an object literal { tableName: [cols] }.
   // We build it from our Map. Memoised so it doesn't churn when the parent
   // re-renders for unrelated reasons.
@@ -80,7 +82,7 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
       className="ra-cm-editor"
       height="100%"
       style={{ height: '100%', fontSize: '0.9rem' }}
-      theme="light"
+      theme={settings.theme === 'dark' ? 'dark' : 'light'}
       placeholder="-- Escribí SQL · Ctrl+Enter para ejecutar"
     />
   );
