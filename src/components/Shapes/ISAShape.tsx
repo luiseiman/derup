@@ -34,8 +34,8 @@ export const ISAShape: React.FC<ISAShapeProps> = ({ node, selected, onMouseDown 
             <svg width={width} height={height} style={{ overflow: 'visible' }}>
                 <polygon
                     points={`${width / 2},2 ${width - 2},${height - 2} 2,${height - 2}`}
-                    fill={selected ? "#f3e8ff" : "white"}
-                    stroke={selected ? "var(--accent)" : "#0f172a"}
+                    fill={selected ? "var(--shape-fill-selected)" : "var(--shape-fill)"}
+                    stroke={selected ? "var(--accent)" : "var(--shape-stroke)"}
                     strokeWidth={selected ? 3.5 : 2}
                 />
                 <text
@@ -46,6 +46,7 @@ export const ISAShape: React.FC<ISAShapeProps> = ({ node, selected, onMouseDown 
                     fontSize="11"
                     fontWeight="bold"
                     fontFamily="var(--font-sans)"
+                    fill="var(--text-color)"
                 >
                     {node.label || 'ES'}
                 </text>
@@ -56,7 +57,7 @@ export const ISAShape: React.FC<ISAShapeProps> = ({ node, selected, onMouseDown 
                     dominantBaseline="middle"
                     textAnchor="middle"
                     fontSize="9"
-                    fill={selected ? "var(--accent)" : "#64748b"}
+                    fill={selected ? "var(--accent)" : "var(--text-muted)"}
                     fontFamily="var(--font-sans)"
                 >
                         {constraintText}

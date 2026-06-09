@@ -43,15 +43,15 @@ export const RelationshipShape: React.FC<RelationshipProps> = memo(({ node, sele
             <svg width={width} height={height} style={{ position: 'absolute', top: 0, left: 0 }}>
                 <polygon
                     points={points}
-                    fill={selected ? "#f3e8ff" : "white"}
-                    stroke={selected ? "var(--accent)" : "#0f172a"}
+                    fill={selected ? "var(--shape-fill-selected)" : "var(--shape-fill)"}
+                    stroke={selected ? "var(--accent)" : "var(--shape-stroke)"}
                     strokeWidth={selected ? 3.5 : 1}
                 />
                 {isIdentifying && (
                     <polygon
                         points={innerPoints}
                         fill="none"
-                        stroke={selected ? "var(--accent)" : "#0f172a"}
+                        stroke={selected ? "var(--accent)" : "var(--shape-stroke)"}
                         strokeWidth={selected ? 2 : 1}
                     />
                 )}

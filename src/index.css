@@ -67,6 +67,14 @@
   --relationship-bg: #ffffff;
   --attribute-bg: #ffffff;
 
+  /* SVG shape colours — consumed by Entity/Attribute/Relationship/ISA
+     shape components. Kept as separate vars from --entity-bg so dark
+     mode can pick fills that contrast against the dark canvas without
+     touching the structural per-node-type colours above. */
+  --shape-fill: #ffffff;
+  --shape-fill-selected: #f3e8ff;
+  --shape-stroke: #0f172a;
+
   /* Composite body background — themed override below redefines this so the
      gradient swaps between light and dark cleanly. */
   --body-bg: linear-gradient(135deg, #f8f6ff 0%, #f0f9ff 50%, #faf5ff 100%);
@@ -95,6 +103,12 @@
   --entity-bg: #1e293b;
   --relationship-bg: #1e293b;
   --attribute-bg: #1e293b;
+
+  /* SVG shape fills/strokes for the ER canvas. Picked so labels (which
+     render in --text-color, i.e. light grey) contrast against the fill. */
+  --shape-fill: #1e293b;
+  --shape-fill-selected: rgba(167, 139, 250, 0.25);
+  --shape-stroke: #cbd5e1;
 
   /* Slightly desaturated primary range for dark mode contrast. */
   --primary-50: #1a1830;

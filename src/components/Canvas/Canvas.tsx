@@ -442,7 +442,7 @@ const Canvas: React.FC<CanvasProps> = ({
                         width={bounds.width}
                         height={bounds.height}
                         fill={isSelected ? "rgba(147,51,234,0.06)" : "none"}
-                        stroke={isSelected ? "#9333ea" : "#666"}
+                        stroke={isSelected ? "var(--accent)" : "var(--text-muted)"}
                         strokeWidth={isSelected ? 3 : 1.5}
                         strokeDasharray="6 4"
                         filter={isSelected ? "url(#sel-glow)" : undefined}
@@ -578,7 +578,7 @@ const Canvas: React.FC<CanvasProps> = ({
                         {/* Visible curved path */}
                         <path
                             d={pathD}
-                            stroke={isSelected ? "var(--accent)" : "#0f172a"}
+                            stroke={isSelected ? "var(--accent)" : "var(--shape-stroke)"}
                             strokeWidth={isSelected ? (conn.isTotalParticipation ? 6 : 4) : (conn.isTotalParticipation ? 4 : 2)}
                             fill="none"
                             filter={isSelected ? "url(#sel-glow)" : undefined}
@@ -610,7 +610,7 @@ const Canvas: React.FC<CanvasProps> = ({
                             x={curveMidX}
                             y={curveMidY - 10}
                             textAnchor="middle"
-                            fill="#0f172a"
+                            fill="var(--text-color)"
                             fontSize="12"
                         >
                             {conn.cardinality}
@@ -622,7 +622,7 @@ const Canvas: React.FC<CanvasProps> = ({
                             x={curveMidX}
                             y={curveMidY + 15}
                             textAnchor="middle"
-                            fill="#64748b"
+                            fill="var(--text-muted)"
                             fontSize="11"
                             fontStyle="italic"
                         >
@@ -660,7 +660,7 @@ const Canvas: React.FC<CanvasProps> = ({
                     <line
                         x1={sx} y1={sy}
                         x2={tx} y2={ty}
-                        stroke={isSelected ? "var(--accent)" : "#0f172a"}
+                        stroke={isSelected ? "var(--accent)" : "var(--shape-stroke)"}
                         strokeWidth={isSelected ? (conn.isTotalParticipation ? 6 : 4) : (conn.isTotalParticipation ? 4 : 2)}
                         filter={isSelected ? "url(#sel-glow)" : undefined}
                     />
@@ -686,7 +686,7 @@ const Canvas: React.FC<CanvasProps> = ({
                             x={(sx + tx) / 2}
                             y={(sy + ty) / 2 - 10}
                             textAnchor="middle"
-                            fill="#0f172a"
+                            fill="var(--text-color)"
                             fontSize="12"
                         >
                             {conn.cardinality}
@@ -698,7 +698,7 @@ const Canvas: React.FC<CanvasProps> = ({
                             x={(sx + tx) / 2}
                             y={(sy + ty) / 2 + 15}
                             textAnchor="middle"
-                            fill="#64748b"
+                            fill="var(--text-muted)"
                             fontSize="11"
                             fontStyle="italic"
                         >

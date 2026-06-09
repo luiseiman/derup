@@ -27,8 +27,8 @@ export const AttributeShape: React.FC<AttributeProps> = memo(({ node, selected, 
                 <ellipse
                     cx={width / 2} cy={height / 2}
                     rx={width / 2 - 2} ry={height / 2 - 2}
-                    fill={selected ? "#f3e8ff" : "white"}
-                    stroke={selected ? "var(--accent)" : "#0f172a"}
+                    fill={selected ? "var(--shape-fill-selected)" : "var(--shape-fill)"}
+                    stroke={selected ? "var(--accent)" : "var(--shape-stroke)"}
                     strokeWidth={selected ? 3 : 1}
                     strokeDasharray={isDerived ? "4" : "none"}
                 />
@@ -37,7 +37,7 @@ export const AttributeShape: React.FC<AttributeProps> = memo(({ node, selected, 
                         cx={width / 2} cy={height / 2}
                         rx={width / 2 - 6} ry={height / 2 - 6}
                         fill="none"
-                        stroke={selected ? "var(--accent)" : "#0f172a"}
+                        stroke={selected ? "var(--accent)" : "var(--shape-stroke)"}
                         strokeWidth={selected ? 2 : 1}
                         strokeDasharray={isDerived ? "4" : "none"}
                     />

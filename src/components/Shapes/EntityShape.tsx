@@ -28,8 +28,8 @@ export const EntityShape: React.FC<EntityProps> = memo(({ node, selected, onMous
                 <rect
                     x={1} y={1}
                     width={width - 2} height={height - 2}
-                    fill={selected ? "#f3e8ff" : "white"}
-                    stroke={selected ? "var(--accent)" : "#0f172a"}
+                    fill={selected ? "var(--shape-fill-selected)" : "var(--shape-fill)"}
+                    stroke={selected ? "var(--accent)" : "var(--shape-stroke)"}
                     strokeWidth={selected ? 3.5 : 1}
                 />
                 {/* Inner Rect for Weak Entity */}
@@ -38,7 +38,7 @@ export const EntityShape: React.FC<EntityProps> = memo(({ node, selected, onMous
                         x={6} y={6}
                         width={width - 12} height={height - 12}
                         fill="none"
-                        stroke={selected ? "var(--accent)" : "#0f172a"}
+                        stroke={selected ? "var(--accent)" : "var(--shape-stroke)"}
                         strokeWidth={selected ? 2 : 1}
                     />
                 )}
