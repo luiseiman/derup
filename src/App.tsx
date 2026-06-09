@@ -5207,7 +5207,7 @@ Text cues: "the relationship between A and B is supervised/monitored by C",
             <button
               className={`canvas-view-tab ${canvasView === 'algebra' ? 'active' : ''}`}
               onClick={() => setCanvasView('algebra')}
-            >Álgebra</button>
+            >Álgebra/SQL</button>
             {selectedNodeIds.size > 0 && canvasView !== 'er' && (
               <span className="canvas-view-filter-badge">
                 {selectedNodeIds.size} seleccionado{selectedNodeIds.size !== 1 ? 's' : ''}

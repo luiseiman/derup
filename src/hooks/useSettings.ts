@@ -28,6 +28,9 @@ export interface AppSettings {
   theme: Theme;
   /** Multiplier applied to base font size. Range [0.7, 1.5]. */
   fontScale: number;
+  /** When true, the whole UI uses a heavier font-weight. Accessibility helper
+   *  for users who prefer denser strokes; applied as --ui-font-weight on :root. */
+  fontBold: boolean;
   panels: PanelVisibility;
   /** Show the execution tree (graphical view) in the result panel. */
   showResultTree: boolean;
@@ -42,6 +45,7 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
   fontScale: 1.0,
+  fontBold: false,
   panels: {
     algebraTables: true,
     algebraResult: true,
@@ -82,6 +86,9 @@ function applyToDOM(s: AppSettings): void {
   const root = document.documentElement;
   root.setAttribute('data-theme', s.theme);
   root.style.setProperty('--ui-font-scale', String(s.fontScale));
+  // 400 = normal, 600 = semi-bold. We don't go to 700 because some app fonts
+  // get visually crowded at the larger sizes that combine with the scale.
+  root.style.setProperty('--ui-font-weight', s.fontBold ? '600' : '400');
 }
 
 // Module-level singleton so multiple components see the same state without
@@ -103,6 +110,7 @@ export interface UseSettingsApi {
   toggleTheme(): void;
   setFontScale(s: number): void;
   bumpFontScale(delta: number): void;
+  toggleFontBold(): void;
   setPanelVisible(panel: keyof PanelVisibility, visible: boolean): void;
   togglePanel(panel: keyof PanelVisibility): void;
   setShowResultTree(v: boolean): void;
@@ -139,6 +147,7 @@ export function useSettings(): UseSettingsApi {
       ...current,
       fontScale: Math.max(0.7, Math.min(1.5, Math.round((current.fontScale + delta) * 100) / 100)),
     }),
+    toggleFontBold: () => setSettings({ ...current, fontBold: !current.fontBold }),
     setPanelVisible: (panel: keyof PanelVisibility, visible: boolean) => setSettings({
       ...current,
       panels: { ...current.panels, [panel]: visible },

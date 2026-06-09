@@ -17,7 +17,7 @@ const PANEL_LABELS: Record<keyof PanelVisibility, string> = {
 };
 
 const SettingsMenu: FC = () => {
-  const { settings, toggleTheme, bumpFontScale, setFontScale, togglePanel, setResultLayout, reset } = useSettings();
+  const { settings, toggleTheme, bumpFontScale, setFontScale, toggleFontBold, togglePanel, setResultLayout, reset } = useSettings();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +74,7 @@ const SettingsMenu: FC = () => {
             </div>
           </div>
 
-          {/* Font scale */}
+          {/* Font scale + bold */}
           <div className="settings-section">
             <div className="settings-label">Tamaño de letra</div>
             <div className="settings-row">
@@ -98,6 +98,13 @@ const SettingsMenu: FC = () => {
                 disabled={settings.fontScale >= 1.5}
                 title="Aumentar"
               >A⁺</button>
+              <button
+                type="button"
+                className={`settings-step ${settings.fontBold ? 'active' : ''}`}
+                onClick={toggleFontBold}
+                title="Negrita global"
+                style={{ fontWeight: 700 }}
+              >B</button>
             </div>
           </div>
 

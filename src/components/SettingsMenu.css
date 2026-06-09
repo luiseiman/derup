@@ -104,6 +104,17 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Highlighted state for toggle buttons like the bold (B) button — when
+   the underlying setting is on, paint it like an active pill. */
+.settings-step.active {
+  background: var(--primary-500);
+  color: white;
+  border-color: var(--primary-500);
+}
+.settings-step.active:hover {
+  background: var(--primary-600);
+  color: white;
+}
 .settings-step-reset {
   font-weight: 600;
   color: var(--text-color);
