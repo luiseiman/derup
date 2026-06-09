@@ -238,6 +238,29 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
         return { from: wordFrom, options: opts, validFor: /^[\w]*$/ };
       }
 
+      // SELECT items already typed but no FROM yet → suggest FROM (top of
+      // the list) plus more columns / commas in case the user wants to add
+      // another item. Triggers when:
+      //   - SELECT exists earlier in the statement
+      //   - There's no FROM written yet
+      //   - The last meaningful char before the caret is '*' or part of an
+      //     identifier followed by a space (i.e. an item just finished)
+      if (
+        /\bSELECT\b/i.test(tail) &&
+        !/\bFROM\b/i.test(tail) &&
+        /[\w*]\s+$/.test(tail) &&
+        // Don't match right after the SELECT keyword itself — that's the
+        // bucket below (suggests columns/*, not FROM).
+        !/\bSELECT\s+(?:DISTINCT\s+|ALL\s+)?$/i.test(tail)
+      ) {
+        const opts: Completion[] = [
+          { label: 'FROM', type: 'keyword', detail: 'tabla origen', boost: 99 },
+          { label: ',', type: 'keyword', detail: 'agregar otra columna', apply: ', ' },
+          ...SCOPED_COLUMNS.map(c => ({ label: c.label, type: 'property', detail: c.from })),
+        ];
+        return { from: wordFrom, options: opts, validFor: /^[\w,]*$/ };
+      }
+
       // SELECT (or after a comma in the SELECT list) → *, scoped columns,
       // aggregates. Columns are filtered to the tables already named in
       // FROM/JOIN when there are any, so multi-statement scripts don't
@@ -322,7 +345,10 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
       const before = update.state.doc.sliceString(Math.max(0, pos - 40), pos);
       const isTrigger =
         /\b(SELECT|DISTINCT|ALL|FROM|JOIN|ON|WHERE|HAVING|AND|OR|NOT|SET|VALUES|INTO|UPDATE|GROUP\s+BY|ORDER\s+BY|BY|UNION|EXCEPT|INTERSECT)\s+$/i.test(before) ||
-        /,\s+$/.test(before);
+        /,\s+$/.test(before) ||
+        // After SELECT items but before FROM: user typed '*' or a column
+        // and pressed space — surface FROM as the next obvious step.
+        (/\bSELECT\b/i.test(before) && !/\bFROM\b/i.test(before) && /[\w*]\s+$/.test(before));
       if (!isTrigger) return;
       // Defer to next frame so the space change is committed before the
       // completion query reads the document.
