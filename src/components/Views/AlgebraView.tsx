@@ -10,6 +10,7 @@ import AlgebraPreview from './AlgebraPreview';
 import AlgebraTree from './AlgebraTree';
 import { highlight as highlightQuery } from './algebraHighlight';
 import { predictNext, wordAtCaret, type Suggestion as PredictSuggestion } from './algebraPredict';
+import { predictSql } from './sqlPredict';
 import { reverseEngineerER } from '../../utils/reverseEngineerER';
 import { sqlToAlgebra } from '../../utils/sqlToAlgebra';
 import { initSqlEngine } from '../../utils/sqlEngine';
@@ -753,6 +754,15 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
    */
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!acVisible) return [];
+    if (editorMode === 'sql') {
+      // SQL mode → use the SQL-specific predictor. Same Suggestion shape so
+      // the dropdown rendering downstream works unchanged.
+      return predictSql(query, caretPos, {
+        tables: acSchema.relations,
+        columnsByTable: acSchema.colsByRel,
+        allColumns: acSchema.allColumns,
+      });
+    }
     return predictNext(query, caretPos, {
       relations: acSchema.relations,
       columnsByRel: acSchema.colsByRel,
@@ -760,7 +770,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
       sampleValuesByCol: acSchema.sampleValuesByCol,
       derivedRelations: Array.from(derived.keys()),
     });
-  }, [acVisible, query, caretPos, acSchema, derived]);
+  }, [acVisible, editorMode, query, caretPos, acSchema, derived]);
 
   // Reset selection index when suggestions list changes
   useEffect(() => { setAcIndex(0); }, [suggestions.length, currentWord]);
@@ -1317,19 +1327,24 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             </button>
           </div>
           <div className="ra-editor-wrap">
-            {/* Algebra mode uses the transparent textarea + highlight overlay
-                trick. SQL mode hides the overlay and lets the textarea paint
-                its own text — no Greek-letter highlighting needed there. */}
-            {editorMode === 'algebra' && (
-              <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
-                {/* Render every highlight node except the trailing '\n' (always last),
-                    inject the ghost suggestion, then put the newline back so the
-                    layout stays aligned with the textarea. */}
-                {highlightedNodes.slice(0, -1)}
-                {ghostText && <span className="ra-ghost">{ghostText}</span>}
-                {highlightedNodes[highlightedNodes.length - 1]}
-              </div>
-            )}
+            {/* Both modes use the transparent textarea + overlay trick. In
+                algebra mode the overlay renders coloured spans; in SQL mode
+                it renders the query as plain text + a ghost-text suggestion.
+                (Fase 3 will add proper SQL syntax highlighting here.) */}
+            <div ref={highlightRef} className="ra-editor-highlight" aria-hidden>
+              {editorMode === 'algebra' ? (
+                <>
+                  {highlightedNodes.slice(0, -1)}
+                  {ghostText && <span className="ra-ghost">{ghostText}</span>}
+                  {highlightedNodes[highlightedNodes.length - 1]}
+                </>
+              ) : (
+                <>
+                  <span className="ra-sql-plain">{query}</span>
+                  {ghostText && <span className="ra-ghost">{ghostText}</span>}
+                </>
+              )}
+            </div>
           <textarea
             ref={editorRef}
             className={`ra-editor ${editorMode === 'sql' ? 'ra-editor-sql' : ''}`}
@@ -1385,9 +1400,9 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
                 runQuery();
                 return;
               }
-              // Autocomplete: navigate + accept (algebra mode only — the SQL
-              // tab uses native keyboard editing without algebra suggestions).
-              if (editorMode === 'algebra' && suggestions.length > 0 && acVisible) {
+              // Autocomplete: navigate + accept. Active in both modes —
+              // algebra mode uses predictNext, SQL mode uses predictSql.
+              if (suggestions.length > 0 && acVisible) {
                 if (e.key === 'Tab') {
                   e.preventDefault();
                   acceptSuggestion(suggestions[acIndex] ?? suggestions[0]);
@@ -1413,7 +1428,7 @@ const AlgebraView: React.FC<AlgebraViewProps> = ({
             spellCheck={false}
           />
           </div>
-          {editorMode === 'algebra' && suggestions.length > 0 && acVisible && (
+          {suggestions.length > 0 && acVisible && (
             <div className="ra-autocomplete">
               {suggestions.map((s, i) => (
                 <button

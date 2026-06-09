@@ -940,17 +940,22 @@
   color: var(--primary-700);
 }
 
-/* SQL mode: the textarea paints its own text (no overlay), so the global
-   transparent-text trick from the algebra mode must be undone for this state.
-   Highest specificity to beat the .algebra-view textarea.ra-editor selector. */
+/* SQL mode: same overlay technique as algebra mode (the overlay div paints
+   the visible text + ghost-text suggestion). Textarea stays transparent so
+   the user sees the overlay underneath while typing. */
 .algebra-view textarea.ra-editor.ra-editor-sql,
 .algebra-view textarea.ra-editor.ra-editor-sql:hover,
 .algebra-view textarea.ra-editor.ra-editor-sql:focus,
 .algebra-view textarea.ra-editor.ra-editor-sql:active {
-  color: var(--text-color) !important;
-  -webkit-text-fill-color: var(--text-color) !important;
-  /* Keep the background transparent so the panel's bg shows through — that
-     matches the algebra editor and looks consistent. */
-  background: transparent !important;
-  background-color: transparent !important;
+  /* Inherits the transparent text + caret-only feedback from .ra-editor.
+     No overrides needed here — leaving the file marker for the SQL state in
+     case Fase 3's highlighter wants a different background tint. */
+}
+
+/* Plain SQL text rendered by the overlay before syntax highlighting lands
+   in Fase 3. Same font + colour as the regular text, just wrapped in a span
+   so the ghost-text span can sit next to it without breaking flow. */
+.ra-sql-plain {
+  color: var(--text-color);
+  white-space: pre-wrap;
 }
