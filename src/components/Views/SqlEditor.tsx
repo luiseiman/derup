@@ -25,6 +25,58 @@ export interface SqlEditorSchema {
   columnsByTable: Map<string, string[]>;
 }
 
+/**
+ * Reformat a SQL statement so each major clause starts a fresh line with no
+ * leading indent. Conservative formatter — preserves the user's existing
+ * spacing inside each clause, only normalises clause boundaries.
+ *
+ * Rules:
+ *   - Major keywords (SELECT, FROM, *JOIN, WHERE, GROUP BY, ORDER BY,
+ *     HAVING, LIMIT, UNION/INTERSECT/EXCEPT) start a new line.
+ *   - Whitespace runs collapsed to a single space before the boundary work.
+ *   - Existing line breaks discarded — the formatter is the single source.
+ *   - Empty input returned as-is so the keymap is idempotent.
+ */
+function formatSqlText(input: string): string {
+  if (!input.trim()) return input;
+  // Step 1: collapse all whitespace to single spaces so we can splice in
+  // our own newlines without leaving double-blank artifacts.
+  let s = input.replace(/\s+/g, ' ').trim();
+  // Step 2: insert a newline before each major-clause keyword. Word
+  // boundaries (\b) + case-insensitive match. We process longest phrases
+  // first (e.g. GROUP BY) so the single-word matches don't grab them.
+  const patterns: RegExp[] = [
+    /\b(?:GROUP\s+BY)\b/gi,
+    /\b(?:ORDER\s+BY)\b/gi,
+    /\b(?:LEFT|RIGHT|INNER|FULL|CROSS|NATURAL)\s+(?:OUTER\s+)?JOIN\b/gi,
+    /\bJOIN\b/gi,
+    /\bFROM\b/gi,
+    /\bWHERE\b/gi,
+    /\bHAVING\b/gi,
+    /\bLIMIT\b/gi,
+    /\bOFFSET\b/gi,
+    /\b(?:UNION(?:\s+ALL)?)\b/gi,
+    /\bINTERSECT\b/gi,
+    /\bEXCEPT\b/gi,
+  ];
+  // Use a placeholder for SELECT separately so it stays at the top of the
+  // first statement instead of getting a leading newline.
+  s = s.replace(/\bSELECT\b/gi, m => '\n' + m);
+  for (const re of patterns) {
+    s = s.replace(re, m => '\n' + m);
+  }
+  // Step 3: split statements on ';' so multi-statement scripts each start
+  // fresh. Trim each piece and re-join with ';\n\n'.
+  s = s
+    .split(';')
+    .map(stmt => stmt.replace(/^\n+/, '').trim())
+    .filter(stmt => stmt.length > 0)
+    .join(';\n\n');
+  // If the original ended with ';', preserve it.
+  if (/;\s*$/.test(input)) s += ';';
+  return s;
+}
+
 interface Props {
   value: string;
   onChange: (value: string) => void;
@@ -72,6 +124,25 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
       // ended with SELECT/FROM/WHERE), bumps one extra indent. lang-sql ships
       // the rules; this binding just wires Enter to the smart command.
       { key: 'Enter', preventDefault: true, run: insertNewlineAndIndent },
+      // Alt+Shift+F → re-format the statement: each major clause on its own
+      // line, no leading indent. Same shortcut as VS Code's "Format Document".
+      {
+        key: 'Alt-Shift-f',
+        preventDefault: true,
+        run: (view) => {
+          const text = view.state.doc.toString();
+          const formatted = formatSqlText(text);
+          if (formatted === text) return true;
+          view.dispatch({
+            changes: { from: 0, to: text.length, insert: formatted },
+            // Place the caret at the end of the new text — simpler than
+            // mapping the old caret through the diff and good enough for
+            // a one-shot format command.
+            selection: { anchor: formatted.length },
+          });
+          return true;
+        },
+      },
     ]),
   []);
 
@@ -89,6 +160,34 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
   //   - Qualified prefix 'alias.' → only that table's columns
   //   - At start of a statement → top-level keywords (SELECT / INSERT / …)
   const sqlCtxCompletion = useMemo(() => {
+    // Extract the tables referenced by the current statement (FROM <t> or
+    // JOIN <t>, plus aliased forms like "FROM emp e"). Used to narrow the
+    // column suggestions in WHERE/ON/HAVING/SET/GROUP BY/ORDER BY so the
+    // user only sees columns from the tables actually in the query.
+    const tablesInScope = (textBefore: string): string[] => {
+      const lastSemi = textBefore.lastIndexOf(';');
+      const stmt = lastSemi >= 0 ? textBefore.slice(lastSemi + 1) : textBefore;
+      const found = new Set<string>();
+      // FROM x or JOIN x  →  capture the first identifier
+      const single = /\b(?:FROM|JOIN)\s+([a-zA-Z_]\w*)/gi;
+      let m: RegExpExecArray | null;
+      while ((m = single.exec(stmt)) !== null) found.add(m[1]);
+      // FROM a, b, c — additional tables comma-separated after the first
+      // FROM. (Re-runs every match so we catch FROM emp, dept, works.)
+      const fromList = /\bFROM\s+([\w\s,]+?)(?=\b(?:WHERE|JOIN|ON|GROUP|ORDER|HAVING|LIMIT|UNION|INTERSECT|EXCEPT|;)\b|$)/gi;
+      while ((m = fromList.exec(stmt)) !== null) {
+        for (const piece of m[1].split(',')) {
+          // Strip optional alias: "emp e" → "emp"
+          const name = piece.trim().split(/\s+/)[0];
+          if (/^[a-zA-Z_]\w*$/.test(name)) found.add(name);
+        }
+      }
+      // Resolve against the schema (case-insensitive) so user-typed lowercase
+      // table names match the canonical casing.
+      const lower = new Set(Array.from(found).map(s => s.toLowerCase()));
+      return Object.keys(schemaForCm).filter(t => lower.has(t.toLowerCase()));
+    };
+
     return (context: CompletionContext): CompletionResult | null => {
       const word = context.matchBefore(/[\w*.]*/);
       const wordText = word?.text || '';
@@ -119,6 +218,14 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
         for (const c of cols) ALL_COLUMNS.push({ label: c, from: t });
       }
 
+      // Columns scoped to the FROM/JOIN tables of the current statement.
+      // Falls back to ALL_COLUMNS when no FROM has been written yet (so the
+      // first SELECT still shows everything).
+      const scopedTables = tablesInScope(beforeWord);
+      const SCOPED_COLUMNS = scopedTables.length > 0
+        ? ALL_COLUMNS.filter(c => scopedTables.some(t => t.toLowerCase() === c.from.toLowerCase()))
+        : ALL_COLUMNS;
+
       // FROM / JOIN / INSERT INTO / DELETE FROM / UPDATE  →  tables
       if (/\b(?:FROM|JOIN|INTO|UPDATE)\s+(?:[\w,]+\s*,\s*)*$/.test(tail) ||
           /\bDELETE\s+FROM\s+$/.test(tail)) {
@@ -131,13 +238,16 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
         return { from: wordFrom, options: opts, validFor: /^[\w]*$/ };
       }
 
-      // SELECT (or after a comma in the SELECT list) → *, columns, aggregates
+      // SELECT (or after a comma in the SELECT list) → *, scoped columns,
+      // aggregates. Columns are filtered to the tables already named in
+      // FROM/JOIN when there are any, so multi-statement scripts don't
+      // leak unrelated columns into a fresh SELECT.
       if (/\bSELECT\s+(?:DISTINCT\s+|ALL\s+)?(?:[\w*.,\s]*,\s*)?$/.test(tail) ||
           /\bDISTINCT\s+$/.test(tail) || /\bALL\s+$/.test(tail)) {
         const opts: Completion[] = [
           { label: '*', type: 'keyword', detail: 'todas las columnas', boost: 99 },
           { label: 'DISTINCT', type: 'keyword', boost: 80 },
-          ...ALL_COLUMNS.map(c => ({
+          ...SCOPED_COLUMNS.map(c => ({
             label: c.label,
             type: 'property',
             detail: c.from,
@@ -152,10 +262,12 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
         return { from: wordFrom, options: opts, validFor: /^[\w*]*$/ };
       }
 
-      // WHERE / HAVING / ON / AND / OR / NOT / SET → columns + operators
+      // WHERE / HAVING / ON / AND / OR / NOT / SET → columns of the tables
+      // that participate in this statement. e.g. after "SELECT * FROM emp"
+      // → only emp.* columns are offered; the dept columns are noise here.
       if (/\b(?:WHERE|HAVING|ON|SET)\s+(?:[\w.=<>!,\s]*\s)?$/.test(tail) ||
           /\b(?:AND|OR|NOT)\s+$/.test(tail)) {
-        const opts: Completion[] = ALL_COLUMNS.map(c => ({
+        const opts: Completion[] = SCOPED_COLUMNS.map(c => ({
           label: c.label,
           type: 'property',
           detail: c.from,
@@ -163,9 +275,9 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
         return { from: wordFrom, options: opts, validFor: /^[\w.]*$/ };
       }
 
-      // GROUP BY / ORDER BY → columns (+ ASC/DESC for ORDER BY)
+      // GROUP BY / ORDER BY → scoped columns (+ ASC/DESC for ORDER BY)
       if (/\bGROUP\s+BY\s+(?:[\w,\s]*,\s*)?$/.test(tail)) {
-        const opts: Completion[] = ALL_COLUMNS.map(c => ({
+        const opts: Completion[] = SCOPED_COLUMNS.map(c => ({
           label: c.label,
           type: 'property',
           detail: c.from,
@@ -174,7 +286,7 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
       }
       if (/\bORDER\s+BY\s+(?:[\w,\s]*,\s*)?$/.test(tail)) {
         const opts: Completion[] = [
-          ...ALL_COLUMNS.map(c => ({ label: c.label, type: 'property', detail: c.from })),
+          ...SCOPED_COLUMNS.map(c => ({ label: c.label, type: 'property', detail: c.from })),
           { label: 'ASC', type: 'keyword' },
           { label: 'DESC', type: 'keyword' },
         ];
