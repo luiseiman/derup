@@ -14,6 +14,8 @@ import type { FC } from 'react';
 import CodeMirror, { keymap } from '@uiw/react-codemirror';
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { sql, SQLite } from '@codemirror/lang-sql';
+import { indentUnit, indentOnInput } from '@codemirror/language';
+import { indentMore, indentLess, insertNewlineAndIndent } from '@codemirror/commands';
 import { useSettings } from '../../hooks/useSettings';
 
 export interface SqlEditorSchema {
@@ -52,11 +54,23 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
   const onRunRef = useRef(onRun);
   useEffect(() => { onRunRef.current = onRun; }, [onRun]);
   const runKeymap = useMemo(() =>
-    keymap.of([{
-      key: 'Mod-Enter',
-      preventDefault: true,
-      run: () => { onRunRef.current(); return true; },
-    }]),
+    keymap.of([
+      {
+        key: 'Mod-Enter',
+        preventDefault: true,
+        run: () => { onRunRef.current(); return true; },
+      },
+      // Tab → indent the selection (or insert a 2-space indent at the caret).
+      // Shift-Tab → dedent. Without this Tab would shift focus out of the
+      // editor (the browser default), which is awful for a code editor.
+      { key: 'Tab', preventDefault: true, run: indentMore },
+      { key: 'Shift-Tab', preventDefault: true, run: indentLess },
+      // Enter inserts a newline aligned with the previous line's indent and,
+      // when the surrounding syntax suggests it (e.g. just opened a '(' or
+      // ended with SELECT/FROM/WHERE), bumps one extra indent. lang-sql ships
+      // the rules; this binding just wires Enter to the smart command.
+      { key: 'Enter', preventDefault: true, run: insertNewlineAndIndent },
+    ]),
   []);
 
   const extensions = useMemo(() => [
@@ -65,6 +79,15 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
       schema: schemaForCm,
       upperCaseKeywords: true,
     }),
+    // Use two spaces — soft tab — so the formatted output is consistent
+    // regardless of the user's tab-width setting. Combined with the Tab
+    // keybinding above (indentMore) this gives us the conventional
+    // "Tab to indent, Shift-Tab to dedent" UX.
+    indentUnit.of('  '),
+    // Trigger re-indent while typing — when the user finishes a structural
+    // token (e.g. closes a paren or types a keyword), the line gets
+    // re-aligned automatically based on the SQL grammar.
+    indentOnInput(),
     runKeymap,
   ], [schemaForCm, runKeymap]);
 
@@ -88,7 +111,10 @@ const SqlEditor: FC<Props> = ({ value, onChange, schema, onRun, editorRef }) => 
         autocompletion: true,
         closeBrackets: true,
         bracketMatching: true,
-        indentOnInput: false,
+        // Smart re-indent on input AND tabSize 2 for visual alignment.
+        // The actual indent unit (2 spaces) is enforced by indentUnit
+        // above; tabSize here is only how wide a literal '\t' renders.
+        indentOnInput: true,
         tabSize: 2,
       }}
       // Inline style + class lets the parent's flex layout still drive size.
