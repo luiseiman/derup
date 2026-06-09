@@ -1,6 +1,12 @@
 // SQL → relational-algebra translator (subset).
 //
-// Covers the common SELECT statement shapes:
+// Purpose since Fase 1 of the SQL engine: this module NO LONGER executes
+// SQL. Execution is owned by sql.js (see utils/sqlEngine.ts). What we keep
+// is a DIDACTIC translator that shows the equivalent classical algebra
+// expression next to the result when the query is in the translatable
+// subset. It's a teaching aid, not part of the data path.
+//
+// Translatable subset:
 //   SELECT * FROM r                             → r
 //   SELECT c1,c2 FROM r                         → π c1,c2 (r)
 //   SELECT * FROM r WHERE cond                  → σ cond (r)
@@ -9,14 +15,13 @@
 //   SELECT * FROM r CROSS JOIN s                → r ⨯ s
 //   SELECT * FROM r NATURAL JOIN s              → r ⋈ s
 //   SELECT * FROM r JOIN s ON r.x = s.x         → r ⋈_{r.x = s.x} s
-//   SELECT * FROM r INNER JOIN s ON ...         → same as JOIN
+//   SELECT * FROM r INNER JOIN s ON …           → same as JOIN
 //   SELECT * FROM r, s WHERE r.x = s.x          → σ r.x=s.x (r ⨯ s)
 //
-// Out of scope (returns null so the algebra parser surfaces its native error):
-//   - GROUP BY / HAVING / ORDER BY / LIMIT — no equivalent in classical algebra
-//   - subqueries / UNION / nested CTEs
-//   - aggregate functions (COUNT, SUM, etc.)
-//   - OUTER JOIN / LEFT JOIN / RIGHT JOIN
+// Returns null (no banner shown) when the query is outside the subset:
+// GROUP BY / HAVING / ORDER BY / LIMIT / aggregates / OUTER JOIN /
+// subqueries / UNION / CTEs / DML / DDL. SQLite still runs those — it's
+// only the algebra hint that's omitted.
 
 export interface SqlTranslationResult {
   algebra: string;
@@ -83,8 +88,8 @@ export function sqlToAlgebra(input: string): SqlTranslationResult | null {
 }
 
 /** Find the byte offset of the first occurrence of `re` at paren depth 0.
- *  Returns -1 if not found. Exported for reuse by the SQL-aggregate path. */
-export function findKeyword(text: string, re: RegExp): number {
+ *  Returns -1 if not found. */
+function findKeyword(text: string, re: RegExp): number {
   let depth = 0;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -194,7 +199,7 @@ function findKeywordPhrase(text: string, re: RegExp): number {
 }
 
 /** Split `text` on the given top-level character (depth-0 only). */
-export function splitTopLevel(text: string, sep: string): string[] {
+function splitTopLevel(text: string, sep: string): string[] {
   const out: string[] = [];
   let depth = 0;
   let last = 0;
