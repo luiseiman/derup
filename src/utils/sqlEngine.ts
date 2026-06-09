@@ -71,6 +71,19 @@ export class SqlEngine {
         .map(l => l.replace(/--.*$/, ''))
         .join('\n');
 
+      // ── Strict pre-validation for set operators ──────────────────────
+      // SQLite is laxly typed and will happily UNION 'SELECT eid' with
+      // 'SELECT ename'. Standard SQL (Postgres / MySQL / SQL Server) reject
+      // those — and derup is a teaching tool, so we mirror that strictness
+      // BEFORE handing the SQL to sql.js. Each statement is split on
+      // top-level UNION/INTERSECT/EXCEPT; each part is run in isolation
+      // with LIMIT 1 to recover its column types; mismatch in count or
+      // type throws an Error with a pedagogical message in Spanish.
+      for (const stmt of splitStatements(stmts)) {
+        const err = validateSetOps(db, stmt);
+        if (err) throw new Error(err);
+      }
+
       // sql.js's exec() returns an array of result sets — one per
       // statement that produced rows. db.run() is for statements that
       // don't return rows but exposes a uniform path.
@@ -242,4 +255,185 @@ function fromSqlite(v: unknown, type: ColumnType): Value {
  *  We accept the same identifier shape derup uses elsewhere. */
 function isValidIdent(s: string): boolean {
   return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(s);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Set-operator validation (UNION / INTERSECT / EXCEPT).
+//
+// Standard SQL rejects a UNION whose two sides have different column counts
+// or incompatible types. SQLite does NOT — it silently coerces. derup is
+// a teaching tool, so we want the Postgres/MySQL behaviour: surface the
+// error and explain it.
+//
+// Strategy:
+//   1. Split the input into independent statements on top-level ';'.
+//   2. For each statement, split on top-level UNION/INTERSECT/EXCEPT.
+//   3. If 2+ parts, prepare each in sql.js with LIMIT 1 to discover its
+//      column types from a sample row (or LIMIT 0 + a fallback type-from-
+//      column-name lookup if the relation is empty).
+//   4. Compare. Any mismatch → return an explanatory message; null = OK.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Split a multi-statement SQL string on top-level ';' (respecting parens
+ *  and quoted strings). Empty pieces dropped. */
+function splitStatements(sql: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let inStr: '\'' | '"' | null = null;
+  let start = 0;
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i];
+    if (inStr) {
+      if (c === '\\' && i + 1 < sql.length) { i++; continue; }
+      if (c === inStr) inStr = null;
+      continue;
+    }
+    if (c === '\'' || c === '"') { inStr = c; continue; }
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (c === ';' && depth === 0) {
+      const s = sql.slice(start, i).trim();
+      if (s) out.push(s);
+      start = i + 1;
+    }
+  }
+  const tail = sql.slice(start).trim();
+  if (tail) out.push(tail);
+  return out;
+}
+
+/** Split a single statement on top-level UNION/INTERSECT/EXCEPT. Returns
+ *  the parts and the operator that joined the previous pair (or null for
+ *  the first part). */
+function splitOnSetOps(stmt: string): { part: string; op: string | null }[] {
+  const out: { part: string; op: string | null }[] = [];
+  const re = /\b(UNION\s+ALL|UNION|INTERSECT|EXCEPT)\b/gi;
+  let depth = 0;
+  let inStr: '\'' | '"' | null = null;
+  let lastEnd = 0;
+  let lastOp: string | null = null;
+  for (let i = 0; i < stmt.length; i++) {
+    const c = stmt[i];
+    if (inStr) {
+      if (c === '\\' && i + 1 < stmt.length) { i++; continue; }
+      if (c === inStr) inStr = null;
+      continue;
+    }
+    if (c === '\'' || c === '"') { inStr = c; continue; }
+    if (c === '(') { depth++; continue; }
+    if (c === ')') { depth--; continue; }
+    if (depth !== 0) continue;
+    re.lastIndex = i;
+    const m = re.exec(stmt);
+    if (m && m.index === i) {
+      out.push({ part: stmt.slice(lastEnd, i).trim(), op: lastOp });
+      lastOp = m[0].toUpperCase().replace(/\s+/g, ' ');
+      lastEnd = i + m[0].length;
+      i = lastEnd - 1;
+    }
+  }
+  out.push({ part: stmt.slice(lastEnd).trim(), op: lastOp });
+  return out.filter(p => p.part.length > 0);
+}
+
+/** Infer the column types of a SELECT statement by running it with LIMIT 1
+ *  inside the supplied (already-populated) sql.js database. Returns null
+ *  on errors (e.g. syntax errors — those will bubble up from the real exec
+ *  call). Types are best-effort: 'unknown' when the row is empty or NULL. */
+function inferColumnTypes(db: Database, sql: string): (ColumnType | 'unknown')[] | null {
+  // Wrap as a subquery so LIMIT applies even when the SELECT already has
+  // its own LIMIT/ORDER BY. SQLite handles 'SELECT * FROM (<query>) LIMIT 1'
+  // for any SELECT — including aggregates and joins.
+  const probe = `SELECT * FROM (${sql}) LIMIT 1`;
+  let sets: { columns: string[]; values: Array<Array<unknown>> }[];
+  try {
+    sets = db.exec(probe);
+  } catch {
+    return null;
+  }
+  if (sets.length === 0) {
+    // Empty result — try LIMIT 0 to at least get the column count.
+    try {
+      const emptySets = db.exec(`SELECT * FROM (${sql}) LIMIT 0`);
+      if (emptySets.length === 0) return null;
+      return emptySets[0].columns.map(() => 'unknown');
+    } catch {
+      return null;
+    }
+  }
+  const set = sets[0];
+  return set.columns.map((_, ci) => {
+    for (const row of set.values) {
+      const v = row[ci];
+      if (v === null || v === undefined) continue;
+      if (typeof v === 'number') return 'number';
+      if (typeof v === 'boolean') return 'boolean';
+      if (typeof v === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}(T|$)/.test(v)) return 'date';
+        return 'string';
+      }
+    }
+    return 'unknown';
+  });
+}
+
+/** Are two ColumnTypes compatible across a set operation?
+ *  - Same type → always yes
+ *  - 'unknown' → ignored (one side had no data to inspect; don't block)
+ *  - Everything else (number↔string, date↔string, …) → no */
+function typesCompatible(a: ColumnType | 'unknown', b: ColumnType | 'unknown'): boolean {
+  if (a === 'unknown' || b === 'unknown') return true;
+  return a === b;
+}
+
+/** Validate the set-operator parts of one SQL statement. Returns a Spanish
+ *  pedagogical error message, or null if there's nothing to validate
+ *  (statement has no UNION/INTERSECT/EXCEPT). */
+function validateSetOps(db: Database, stmt: string): string | null {
+  if (!/\b(UNION|INTERSECT|EXCEPT)\b/i.test(stmt)) return null;
+  const pieces = splitOnSetOps(stmt);
+  if (pieces.length < 2) return null;
+  // Skip statements that aren't SELECTs (CREATE / INSERT / etc. don't apply).
+  if (!pieces.every(p => /^\s*(SELECT|WITH)\b/i.test(p.part))) return null;
+
+  const sigs = pieces.map(p => ({ types: inferColumnTypes(db, p.part), op: p.op }));
+  const base = sigs[0].types;
+  if (!base) return null; // first part couldn't be probed — let real exec surface its error
+
+  for (let i = 1; i < sigs.length; i++) {
+    const cur = sigs[i].types;
+    if (!cur) continue;
+    const op = sigs[i].op ?? 'UNION';
+
+    if (cur.length !== base.length) {
+      return (
+        `${op}: cantidad de columnas distinta entre las consultas.\n` +
+        `   La 1ª consulta devuelve ${base.length} columna${base.length !== 1 ? 's' : ''}, ` +
+        `la ${ordinal(i + 1)} devuelve ${cur.length}.\n` +
+        `   ${op} (y INTERSECT, EXCEPT) exigen que ambas consultas tengan el mismo número ` +
+        `de columnas. Esto es parte del estándar SQL (Postgres, MySQL y SQL Server lo aplican).`
+      );
+    }
+    for (let c = 0; c < base.length; c++) {
+      if (!typesCompatible(base[c], cur[c])) {
+        return (
+          `${op}: tipos incompatibles en la columna ${c + 1}.\n` +
+          `   La 1ª consulta devuelve tipo '${base[c]}', la ${ordinal(i + 1)} devuelve '${cur[c]}'.\n` +
+          `   ${op} exige que las columnas en la misma posición sean del mismo tipo. ` +
+          `Si querés mezclarlas a propósito, convertí explícitamente con CAST(... AS TEXT) ` +
+          `o CAST(... AS INTEGER). SQLite es permisivo con esto y dejaría ejecutar, pero ` +
+          `Postgres / MySQL / SQL Server lo rechazan — derup también, para que veas el ` +
+          `comportamiento del estándar.`
+        );
+      }
+    }
+  }
+  return null;
+}
+
+function ordinal(n: number): string {
+  if (n === 1) return '1ª';
+  if (n === 2) return '2ª';
+  if (n === 3) return '3ª';
+  return `${n}ª`;
 }
